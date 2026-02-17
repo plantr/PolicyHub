@@ -1,0 +1,296 @@
+PolicyManagerSaaS - BREIF.md
+
+# PolicyHub — BRIEF.md (Policy Management SaaS)
+
+## One-liner
+A regulated-grade, multi-entity policy management platform for fintech groups to author, version, approve, and evidence policies across:
+- UK: EMI / payment services (FIAT only)
+- Gibraltar: EMI + crypto (DLT/VASP ecosystem)
+- Estonia / EU: MiCA CASP + DORA + Travel Rule + EU AML regulation
+
+## Problem
+Policy estates sprawl across drives and PDFs with weak governance: unclear “which version is effective for which entity,” inconsistent review cycles, fragile audit trails, and no reliable way to show regulators how policies map to legal obligations and how gaps are remediated.
+
+## Goals
+1) Single system of record for policies, standards, procedures, and evidence.
+2) Strong governance: ownership, review cadence, approvals, attestations, immutable history.
+3) True multi-entity operation: group baseline plus local variations per business unit (BU) with controlled deviation.
+4) Regulatory library with links + requirement mapping and gap analysis by BU/jurisdiction.
+5) Audit and remediation workflow with evidence and reporting packs.
+
+## Users
+- Compliance / MLRO: obligations register, gap register, remediation, regulator packs.
+- Risk: policy taxonomy, control themes, issue tracking, reporting.
+- Security / IT: infosec ownership, evidence capture, change approvals.
+- BU leadership: local addenda/overrides, attestations, review tasks.
+- Auditors: read-only evidence review, complete history exports.
+
+---
+
+## Core Concepts
+
+### Tenancy and Business Units
+- Tenant = Group.
+- Business Unit (BU) = legal entity / operating unit (e.g., “UK EMI”, “Gibraltar EMI”, “Gibraltar DLT/VASP”, “Estonia CASP”).
+- Each BU has a “Regulatory Profile”:
+  - jurisdiction(s)
+  - activities (EMI, payment services, crypto-asset services)
+  - applicable rulebooks/instruments (toggleable)
+  - effective dates (for transitional regimes)
+
+### Documents
+- Types: Policy, Standard, Procedure, Guideline, Template, Record/Evidence.
+- Taxonomy groups: Risk, Compliance, AML, Safeguarding, Information Security, Operations, Finance, HR, etc.
+- Metadata: owner, delegates, reviewers, approvers, tags, notes, review date/frequency, effective date, status.
+
+### Requirement Library
+- Requirement = obligation statement derived from a source instrument (article/section).
+- Each requirement is tagged (e.g., AML, safeguarding, governance, ICT, outsourcing).
+
+### Mapping
+- Requirement ↔ Document (and optionally ↔ section/block within the document).
+- Mapping contains: coverage status, rationale, evidence pointers, reviewer sign-off.
+
+### Findings / Issues
+- Audit finding, control weakness, incident follow-up, regulatory observation.
+- Workflow + remediation tasks + evidence + verification/closure.
+
+---
+
+## Group vs Local Policy Model (support all options)
+
+The platform must support three BU variance models simultaneously, chosen per document and BU:
+
+### Model A — Addendum (baseline + local appendix)
+- Group baseline remains canonical.
+- BU attaches an Addendum describing deviations/clarifications/local process.
+- “Effective policy” for BU is a composed render: baseline + addendum.
+
+### Model B — Section Override (layered composition)
+- Baseline is structured into stable section/paragraph “blocks.”
+- BU overrides specific blocks; all other blocks are inherited.
+- “Effective policy” is a composed render: inherited blocks + overridden blocks.
+
+### Model C — Full Fork (independent local policy) with optional merge
+- BU forks a baseline version into an independent document with its own version chain.
+- Optional merge workflow imports baseline changes into the fork with conflict resolution.
+
+### Effective Policy Engine (mandatory abstraction)
+For any (BU, Document), compute and persist a deterministic “EffectivePolicy” output:
+- Inputs: baseline version hash + any layer/fork version hash
+- Output: rendered HTML/PDF + composition hash (for non-repudiation and regulator packs)
+- Must be reproducible from immutable inputs.
+
+### Governance rules by model
+- Addendum: baseline approvals at group level; addendum approvals at BU level (+ optional group compliance sign-off).
+- Override: overrides treated as BU policy text changes; enforce stronger approval thresholds.
+- Fork: BU-local approvals; enforce optional “group mandatory topics” approval requirement.
+
+---
+
+## Functional Requirements
+
+### 1) Document Ingestion, Authoring, and Structure
+- Upload DOCX/PDF/MD; store original file immutably.
+- Extract and convert to structured Markdown with stable block IDs (required for overrides/diff/mapping).
+- In-app editor:
+  - templates per document type
+  - controlled headings/blocks (to preserve stable IDs)
+  - ability to embed tables, callouts, and references
+- Attachments and evidence store (files + links) per doc/version/section.
+
+### 2) Version Control and Change Management
+- Immutable versions (semantic versions optional): Draft → In Review → Approved → Published → Superseded.
+- Diff view:
+  - version-to-version (within baseline/addendum/override/fork)
+  - baseline vs BU effective output
+  - baseline update impact analysis (which BUs are impacted and where)
+- Change request record:
+  - reason, summary of changes, risk impact, approvals, effective date.
+
+### 3) Linking, Tagging, and Policy Graph
+- Policy-to-policy links:
+  - “Relates to”, “Depends on”, “Implements”, “Supersedes”
+- Deep links to specific sections/blocks.
+- Graph view of dependencies and “coverage heatmap” (policies ↔ requirements).
+
+### 4) Ownership, Reviews, and Attestations
+- Owner + delegates; reviewer group; approver group.
+- Review scheduling:
+  - default cadence by taxonomy (configurable)
+  - reminders + escalation
+- Review history:
+  - who reviewed, when, outcome, actions raised
+- Attestations:
+  - staff attestation (read & understood)
+  - BU attestation (implemented locally)
+  - attestations bind to EffectivePolicy composition hash
+
+### 5) Approval / Sign-off
+- Configurable workflows by:
+  - document type
+  - taxonomy group
+  - BU and regulated activity
+- Approval must bind to a specific immutable artefact (baseline version, layer version, fork version, and/or composed effective output).
+- Optional e-signature integration (phase 2).
+
+### 6) Regulatory Library with Links (jurisdiction-aware)
+The platform ships with a seeded regulatory library and allows admins to add/modify sources.
+
+Core requirements:
+- Store instruments as Sources (official links), then break them into Requirement statements.
+- Applicability engine:
+  - requirements can be toggled per BU
+  - support transitional dates and “effective from” controls
+- Track change events:
+  - maintain “source versions” (where possible)
+  - allow manual “regulatory update” entries and re-assessment workflows
+
+#### UK (FIAT only — EMI / payment services)
+Include, at minimum:
+- Electronic Money Regulations 2011
+- Payment Services Regulations 2017
+- UK Money Laundering Regulations 2017 (AML/CTF requirements still apply to fiat EMI/payment firms)
+- FCA guidance/approach documents for payments and e-money
+- UK data protection (UK GDPR + Data Protection Act 2018)
+
+Also capture key supervisory change items relevant to safeguarding where applicable (e.g., FCA strengthening safeguarding regime for payments/e-money firms).
+
+#### Gibraltar (EMI + crypto ecosystem)
+Include, at minimum:
+- Financial Services (Electronic Money) Regulations 2020 (Gibraltar)
+- Financial Services (Payment Services) Regulations 2020 (Gibraltar)
+- GFSC DLT framework references and market integrity materials
+- AML: Proceeds of Crime Act 2015 and relevant subsidiary legislation / supervisory expectations
+
+#### Estonia / EU (MiCA CASP + resilience + AML)
+Include, at minimum:
+- MiCA (Regulation (EU) 2023/1114)
+- Estonia Market in Crypto-Assets Act (implementing + transitional provisions)
+- DORA (Regulation (EU) 2022/2554)
+- Transfer of Funds Regulation / “Travel Rule” (Regulation (EU) 2023/1113)
+- EU AML Regulation (Regulation (EU) 2024/1624)
+- National supervisor application guidance links (Finantsinspektsioon / FI)
+
+### 7) Gap Analysis (Regulation ↔ Documents)
+Objectives:
+- Identify missing coverage (no mapped policy content)
+- Identify weak coverage (policy exists but lacks enforceable controls/procedures/monitoring/records)
+- Identify potential over-restrictiveness (stricter than required; record rationale and business impact)
+
+Mechanics:
+- Coverage status per requirement, per BU:
+  - Covered / Partially Covered / Not Covered / Not Applicable
+- Mapping granularity:
+  - Document-level and block-level
+  - Must support mapping to addendum/override blocks distinctly from baseline
+- Outputs:
+  - Gap Register with recommended remediation actions
+  - Compliance Matrix export (requirements ↔ effective policy sections)
+  - “Delta risk” report showing where BUs deviate from group baseline and which obligations are affected
+
+Human-in-the-loop rule:
+- The system can suggest gaps/weaknesses, but a reviewer must confirm status before reporting externally.
+
+### 8) Audit Findings and Remediation
+- Findings sources: internal audit, external audit, regulator feedback, incidents, control testing.
+- Required fields:
+  - impacted BU(s), related requirement(s), related policy/version/section
+  - severity, root cause, remediation plan, owner, due date, approver
+- Workflow:
+  - New → Triage → In Remediation → Evidence Submitted → Verified → Closed
+- Evidence attachments and verification sign-off required for closure.
+- Reporting:
+  - open/overdue findings by BU, theme, severity
+  - remediation effectiveness checks (optional phase 2)
+
+### 9) Reporting and “Regulator Packs”
+Generate packs per BU or group:
+- policy set (effective versions)
+- approval and review history
+- compliance matrix (requirements ↔ mapped sections)
+- gap register + remediation status
+- export formats: PDF + “audit zip” bundle with index + hashes
+
+### 10) Integrations (phase-based)
+- Identity: SSO (SAML/OIDC), SCIM.
+- Work management: Jira/ServiceNow/Linear for remediation tickets.
+- Storage: SharePoint/Google Drive import + sync (optional).
+- Evidence: link to SOC tooling, ticketing, incident tooling.
+
+---
+
+## Non-Functional Requirements (regulated-grade)
+Security:
+- Tenant isolation; BU-scoped access control; least privilege.
+- Full audit logs (view/download/approve/mapping changes).
+- Encryption in transit and at rest; secure object storage for originals/evidence.
+- Legal hold; retention controls; immutable archives for approved artefacts.
+
+Reliability:
+- Backups + restore testing.
+- Exportability (avoid lock-in): full data export including documents, mappings, logs.
+
+Performance:
+- Full-text + semantic search across policies, requirements, findings.
+- Cached EffectivePolicy renders with deterministic regeneration.
+
+---
+
+## MVP (recommended)
+1) Tenant + multi-BU model with Regulatory Profiles
+2) Document ingestion + structured blocks + basic editor
+3) Version control + approvals + immutable audit trail
+4) Group vs Local Model A (Addendum) + composed effective output + composition hash
+5) Taxonomy + tags + owners + review schedules + history
+6) Regulatory library seeding (UK fiat EMI; Gibraltar EMI+DLT; Estonia/EU MiCA+DORA+TFR+AMLR) + manual requirement mapping
+7) Gap register + findings/remediation workflow
+8) Regulator pack exports
+
+## Roadmap
+Phase 2:
+- Model B (Section Overrides) with block-level composition
+- Baseline update impact analysis and BU deviation reports
+- Attestations and training workflows
+
+Phase 3:
+- Model C (Fork + optional merge) with conflict resolution
+- Assisted obligation extraction and policy-quality checks
+- Deeper integrations and automated evidence collection
+
+---
+
+## Appendix — Official Regulatory Links (seed library)
+
+UK (FIAT EMI / payments)
+- Electronic Money Regulations 2011: https://www.legislation.gov.uk/id/uksi/2011/99
+- Payment Services Regulations 2017: https://www.legislation.gov.uk/uksi/2017/752/contents
+- Money Laundering Regulations 2017: https://www.legislation.gov.uk/id/uksi/2017/692
+- FCA payments & e-money overview: https://www.fca.org.uk/firms/payment-services-regulations-e-money-regulations
+- FCA SYSC (systems and controls): https://handbook.fca.org.uk/handbook/SYSC/3/1.html
+- FCA safeguarding policy statement (PS25/12): https://www.fca.org.uk/publications/policy-statements/ps25-12-changes-safeguarding-regime-payments-and-e-money-firms
+- UK data protection overview: https://www.gov.uk/data-protection
+- ICO UK GDPR guidance: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/
+- JMLSG AML/CTF guidance (UK financial sector): https://www.jmlsg.org.uk/guidance/current-guidance/
+
+Gibraltar
+- Financial Services (Electronic Money) Regulations 2020: https://www.gibraltarlaws.gov.gi/legislations/financial-services-electronic-money-regulations-2020-4783
+- Financial Services (Payment Services) Regulations 2020: https://www.gibraltarlaws.gov.gi/legislations/financial-services-payment-services-regulations-2020-4793
+- GFSC DLT framework notice: https://www.fsc.gi/news/distributed-ledger-technology-dlt-regulatory-framework-270
+- Gibraltar virtual asset market integrity announcement: https://www.gibraltarfinance.gi/news/gibraltar-introduces-new-virtual-asset-legislation-defining-standards-for-market-integrity-150
+- GFSC AML supervisory approach: https://www.fsc.gi/aml
+- GFSC AML legislation hub: https://www.fsc.gi/aml_legislation
+- Proceeds of Crime Act 2015 (Gibraltar): https://www.gibraltarlaws.gov.gi/legislations/proceeds-of-crime-act-2015-2348
+- Proceeds of Crime Act 2015 (Relevant Financial Business) (Registration) Regulations 2021: https://www.gibraltarlaws.gov.gi/legislations/proceeds-of-crime-act-2015-relevant-financial-business-registration-regulations-2021-6002
+
+Estonia / EU
+- MiCA (Regulation (EU) 2023/1114): https://eur-lex.europa.eu/eli/reg/2023/1114/oj/eng
+- Estonia Market in Crypto-Assets Act: https://www.riigiteataja.ee/en/eli/ee/519092024001/consolide
+- Estonia FI authorisation guidance: https://www.fi.ee/en/investeerimine/investeerimisvaldkonna-tegevuslubade-taotlemine/kruptovaraturu-tegevusluba
+- DORA (Regulation (EU) 2022/2554): https://eur-lex.europa.eu/eli/reg/2022/2554/oj/eng
+- Transfer of Funds / Travel Rule (Regulation (EU) 2023/1113): https://eur-lex.europa.eu/eli/reg/2023/1113/oj/eng
+- EU AML Regulation (Regulation (EU) 2024/1624): https://eur-lex.europa.eu/eli/reg/2024/1624/oj/eng
+- FATF RBA guidance for VAs/VASPs (benchmark): https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Guidance-rba-virtual-assets-2021.html
+
+## Legal note
+This is a product/engineering brief, not legal advice. Regulatory applicability and interpretations should be reviewed by qualified counsel in each jurisdiction.
