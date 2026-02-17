@@ -3,21 +3,27 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks,
+  findings, findingEvidence, policyLinks, lookups,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
   type RequirementMapping, type Finding, type FindingEvidence, type PolicyLink,
-  type CreateBusinessUnitRequest, type CreateDocumentRequest, type UpdateDocumentRequest,
+  type Lookup,
+  type CreateBusinessUnitRequest, type UpdateBusinessUnitRequest,
+  type CreateDocumentRequest, type UpdateDocumentRequest,
   type CreateDocumentVersionRequest, type CreateAddendumRequest, type CreateApprovalRequest,
   type CreateFindingRequest, type UpdateFindingRequest,
-  type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest
+  type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest,
+  type CreateLookupRequest, type UpdateLookupRequest
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   getBusinessUnits(): Promise<BusinessUnit[]>;
   getBusinessUnit(id: number): Promise<BusinessUnit | undefined>;
+  createBusinessUnit(bu: CreateBusinessUnitRequest): Promise<BusinessUnit>;
+  updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit>;
+  deleteBusinessUnit(id: number): Promise<void>;
 
   getRegulatoryProfiles(): Promise<RegulatoryProfile[]>;
 
@@ -63,6 +69,12 @@ export interface IStorage {
   getFindingEvidence(findingId: number): Promise<FindingEvidence[]>;
 
   getPolicyLinks(): Promise<PolicyLink[]>;
+
+  getLookups(): Promise<Lookup[]>;
+  getLookupsByCategory(category: string): Promise<Lookup[]>;
+  createLookup(lookup: CreateLookupRequest): Promise<Lookup>;
+  updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup>;
+  deleteLookup(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -72,6 +84,17 @@ export class DatabaseStorage implements IStorage {
   async getBusinessUnit(id: number): Promise<BusinessUnit | undefined> {
     const [bu] = await db.select().from(businessUnits).where(eq(businessUnits.id, id));
     return bu;
+  }
+  async createBusinessUnit(bu: CreateBusinessUnitRequest): Promise<BusinessUnit> {
+    const [created] = await db.insert(businessUnits).values(bu).returning();
+    return created;
+  }
+  async updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit> {
+    const [updated] = await db.update(businessUnits).set(bu).where(eq(businessUnits.id, id)).returning();
+    return updated;
+  }
+  async deleteBusinessUnit(id: number): Promise<void> {
+    await db.delete(businessUnits).where(eq(businessUnits.id, id));
   }
 
   async getRegulatoryProfiles(): Promise<RegulatoryProfile[]> {
@@ -198,6 +221,24 @@ export class DatabaseStorage implements IStorage {
 
   async getPolicyLinks(): Promise<PolicyLink[]> {
     return await db.select().from(policyLinks);
+  }
+
+  async getLookups(): Promise<Lookup[]> {
+    return await db.select().from(lookups);
+  }
+  async getLookupsByCategory(category: string): Promise<Lookup[]> {
+    return await db.select().from(lookups).where(eq(lookups.category, category));
+  }
+  async createLookup(lookup: CreateLookupRequest): Promise<Lookup> {
+    const [created] = await db.insert(lookups).values(lookup).returning();
+    return created;
+  }
+  async updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup> {
+    const [updated] = await db.update(lookups).set(lookup).where(eq(lookups.id, id)).returning();
+    return updated;
+  }
+  async deleteLookup(id: number): Promise<void> {
+    await db.delete(lookups).where(eq(lookups.id, id));
   }
 }
 
