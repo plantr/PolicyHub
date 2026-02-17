@@ -72,6 +72,7 @@ const docFormSchema = insertDocumentSchema
     taxonomy: z.string().min(1, "Taxonomy is required"),
     owner: z.string().min(1, "Owner is required"),
     tagsText: z.string().default(""),
+    nextReviewDate: z.string().nullable().default(null),
   });
 
 type DocFormValues = z.infer<typeof docFormSchema>;
@@ -100,6 +101,7 @@ export default function Documents() {
       reviewFrequency: null,
       businessUnitId: null,
       tagsText: "",
+      nextReviewDate: null,
     },
   });
 
@@ -145,6 +147,7 @@ export default function Documents() {
       formData.append("taxonomy", data.taxonomy);
       formData.append("owner", data.owner);
       if (data.reviewFrequency) formData.append("reviewFrequency", data.reviewFrequency);
+      if (data.nextReviewDate) formData.append("nextReviewDate", data.nextReviewDate);
       formData.append("businessUnitId", data.businessUnitId ? String(data.businessUnitId) : "null");
       formData.append("tags", JSON.stringify(tags));
       if (selectedFile) formData.append("pdf", selectedFile);
@@ -184,6 +187,7 @@ export default function Documents() {
         owner: data.owner,
         reviewFrequency: data.reviewFrequency || null,
         businessUnitId: data.businessUnitId || null,
+        nextReviewDate: data.nextReviewDate || null,
         tags,
       });
       return res.json();
@@ -264,6 +268,7 @@ export default function Documents() {
       reviewFrequency: null,
       businessUnitId: null,
       tagsText: "",
+      nextReviewDate: null,
     });
     setDialogOpen(true);
   }
@@ -278,6 +283,7 @@ export default function Documents() {
       reviewFrequency: doc.reviewFrequency ?? null,
       businessUnitId: doc.businessUnitId ?? null,
       tagsText: (doc.tags ?? []).join(", "),
+      nextReviewDate: doc.nextReviewDate ? new Date(doc.nextReviewDate).toISOString().split("T")[0] : null,
     });
     setDialogOpen(true);
   }
@@ -546,33 +552,51 @@ export default function Documents() {
                 />
                 <FormField
                   control={form.control}
-                  name="businessUnitId"
+                  name="nextReviewDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Business Unit</FormLabel>
-                      <Select
-                        onValueChange={(v) => field.onChange(v === "__group__" ? null : Number(v))}
-                        value={field.value ? String(field.value) : "__group__"}
-                      >
-                        <FormControl>
-                          <SelectTrigger data-testid="select-doc-business-unit">
-                            <SelectValue placeholder="Select business unit" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__group__" data-testid="option-bu-group">Group</SelectItem>
-                          {businessUnits?.map((bu) => (
-                            <SelectItem key={bu.id} value={String(bu.id)} data-testid={`option-bu-form-${bu.id}`}>
-                              {bu.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Next Review Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                          data-testid="input-doc-next-review-date"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="businessUnitId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Unit</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "__group__" ? null : Number(v))}
+                      value={field.value ? String(field.value) : "__group__"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-doc-business-unit">
+                          <SelectValue placeholder="Select business unit" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__group__" data-testid="option-bu-group">Group</SelectItem>
+                        {businessUnits?.map((bu) => (
+                          <SelectItem key={bu.id} value={String(bu.id)} data-testid={`option-bu-form-${bu.id}`}>
+                            {bu.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="tagsText"
