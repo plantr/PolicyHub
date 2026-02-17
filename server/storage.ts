@@ -1,38 +1,89 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  businessUnits, policies, requirements, coverage, findings,
+  type BusinessUnit, type Policy, type Requirement, type Coverage, type Finding,
+  type CreatePolicyRequest, type UpdatePolicyRequest
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Business Units
+  getBusinessUnits(): Promise<BusinessUnit[]>;
+  getBusinessUnit(id: number): Promise<BusinessUnit | undefined>;
+  
+  // Policies
+  getPolicies(filters?: { businessUnitId?: number, status?: string }): Promise<Policy[]>;
+  getPolicy(id: number): Promise<Policy | undefined>;
+  createPolicy(policy: CreatePolicyRequest): Promise<Policy>;
+  updatePolicy(id: number, policy: UpdatePolicyRequest): Promise<Policy>;
+  
+  // Requirements
+  getRequirements(): Promise<Requirement[]>;
+  
+  // Coverage
+  getCoverage(): Promise<Coverage[]>;
+  
+  // Findings
+  getFindings(): Promise<Finding[]>;
+  createFinding(finding: any): Promise<Finding>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  // Business Units
+  async getBusinessUnits(): Promise<BusinessUnit[]> {
+    return await db.select().from(businessUnits);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getBusinessUnit(id: number): Promise<BusinessUnit | undefined> {
+    const [bu] = await db.select().from(businessUnits).where(eq(businessUnits.id, id));
+    return bu;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  // Policies
+  async getPolicies(filters?: { businessUnitId?: number, status?: string }): Promise<Policy[]> {
+    let query = db.select().from(policies);
+    // Note: Drizzle query building would go here for filters
+    // For MVP shell, returning all
+    return await query;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getPolicy(id: number): Promise<Policy | undefined> {
+    const [policy] = await db.select().from(policies).where(eq(policies.id, id));
+    return policy;
+  }
+
+  async createPolicy(policy: CreatePolicyRequest): Promise<Policy> {
+    const [newPolicy] = await db.insert(policies).values(policy).returning();
+    return newPolicy;
+  }
+
+  async updatePolicy(id: number, policy: UpdatePolicyRequest): Promise<Policy> {
+    const [updated] = await db.update(policies)
+      .set(policy)
+      .where(eq(policies.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Requirements
+  async getRequirements(): Promise<Requirement[]> {
+    return await db.select().from(requirements);
+  }
+
+  // Coverage
+  async getCoverage(): Promise<Coverage[]> {
+    return await db.select().from(coverage);
+  }
+
+  // Findings
+  async getFindings(): Promise<Finding[]> {
+    return await db.select().from(findings);
+  }
+
+  async createFinding(finding: any): Promise<Finding> {
+    const [newFinding] = await db.insert(findings).values(finding).returning();
+    return newFinding;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
