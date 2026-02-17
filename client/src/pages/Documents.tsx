@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, FileText, X } from "lucide-react";
 
 const DOC_TYPES = ["All", "Policy", "Standard", "Procedure"];
 const TAXONOMIES = ["All", "AML", "Safeguarding", "Information Security", "Compliance", "Operations"];
@@ -84,6 +84,10 @@ export default function Documents() {
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingDoc, setDeletingDoc] = useState<Document | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const form = useForm<DocFormValues>({
@@ -134,15 +138,26 @@ export default function Documents() {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      const res = await apiRequest("POST", "/api/documents", {
-        title: data.title,
-        docType: data.docType,
-        taxonomy: data.taxonomy,
-        owner: data.owner,
-        reviewFrequency: data.reviewFrequency || null,
-        businessUnitId: data.businessUnitId || null,
-        tags,
+
+      const formData = new FormData();
+      formData.append("title", data.title);
+      formData.append("docType", data.docType);
+      formData.append("taxonomy", data.taxonomy);
+      formData.append("owner", data.owner);
+      if (data.reviewFrequency) formData.append("reviewFrequency", data.reviewFrequency);
+      formData.append("businessUnitId", data.businessUnitId ? String(data.businessUnitId) : "null");
+      formData.append("tags", JSON.stringify(tags));
+      if (selectedFile) formData.append("pdf", selectedFile);
+
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(err.message || "Upload failed");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -199,8 +214,48 @@ export default function Documents() {
     },
   });
 
+  const handleFileSelect = useCallback((file: File) => {
+    if (file.type !== "application/pdf") {
+      toast({ title: "Invalid file", description: "Only PDF files are accepted", variant: "destructive" });
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 50 MB", variant: "destructive" });
+      return;
+    }
+    setSelectedFile(file);
+  }, [toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  }, [handleFileSelect]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragging(true);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  }, []);
+
   function openCreateDialog() {
     setEditingDoc(null);
+    setSelectedFile(null);
     form.reset({
       title: "",
       docType: "",
@@ -230,6 +285,8 @@ export default function Documents() {
   function closeDialog() {
     setDialogOpen(false);
     setEditingDoc(null);
+    setSelectedFile(null);
+    setIsDragging(false);
   }
 
   function onSubmit(values: DocFormValues) {
@@ -529,6 +586,63 @@ export default function Documents() {
                   </FormItem>
                 )}
               />
+              {!editingDoc && (
+                <div>
+                  <FormLabel>PDF Document (optional)</FormLabel>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileSelect(file);
+                      e.target.value = "";
+                    }}
+                    data-testid="input-file-pdf"
+                  />
+                  {selectedFile ? (
+                    <div className="flex items-center gap-3 rounded-md border p-3 mt-1.5" data-testid="section-selected-file">
+                      <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" data-testid="text-selected-filename">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground" data-testid="text-selected-filesize">
+                          {(selectedFile.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setSelectedFile(null)}
+                        data-testid="button-remove-file"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className={`mt-1.5 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                        isDragging
+                          ? "border-primary bg-primary/5"
+                          : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                      }`}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDrop={handleDrop}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      data-testid="dropzone-pdf"
+                    >
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                      <div className="text-center">
+                        <p className="text-sm font-medium">Drop a PDF here or click to browse</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">PDF up to 50 MB</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-document">
                   Cancel

@@ -181,9 +181,20 @@ export async function registerRoutes(
     if (!doc) return res.status(404).json({ message: "Document not found" });
     res.json(doc);
   });
-  app.post(api.documents.create.path, async (req, res) => {
+  app.post(api.documents.create.path, upload.single("pdf"), async (req, res) => {
     try {
       const body = { ...req.body };
+      if (typeof body.tags === "string") {
+        try {
+          const parsed = JSON.parse(body.tags);
+          body.tags = Array.isArray(parsed) ? parsed : [];
+        } catch { body.tags = []; }
+      }
+      if (!body.tags) body.tags = [];
+      if (typeof body.businessUnitId === "string") {
+        body.businessUnitId = (body.businessUnitId === "null" || body.businessUnitId === "") ? null : Number(body.businessUnitId);
+      }
+      if (!body.reviewFrequency || body.reviewFrequency === "") body.reviewFrequency = null;
       if (body.nextReviewDate && typeof body.nextReviewDate === "string") body.nextReviewDate = new Date(body.nextReviewDate);
       const input = api.documents.create.input.parse(body);
       const doc = await storage.createDocument(input);
@@ -191,6 +202,28 @@ export async function registerRoutes(
         entityType: "document", entityId: doc.id,
         action: "created", actor: input.owner, details: `Document "${doc.title}" created`
       });
+
+      if (req.file) {
+        const content = `Uploaded from ${req.file.originalname}`;
+        const contentHash = createHash('sha256').update(content).digest('hex');
+        const version = await storage.createDocumentVersion({
+          documentId: doc.id,
+          version: "1.0",
+          status: "Draft",
+          content,
+          contentHash,
+          createdBy: input.owner,
+        });
+        const s3Key = generateS3Key(doc.id, version.id, req.file.originalname);
+        await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
+        await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
+        await storage.createAuditLogEntry({
+          entityType: "document_version", entityId: version.id,
+          action: "pdf_uploaded", actor: input.owner,
+          details: `PDF "${req.file.originalname}" uploaded with initial version 1.0`
+        });
+      }
+
       res.status(201).json(doc);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
