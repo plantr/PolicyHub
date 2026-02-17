@@ -235,6 +235,9 @@ export default function DocumentDetail() {
 
       <div className="space-y-2" data-testid="section-header">
         <div className="flex flex-wrap items-center gap-3">
+          {document.documentReference && (
+            <span className="text-sm text-muted-foreground font-mono" data-testid="text-document-ref">{document.documentReference}</span>
+          )}
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-document-title">
             {document.title}
           </h1>

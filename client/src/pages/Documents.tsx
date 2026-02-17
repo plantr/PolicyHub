@@ -67,6 +67,7 @@ function getDocTypeBadgeVariant(docType: string): "default" | "secondary" | "out
 const docFormSchema = insertDocumentSchema
   .omit({ tags: true, nextReviewDate: true, delegates: true, reviewers: true, approvers: true, parentDocumentId: true })
   .extend({
+    documentReference: z.string().nullable().default(null),
     title: z.string().min(1, "Title is required"),
     docType: z.string().min(1, "Document type is required"),
     taxonomy: z.string().min(1, "Taxonomy is required"),
@@ -94,6 +95,7 @@ export default function Documents() {
   const form = useForm<DocFormValues>({
     resolver: zodResolver(docFormSchema),
     defaultValues: {
+      documentReference: null,
       title: "",
       docType: "",
       taxonomy: "",
@@ -161,6 +163,7 @@ export default function Documents() {
         .filter(Boolean);
 
       const formData = new FormData();
+      if (data.documentReference) formData.append("documentReference", data.documentReference);
       formData.append("title", data.title);
       formData.append("docType", data.docType);
       formData.append("taxonomy", data.taxonomy);
@@ -200,6 +203,7 @@ export default function Documents() {
         .map((t) => t.trim())
         .filter(Boolean);
       const res = await apiRequest("PUT", `/api/documents/${id}`, {
+        documentReference: data.documentReference || null,
         title: data.title,
         docType: data.docType,
         taxonomy: data.taxonomy,
@@ -280,6 +284,7 @@ export default function Documents() {
     setEditingDoc(null);
     setSelectedFile(null);
     form.reset({
+      documentReference: null,
       title: "",
       docType: "",
       taxonomy: "",
@@ -295,6 +300,7 @@ export default function Documents() {
   function openEditDialog(doc: Document) {
     setEditingDoc(doc);
     form.reset({
+      documentReference: doc.documentReference ?? null,
       title: doc.title,
       docType: doc.docType,
       taxonomy: doc.taxonomy,
@@ -393,6 +399,7 @@ export default function Documents() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead data-testid="col-ref">Ref</TableHead>
                 <TableHead data-testid="col-title">Title</TableHead>
                 <TableHead data-testid="col-type">Type</TableHead>
                 <TableHead data-testid="col-taxonomy">Category</TableHead>
@@ -406,13 +413,14 @@ export default function Documents() {
             <TableBody>
               {filteredDocuments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                     No documents found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredDocuments.map((doc) => (
                   <TableRow key={doc.id} data-testid={`row-document-${doc.id}`}>
+                    <TableCell data-testid={`text-ref-${doc.id}`} className="text-muted-foreground">{doc.documentReference || "-"}</TableCell>
                     <TableCell>
                       <Link href={`/documents/${doc.id}`} data-testid={`link-document-${doc.id}`}>
                         <span className="font-medium text-foreground hover:underline cursor-pointer">
@@ -481,19 +489,34 @@ export default function Documents() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. AML Policy" {...field} data-testid="input-doc-title" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="documentReference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Document Reference</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. POL-001" {...field} value={field.value ?? ""} data-testid="input-doc-reference" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. AML Policy" {...field} data-testid="input-doc-title" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}

@@ -58,6 +58,7 @@ export const requirements = pgTable("requirements", {
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
+  documentReference: text("document_reference"),
   title: text("title").notNull(),
   docType: text("doc_type").notNull(),
   taxonomy: text("taxonomy").notNull(),
