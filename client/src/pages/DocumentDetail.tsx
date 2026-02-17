@@ -449,21 +449,21 @@ export default function DocumentDetail() {
       </Card>
 
       <Tabs defaultValue="versions" data-testid="section-tabs">
-        <TabsList data-testid="tabs-list">
-          <TabsTrigger value="versions" data-testid="tab-versions">Versions</TabsTrigger>
-          <TabsTrigger value="content" data-testid="tab-content">Content</TabsTrigger>
-          <TabsTrigger value="addenda" data-testid="tab-addenda">Addenda</TabsTrigger>
-          <TabsTrigger value="reviews" data-testid="tab-reviews">Reviews</TabsTrigger>
-          <TabsTrigger value="links" data-testid="tab-links">Links</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-4 mb-1">
+          <TabsList data-testid="tabs-list">
+            <TabsTrigger value="versions" data-testid="tab-versions">Versions</TabsTrigger>
+            <TabsTrigger value="content" data-testid="tab-content">Content</TabsTrigger>
+            <TabsTrigger value="addenda" data-testid="tab-addenda">Addenda</TabsTrigger>
+            <TabsTrigger value="reviews" data-testid="tab-reviews">Reviews</TabsTrigger>
+            <TabsTrigger value="links" data-testid="tab-links">Links</TabsTrigger>
+          </TabsList>
+          <Button onClick={() => setAddVersionOpen(true)} data-testid="button-add-version">
+            <Plus className="h-4 w-4 mr-1" />
+            Add Version
+          </Button>
+        </div>
 
         <TabsContent value="versions" data-testid="tabcontent-versions">
-          <div className="flex items-center justify-end mb-3">
-            <Button onClick={() => setAddVersionOpen(true)} data-testid="button-add-version">
-              <Plus className="h-4 w-4 mr-1" />
-              Add Version
-            </Button>
-          </div>
           <input
             ref={fileInputRef}
             type="file"
