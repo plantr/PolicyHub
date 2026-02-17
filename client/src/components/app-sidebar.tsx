@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useState } from "react";
 import {
   LayoutDashboard,
   FileText,
@@ -15,6 +16,7 @@ import {
   FolderOpen,
   Gauge,
   Blocks,
+  ChevronDown,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +29,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const navGroups = [
   {
@@ -73,6 +80,13 @@ const navGroups = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(navGroups.map((g) => [g.label, true]))
+  );
+
+  function toggleSection(label: string) {
+    setOpenSections((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
 
   return (
     <Sidebar>
@@ -85,34 +99,54 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => {
-                  const isActive =
-                    item.path === "/"
-                      ? location === "/"
-                      : location.startsWith(item.path);
-                  return (
-                    <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={item.title}
-                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-")}`}
-                      >
-                        <Link href={item.path}>
-                          <item.icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <Collapsible
+            key={group.label}
+            open={openSections[group.label]}
+            onOpenChange={() => toggleSection(group.label)}
+          >
+            <SidebarGroup>
+              <CollapsibleTrigger asChild>
+                <SidebarGroupLabel
+                  className="cursor-pointer select-none"
+                  data-testid={`button-toggle-${group.label.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {group.label}
+                  <ChevronDown
+                    className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                      openSections[group.label] ? "" : "-rotate-90"
+                    }`}
+                  />
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => {
+                      const isActive =
+                        item.path === "/"
+                          ? location === "/"
+                          : location.startsWith(item.path);
+                      return (
+                        <SidebarMenuItem key={item.path}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={item.title}
+                            data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-")}`}
+                          >
+                            <Link href={item.path}>
+                              <item.icon />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         ))}
       </SidebarContent>
     </Sidebar>
