@@ -8,7 +8,11 @@ import {
   AlertTriangle,
   History,
   Building2,
-  Settings,
+  Users,
+  MapPin,
+  FolderOpen,
+  Gauge,
+  Blocks,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,7 +58,11 @@ const navGroups = [
     label: "Administration",
     items: [
       { title: "Business Units", icon: Building2, path: "/business-units" },
-      { title: "Settings", icon: Settings, path: "/settings" },
+      { title: "Entity Types", icon: Blocks, path: "/admin/entity-types" },
+      { title: "Roles / Actors", icon: Users, path: "/admin/roles" },
+      { title: "Jurisdictions", icon: MapPin, path: "/admin/jurisdictions" },
+      { title: "Document Categories", icon: FolderOpen, path: "/admin/document-categories" },
+      { title: "Finding Severities", icon: Gauge, path: "/admin/finding-severities" },
     ],
   },
 ];
@@ -88,7 +96,7 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={item.title}
-                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-")}`}
                       >
                         <Link href={item.path}>
                           <item.icon />

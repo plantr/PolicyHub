@@ -9,15 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2, Settings as SettingsIcon } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Lookup } from "@shared/schema";
 import { insertLookupSchema } from "@shared/schema";
+import type { LucideIcon } from "lucide-react";
 
 const lookupFormSchema = insertLookupSchema.extend({
   value: z.string().min(1, "Value is required"),
@@ -27,20 +27,20 @@ const lookupFormSchema = insertLookupSchema.extend({
 
 type LookupFormValues = z.infer<typeof lookupFormSchema>;
 
-const CATEGORIES = [
-  { value: "entity_type", label: "Entity Types" },
-  { value: "role", label: "Roles / Actors" },
-  { value: "jurisdiction", label: "Jurisdictions" },
-  { value: "document_category", label: "Document Categories" },
-  { value: "finding_severity", label: "Finding Severities" },
-];
+export const ADMIN_CATEGORIES: Record<string, { slug: string; category: string; label: string; singular: string }> = {
+  "entity-types": { slug: "entity-types", category: "entity_type", label: "Entity Types", singular: "Entity Type" },
+  "roles": { slug: "roles", category: "role", label: "Roles / Actors", singular: "Role" },
+  "jurisdictions": { slug: "jurisdictions", category: "jurisdiction", label: "Jurisdictions", singular: "Jurisdiction" },
+  "document-categories": { slug: "document-categories", category: "document_category", label: "Document Categories", singular: "Document Category" },
+  "finding-severities": { slug: "finding-severities", category: "finding_severity", label: "Finding Severities", singular: "Finding Severity" },
+};
 
-function getCategoryLabel(cat: string): string {
-  return CATEGORIES.find((c) => c.value === cat)?.label ?? cat;
-}
+export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: LucideIcon }) {
+  const config = ADMIN_CATEGORIES[slug];
+  const categoryKey = config?.category ?? slug;
+  const pageTitle = config?.label ?? slug;
+  const singular = config?.singular ?? "Item";
 
-export default function Settings() {
-  const [selectedCategory, setSelectedCategory] = useState("entity_type");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLookup, setEditingLookup] = useState<Lookup | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function Settings() {
   const form = useForm<LookupFormValues>({
     resolver: zodResolver(lookupFormSchema),
     defaultValues: {
-      category: "entity_type",
+      category: categoryKey,
       value: "",
       label: "",
       sortOrder: 1,
@@ -63,7 +63,7 @@ export default function Settings() {
   });
 
   const filtered = (allLookups ?? [])
-    .filter((l) => l.category === selectedCategory)
+    .filter((l) => l.category === categoryKey)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const createMutation = useMutation({
@@ -73,7 +73,7 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
-      toast({ title: "Lookup created" });
+      toast({ title: `${singular} created` });
       closeDialog();
     },
     onError: (err: Error) => {
@@ -88,7 +88,7 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
-      toast({ title: "Lookup updated" });
+      toast({ title: `${singular} updated` });
       closeDialog();
     },
     onError: (err: Error) => {
@@ -102,7 +102,7 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
-      toast({ title: "Lookup deleted" });
+      toast({ title: `${singular} deleted` });
       setDeleteConfirmOpen(false);
       setDeletingLookup(null);
     },
@@ -114,7 +114,7 @@ export default function Settings() {
   function openCreateDialog() {
     setEditingLookup(null);
     form.reset({
-      category: selectedCategory,
+      category: categoryKey,
       value: "",
       label: "",
       sortOrder: filtered.length + 1,
@@ -149,33 +149,21 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6" data-testid="settings-page">
-      <div data-testid="settings-header">
+    <div className="max-w-[1200px] mx-auto space-y-6" data-testid={`admin-${slug}-page`}>
+      <div data-testid="admin-header">
         <div className="flex items-center gap-2">
-          <SettingsIcon className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Settings</h1>
+          <Icon className="h-6 w-6 text-muted-foreground" />
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">{pageTitle}</h1>
         </div>
         <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-          Manage configurable lookup values used across the platform
+          Manage {pageTitle.toLowerCase()} used across the platform
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3" data-testid="settings-toolbar">
-        <Select value={selectedCategory} onValueChange={setSelectedCategory} data-testid="select-category">
-          <SelectTrigger className="w-[240px]" data-testid="select-trigger-category">
-            <SelectValue placeholder="Select category" />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((cat) => (
-              <SelectItem key={cat.value} value={cat.value} data-testid={`select-item-category-${cat.value}`}>
-                {cat.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-center justify-end gap-3" data-testid="admin-toolbar">
         <Button onClick={openCreateDialog} data-testid="button-add-lookup">
           <Plus className="h-4 w-4 mr-1" />
-          Add {getCategoryLabel(selectedCategory).replace(/s$/, "")}
+          Add {singular}
         </Button>
       </div>
 
@@ -201,7 +189,7 @@ export default function Settings() {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-lookups">
-                    No lookup values for this category. Click "Add" to create one.
+                    No {pageTitle.toLowerCase()} configured. Click "Add {singular}" to create one.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -256,10 +244,10 @@ export default function Settings() {
         <DialogContent data-testid="dialog-lookup">
           <DialogHeader>
             <DialogTitle data-testid="text-dialog-title">
-              {editingLookup ? "Edit Lookup" : "Add Lookup"}
+              {editingLookup ? `Edit ${singular}` : `Add ${singular}`}
             </DialogTitle>
             <DialogDescription>
-              {editingLookup ? "Update lookup value details." : `Add a new ${getCategoryLabel(selectedCategory).replace(/s$/, "").toLowerCase()} value.`}
+              {editingLookup ? `Update ${singular.toLowerCase()} details.` : `Add a new ${singular.toLowerCase()} value.`}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -339,7 +327,7 @@ export default function Settings() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent data-testid="dialog-delete-lookup">
           <DialogHeader>
-            <DialogTitle>Delete Lookup</DialogTitle>
+            <DialogTitle>Delete {singular}</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{deletingLookup?.label}"? This action cannot be undone.
             </DialogDescription>
