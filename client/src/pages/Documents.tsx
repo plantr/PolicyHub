@@ -504,7 +504,7 @@ export default function Documents() {
                     <FormItem>
                       <FormLabel>Category</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. AML" {...field} data-testid="input-doc-taxonomy" />
+                        <Input placeholder="" {...field} data-testid="input-doc-taxonomy" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
