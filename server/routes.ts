@@ -258,9 +258,13 @@ export async function registerRoutes(
   app.get(api.documentVersions.list.path, async (req, res) => {
     res.json(await storage.getDocumentVersions(Number(req.params.documentId)));
   });
-  app.post(api.documentVersions.create.path, async (req, res) => {
+  app.post(api.documentVersions.create.path, upload.single("pdf"), async (req, res) => {
     try {
-      const input = api.documentVersions.create.input.parse(req.body);
+      const body = { ...req.body };
+      if (typeof body.documentId === "string") body.documentId = Number(body.documentId);
+      if (body.effectiveDate && typeof body.effectiveDate === "string") body.effectiveDate = new Date(body.effectiveDate);
+      if (!body.content) body.content = req.file ? `Uploaded from ${req.file.originalname}` : "No content";
+      const input = api.documentVersions.create.input.parse(body);
       const contentHash = createHash('sha256').update(input.content).digest('hex');
       const version = await storage.createDocumentVersion({ ...input, contentHash });
       await storage.createAuditLogEntry({
@@ -268,6 +272,20 @@ export async function registerRoutes(
         action: "created", actor: input.createdBy,
         details: `Version ${input.version} created (hash: ${contentHash.substring(0, 12)})`
       });
+
+      if (req.file) {
+        const s3Key = generateS3Key(version.documentId, version.id, req.file.originalname);
+        await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
+        await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
+        await storage.createAuditLogEntry({
+          entityType: "document_version", entityId: version.id,
+          action: "pdf_uploaded", actor: input.createdBy,
+          details: `PDF "${req.file.originalname}" uploaded with version ${input.version}`
+        });
+        const updated = await storage.getDocumentVersion(version.id);
+        return res.status(201).json(updated);
+      }
+
       res.status(201).json(version);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });

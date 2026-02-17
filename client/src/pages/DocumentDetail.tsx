@@ -1,6 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { format } from "date-fns";
 import type {
   Document,
@@ -9,10 +12,12 @@ import type {
   ReviewHistoryEntry,
   PolicyLink,
   BusinessUnit,
+  User,
 } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -22,10 +27,43 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+
+const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
+
+const addVersionSchema = z.object({
+  version: z.string().min(1, "Version number is required"),
+  status: z.string().min(1, "Status is required"),
+  changeReason: z.string().default(""),
+  createdBy: z.string().min(1, "Created by is required"),
+  effectiveDate: z.string().nullable().default(null),
+});
 
 function getVersionStatusClass(status: string): string {
   switch (status) {
@@ -92,6 +130,15 @@ export default function DocumentDetail() {
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
     queryKey: ["/api/business-units"],
   });
+
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const activeUsers = useMemo(
+    () => (users ?? []).filter((u) => u.status === "Active").sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
+    [users],
+  );
 
   const buMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -196,6 +243,92 @@ export default function DocumentDetail() {
     }
     e.target.value = "";
   }
+
+  const [addVersionOpen, setAddVersionOpen] = useState(false);
+  const [versionFile, setVersionFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+  const versionFileInputRef = useRef<HTMLInputElement>(null);
+
+  type AddVersionValues = z.infer<typeof addVersionSchema>;
+
+  const versionForm = useForm<AddVersionValues>({
+    resolver: zodResolver(addVersionSchema),
+    defaultValues: {
+      version: "",
+      status: "Draft",
+      changeReason: "",
+      createdBy: "",
+      effectiveDate: null,
+    },
+  });
+
+  const createVersionMutation = useMutation({
+    mutationFn: async (data: AddVersionValues) => {
+      const formData = new FormData();
+      formData.append("documentId", id!);
+      formData.append("version", data.version);
+      formData.append("status", data.status);
+      if (data.changeReason) formData.append("changeReason", data.changeReason);
+      formData.append("createdBy", data.createdBy);
+      if (data.effectiveDate) formData.append("effectiveDate", data.effectiveDate);
+      if (versionFile) formData.append("pdf", versionFile);
+      const res = await fetch(`/api/documents/${id}/versions`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to create version" }));
+        throw new Error(err.message || "Failed to create version");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      toast({ title: "Version created" });
+      setAddVersionOpen(false);
+      setVersionFile(null);
+      versionForm.reset();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function onVersionSubmit(data: AddVersionValues) {
+    createVersionMutation.mutate(data);
+  }
+
+  const handleVersionDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    setIsDragging(true);
+  }, []);
+
+  const handleVersionDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  }, []);
+
+  const handleVersionDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleVersionDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type === "application/pdf") {
+      setVersionFile(file);
+    }
+  }, []);
 
   if (docLoading) {
     return (
@@ -324,6 +457,12 @@ export default function DocumentDetail() {
         </TabsList>
 
         <TabsContent value="versions" data-testid="tabcontent-versions">
+          <div className="flex items-center justify-end mb-3">
+            <Button onClick={() => setAddVersionOpen(true)} data-testid="button-add-version">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Version
+            </Button>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
@@ -646,6 +785,176 @@ export default function DocumentDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={addVersionOpen} onOpenChange={(open) => {
+        setAddVersionOpen(open);
+        if (!open) {
+          versionForm.reset();
+          setVersionFile(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-add-version">
+          <DialogHeader>
+            <DialogTitle data-testid="text-dialog-title">Add Version</DialogTitle>
+            <DialogDescription data-testid="text-dialog-description">
+              Create a new version for this document. Optionally attach a PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...versionForm}>
+            <form onSubmit={versionForm.handleSubmit(onVersionSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={versionForm.control}
+                  name="version"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Version Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 1.0" {...field} data-testid="input-version-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={versionForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-version-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {VERSION_STATUSES.map((s) => (
+                            <SelectItem key={s} value={s} data-testid={`option-status-${s.toLowerCase().replace(/\s+/g, "-")}`}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={versionForm.control}
+                name="changeReason"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Change Reason</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Reason for this version" {...field} data-testid="input-change-reason" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={versionForm.control}
+                  name="createdBy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Created By</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-created-by">
+                            <SelectValue placeholder="Select user" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {activeUsers.map((u) => (
+                            <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`} data-testid={`option-user-${u.id}`}>
+                              {u.firstName} {u.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={versionForm.control}
+                  name="effectiveDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Effective Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                          data-testid="input-effective-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div>
+                <FormLabel>PDF Attachment (optional)</FormLabel>
+                <input
+                  ref={versionFileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setVersionFile(f);
+                    e.target.value = "";
+                  }}
+                  data-testid="input-version-pdf-file"
+                />
+                {versionFile ? (
+                  <div className="mt-1.5 flex items-center gap-2 rounded-md border p-3">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm flex-1 truncate" data-testid="text-selected-filename">{versionFile.name}</span>
+                    <span className="text-xs text-muted-foreground">{(versionFile.size / 1024).toFixed(0)} KB</span>
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setVersionFile(null)} data-testid="button-remove-file">
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    className={`mt-1.5 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                      isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+                    }`}
+                    onClick={() => versionFileInputRef.current?.click()}
+                    onDragEnter={handleVersionDragEnter}
+                    onDragLeave={handleVersionDragLeave}
+                    onDragOver={handleVersionDragOver}
+                    onDrop={handleVersionDrop}
+                    data-testid="dropzone-pdf"
+                  >
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Drop a PDF here or click to browse
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAddVersionOpen(false)} data-testid="button-cancel-version">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createVersionMutation.isPending} data-testid="button-submit-version">
+                  {createVersionMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  Create Version
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
