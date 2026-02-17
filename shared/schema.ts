@@ -50,7 +50,6 @@ export const requirements = pgTable("requirements", {
   description: text("description").notNull(),
   category: text("category").notNull(),
   article: text("article"),
-  guidance: text("guidance"),
 });
 
 // =============================================
@@ -95,6 +94,7 @@ export const documentVersions = pgTable("document_versions", {
   pdfS3Key: text("pdf_s3_key"),
   pdfFileName: text("pdf_file_name"),
   pdfFileSize: integer("pdf_file_size"),
+  markDown: text("mark_down"),
 });
 
 // =============================================

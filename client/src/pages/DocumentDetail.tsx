@@ -490,12 +490,13 @@ export default function DocumentDetail() {
                     <TableHead data-testid="col-created-by">Created By</TableHead>
                     <TableHead data-testid="col-date">Issued Date</TableHead>
                     <TableHead data-testid="col-pdf">PDF Attachment</TableHead>
+                    <TableHead data-testid="col-markdown">Markdown</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!versions?.length ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
                         No versions found
                       </TableCell>
                     </TableRow>
@@ -574,6 +575,9 @@ export default function DocumentDetail() {
                               Attach PDF
                             </Button>
                           )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-markdown-${ver.id}`}>
+                          {ver.markDown ? ver.markDown.substring(0, 50) + (ver.markDown.length > 50 ? "..." : "") : "--"}
                         </TableCell>
                       </TableRow>
                     ))

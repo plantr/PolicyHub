@@ -10,6 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import Markdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -38,6 +41,7 @@ const editVersionSchema = z.object({
   changeReason: z.string().default(""),
   createdBy: z.string().min(1, "Created by is required"),
   effectiveDate: z.string().nullable().default(null),
+  markDown: z.string().nullable().default(null),
 });
 
 type EditVersionValues = z.infer<typeof editVersionSchema>;
@@ -98,6 +102,7 @@ export default function VersionDetail() {
       changeReason: "",
       createdBy: "",
       effectiveDate: null,
+      markDown: null,
     },
   });
 
@@ -109,6 +114,7 @@ export default function VersionDetail() {
       changeReason: version.changeReason ?? "",
       createdBy: version.createdBy,
       effectiveDate: version.effectiveDate ? format(new Date(version.effectiveDate), "yyyy-MM-dd") : null,
+      markDown: version.markDown ?? null,
     });
     setFormLoaded(true);
   }
@@ -124,6 +130,7 @@ export default function VersionDetail() {
           changeReason: data.changeReason || null,
           createdBy: data.createdBy,
           effectiveDate: data.effectiveDate || null,
+          markDown: data.markDown || null,
         }),
         credentials: "include",
       });
@@ -367,6 +374,34 @@ export default function VersionDetail() {
             />
           </form>
         </Form>
+      </Card>
+
+      <Card className="p-6" data-testid="section-markdown">
+        <h2 className="text-lg font-semibold mb-4" data-testid="text-markdown-heading">Markdown Content</h2>
+        <Tabs defaultValue="edit">
+          <TabsList data-testid="tabs-markdown">
+            <TabsTrigger value="edit" data-testid="tab-markdown-edit">Edit</TabsTrigger>
+            <TabsTrigger value="preview" data-testid="tab-markdown-preview">Preview</TabsTrigger>
+          </TabsList>
+          <TabsContent value="edit">
+            <Textarea
+              placeholder="Write markdown content for this version..."
+              className="min-h-[300px] font-mono text-sm"
+              value={form.watch("markDown") ?? ""}
+              onChange={(e) => form.setValue("markDown", e.target.value || null, { shouldDirty: true })}
+              data-testid="input-markdown"
+            />
+          </TabsContent>
+          <TabsContent value="preview">
+            <div className="prose prose-sm dark:prose-invert max-w-none min-h-[300px] border rounded-md p-4" data-testid="preview-markdown">
+              {form.watch("markDown") ? (
+                <Markdown>{form.watch("markDown")!}</Markdown>
+              ) : (
+                <p className="text-muted-foreground">No markdown content yet.</p>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       <Card className="p-6" data-testid="section-metadata">
