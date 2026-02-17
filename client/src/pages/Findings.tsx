@@ -1,13 +1,40 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Fragment, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { AlertTriangle, Clock, FileWarning, ListChecks, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Clock, FileWarning, ListChecks, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from "lucide-react";
 import type { Finding, BusinessUnit } from "@shared/schema";
+import { insertFindingSchema } from "@shared/schema";
+
+const findingFormSchema = insertFindingSchema.extend({
+  title: z.string().min(1, "Title is required"),
+  source: z.string().min(1, "Source is required"),
+  severity: z.string().min(1, "Severity is required"),
+  status: z.string().min(1, "Status is required"),
+  businessUnitId: z.coerce.number().min(1, "Business unit is required"),
+  owner: z.string().min(1, "Owner is required"),
+  approver: z.string().nullable().default(null),
+  description: z.string().nullable().default(null),
+  rootCause: z.string().nullable().default(null),
+  remediationPlan: z.string().nullable().default(null),
+  dueDate: z.string().nullable().default(null),
+});
+
+type FindingFormValues = z.infer<typeof findingFormSchema>;
 
 function getSeverityVariant(severity: string) {
   switch (severity) {
@@ -24,11 +51,39 @@ function isOverdue(finding: Finding) {
   return new Date(finding.dueDate) < new Date();
 }
 
+function formatDateForInput(date: string | Date | null | undefined): string {
+  if (!date) return "";
+  const d = new Date(date);
+  return d.toISOString().split("T")[0];
+}
+
 export default function Findings() {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [buFilter, setBuFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingFinding, setEditingFinding] = useState<Finding | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingFinding, setDeletingFinding] = useState<Finding | null>(null);
+  const { toast } = useToast();
+
+  const form = useForm<FindingFormValues>({
+    resolver: zodResolver(findingFormSchema),
+    defaultValues: {
+      title: "",
+      source: "",
+      severity: "",
+      status: "New",
+      businessUnitId: 0,
+      owner: "",
+      approver: null,
+      description: null,
+      rootCause: null,
+      remediationPlan: null,
+      dueDate: null,
+    },
+  });
 
   const { data: findings, isLoading: findingsLoading } = useQuery<Finding[]>({
     queryKey: ["/api/findings"],
@@ -38,6 +93,119 @@ export default function Findings() {
   });
 
   const isLoading = findingsLoading || buLoading;
+
+  const createMutation = useMutation({
+    mutationFn: async (data: FindingFormValues) => {
+      const payload = {
+        ...data,
+        approver: data.approver || null,
+        description: data.description || null,
+        rootCause: data.rootCause || null,
+        remediationPlan: data.remediationPlan || null,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
+      };
+      const res = await apiRequest("POST", "/api/findings", payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Finding created" });
+      closeDialog();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: FindingFormValues }) => {
+      const payload = {
+        ...data,
+        approver: data.approver || null,
+        description: data.description || null,
+        rootCause: data.rootCause || null,
+        remediationPlan: data.remediationPlan || null,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
+      };
+      const res = await apiRequest("PUT", `/api/findings/${id}`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Finding updated" });
+      closeDialog();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/findings/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Finding deleted" });
+      setDeleteConfirmOpen(false);
+      setDeletingFinding(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function openCreateDialog() {
+    setEditingFinding(null);
+    form.reset({
+      title: "",
+      source: "",
+      severity: "",
+      status: "New",
+      businessUnitId: 0,
+      owner: "",
+      approver: null,
+      description: null,
+      rootCause: null,
+      remediationPlan: null,
+      dueDate: null,
+    });
+    setDialogOpen(true);
+  }
+
+  function openEditDialog(finding: Finding) {
+    setEditingFinding(finding);
+    form.reset({
+      title: finding.title,
+      source: finding.source,
+      severity: finding.severity,
+      status: finding.status,
+      businessUnitId: finding.businessUnitId,
+      owner: finding.owner,
+      approver: finding.approver ?? null,
+      description: finding.description ?? null,
+      rootCause: finding.rootCause ?? null,
+      remediationPlan: finding.remediationPlan ?? null,
+      dueDate: finding.dueDate ? formatDateForInput(finding.dueDate) : null,
+    });
+    setDialogOpen(true);
+  }
+
+  function closeDialog() {
+    setDialogOpen(false);
+    setEditingFinding(null);
+  }
+
+  function onSubmit(values: FindingFormValues) {
+    if (editingFinding) {
+      updateMutation.mutate({ id: editingFinding.id, data: values });
+    } else {
+      createMutation.mutate(values);
+    }
+  }
 
   const buMap = new Map((businessUnits ?? []).map((b) => [b.id, b]));
   const allFindings = findings ?? [];
@@ -56,9 +224,15 @@ export default function Findings() {
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="findings-page">
-      <div data-testid="findings-header">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
-        <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Audit findings and remediation tracking</p>
+      <div className="flex flex-wrap items-start justify-between gap-4" data-testid="findings-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
+          <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Audit findings and remediation tracking</p>
+        </div>
+        <Button onClick={openCreateDialog} data-testid="button-add-finding">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Finding
+        </Button>
       </div>
 
       {isLoading ? (
@@ -179,12 +353,13 @@ export default function Findings() {
                   <TableHead data-testid="th-bu">Business Unit</TableHead>
                   <TableHead data-testid="th-owner">Owner</TableHead>
                   <TableHead data-testid="th-due-date">Due Date</TableHead>
+                  <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-findings">
+                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground" data-testid="text-no-findings">
                       No findings found.
                     </TableCell>
                   </TableRow>
@@ -193,9 +368,8 @@ export default function Findings() {
                     const overdue = isOverdue(f);
                     const expanded = expandedId === f.id;
                     return (
-                      <>
+                      <Fragment key={f.id}>
                         <TableRow
-                          key={f.id}
                           className={`cursor-pointer ${overdue ? "bg-red-50 dark:bg-red-950/30" : ""}`}
                           onClick={() => setExpandedId(expanded ? null : f.id)}
                           data-testid={`row-finding-${f.id}`}
@@ -221,10 +395,33 @@ export default function Findings() {
                           <TableCell className="text-sm text-muted-foreground" data-testid={`text-due-date-${f.id}`}>
                             {f.dueDate ? format(new Date(f.dueDate), "MMM d, yyyy") : "--"}
                           </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => openEditDialog(f)}
+                                data-testid={`button-edit-finding-${f.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setDeletingFinding(f);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                data-testid={`button-delete-finding-${f.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                         {expanded && (
-                          <TableRow key={`detail-${f.id}`} data-testid={`detail-panel-${f.id}`}>
-                            <TableCell colSpan={8} className="bg-muted/30 p-6">
+                          <TableRow data-testid={`detail-panel-${f.id}`}>
+                            <TableCell colSpan={9} className="bg-muted/30 p-6">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div className="space-y-3">
                                   <div>
@@ -266,7 +463,7 @@ export default function Findings() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })
                 )}
@@ -275,6 +472,268 @@ export default function Findings() {
           </Card>
         </>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto" data-testid="dialog-finding">
+          <DialogHeader>
+            <DialogTitle data-testid="text-dialog-title">
+              {editingFinding ? "Edit Finding" : "Add Finding"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingFinding ? "Update finding details." : "Create a new audit finding."}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Finding title" {...field} data-testid="input-finding-title" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="source"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Source</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Internal Audit" {...field} data-testid="input-finding-source" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="owner"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Owner</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. John Smith" {...field} data-testid="input-finding-owner" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="severity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Severity</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-trigger-finding-severity">
+                            <SelectValue placeholder="Select severity" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="High" data-testid="select-item-finding-severity-high">High</SelectItem>
+                          <SelectItem value="Medium" data-testid="select-item-finding-severity-medium">Medium</SelectItem>
+                          <SelectItem value="Low" data-testid="select-item-finding-severity-low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-trigger-finding-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="New" data-testid="select-item-finding-status-new">New</SelectItem>
+                          <SelectItem value="Triage" data-testid="select-item-finding-status-triage">Triage</SelectItem>
+                          <SelectItem value="In Remediation" data-testid="select-item-finding-status-remediation">In Remediation</SelectItem>
+                          <SelectItem value="Evidence Submitted" data-testid="select-item-finding-status-evidence">Evidence Submitted</SelectItem>
+                          <SelectItem value="Verified" data-testid="select-item-finding-status-verified">Verified</SelectItem>
+                          <SelectItem value="Closed" data-testid="select-item-finding-status-closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="businessUnitId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Business Unit</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-trigger-finding-bu">
+                            <SelectValue placeholder="Select business unit" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {(businessUnits ?? []).map((bu) => (
+                            <SelectItem key={bu.id} value={String(bu.id)} data-testid={`select-item-finding-bu-${bu.id}`}>
+                              {bu.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Due Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                          data-testid="input-finding-due-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="approver"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Approver</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Approver name (optional)"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-finding-approver"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe the finding"
+                        className="resize-none"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-finding-description"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="rootCause"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Root Cause</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Root cause analysis"
+                        className="resize-none"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-finding-root-cause"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="remediationPlan"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Remediation Plan</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Steps to remediate"
+                        className="resize-none"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-finding-remediation-plan"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-finding">
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  data-testid="button-save-finding"
+                >
+                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent data-testid="dialog-delete-finding">
+          <DialogHeader>
+            <DialogTitle>Delete Finding</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deletingFinding?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete-finding">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deletingFinding && deleteMutation.mutate(deletingFinding.id)}
+              disabled={deleteMutation.isPending}
+              data-testid="button-confirm-delete-finding"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

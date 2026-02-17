@@ -3,6 +3,7 @@ import {
   insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
   insertRequirementMappingSchema, insertReviewHistorySchema, insertLookupSchema,
+  insertRegulatorySourceSchema, insertRequirementSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles, lookups
@@ -77,6 +78,32 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    create: {
+      method: 'POST' as const,
+      path: '/api/regulatory-sources' as const,
+      input: insertRegulatorySourceSchema,
+      responses: {
+        201: z.custom<typeof regulatorySources.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/regulatory-sources/:id' as const,
+      input: insertRegulatorySourceSchema.partial(),
+      responses: {
+        200: z.custom<typeof regulatorySources.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/regulatory-sources/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // =============================================
@@ -104,6 +131,32 @@ export const api = {
       path: '/api/requirements/:id' as const,
       responses: {
         200: z.custom<typeof requirements.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/requirements' as const,
+      input: insertRequirementSchema,
+      responses: {
+        201: z.custom<typeof requirements.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/requirements/:id' as const,
+      input: insertRequirementSchema.partial(),
+      responses: {
+        200: z.custom<typeof requirements.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/requirements/:id' as const,
+      responses: {
+        204: z.object({}),
         404: errorSchemas.notFound,
       },
     },
@@ -141,6 +194,14 @@ export const api = {
       input: insertDocumentSchema.partial(),
       responses: {
         200: z.custom<typeof documents.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/documents/:id' as const,
+      responses: {
+        204: z.object({}),
         404: errorSchemas.notFound,
       },
     },
@@ -331,6 +392,14 @@ export const api = {
       input: insertFindingSchema.partial(),
       responses: {
         200: z.custom<typeof findings.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/findings/:id' as const,
+      responses: {
+        204: z.object({}),
         404: errorSchemas.notFound,
       },
     },

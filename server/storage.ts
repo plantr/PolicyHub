@@ -14,7 +14,9 @@ import {
   type CreateDocumentVersionRequest, type CreateAddendumRequest, type CreateApprovalRequest,
   type CreateFindingRequest, type UpdateFindingRequest,
   type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest,
-  type CreateLookupRequest, type UpdateLookupRequest
+  type CreateLookupRequest, type UpdateLookupRequest,
+  type CreateRegulatorySourceRequest, type UpdateRegulatorySourceRequest,
+  type CreateRequirementRequest, type UpdateRequirementRequest
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -29,14 +31,21 @@ export interface IStorage {
 
   getRegulatorySources(): Promise<RegulatorySource[]>;
   getRegulatorySource(id: number): Promise<RegulatorySource | undefined>;
+  createRegulatorySource(source: CreateRegulatorySourceRequest): Promise<RegulatorySource>;
+  updateRegulatorySource(id: number, source: UpdateRegulatorySourceRequest): Promise<RegulatorySource | undefined>;
+  deleteRegulatorySource(id: number): Promise<void>;
 
   getRequirements(): Promise<Requirement[]>;
   getRequirement(id: number): Promise<Requirement | undefined>;
+  createRequirement(req: CreateRequirementRequest): Promise<Requirement>;
+  updateRequirement(id: number, req: UpdateRequirementRequest): Promise<Requirement | undefined>;
+  deleteRequirement(id: number): Promise<void>;
 
   getDocuments(): Promise<Document[]>;
   getDocument(id: number): Promise<Document | undefined>;
   createDocument(doc: CreateDocumentRequest): Promise<Document>;
-  updateDocument(id: number, doc: UpdateDocumentRequest): Promise<Document>;
+  updateDocument(id: number, doc: UpdateDocumentRequest): Promise<Document | undefined>;
+  deleteDocument(id: number): Promise<void>;
 
   getDocumentVersions(documentId: number): Promise<DocumentVersion[]>;
   createDocumentVersion(version: CreateDocumentVersionRequest): Promise<DocumentVersion>;
@@ -64,7 +73,8 @@ export interface IStorage {
   getFindings(): Promise<Finding[]>;
   getFinding(id: number): Promise<Finding | undefined>;
   createFinding(finding: CreateFindingRequest): Promise<Finding>;
-  updateFinding(id: number, finding: UpdateFindingRequest): Promise<Finding>;
+  updateFinding(id: number, finding: UpdateFindingRequest): Promise<Finding | undefined>;
+  deleteFinding(id: number): Promise<void>;
 
   getFindingEvidence(findingId: number): Promise<FindingEvidence[]>;
 
@@ -109,6 +119,17 @@ export class DatabaseStorage implements IStorage {
     const [src] = await db.select().from(regulatorySources).where(eq(regulatorySources.id, id));
     return src;
   }
+  async createRegulatorySource(source: CreateRegulatorySourceRequest): Promise<RegulatorySource> {
+    const [created] = await db.insert(regulatorySources).values(source).returning();
+    return created;
+  }
+  async updateRegulatorySource(id: number, source: UpdateRegulatorySourceRequest): Promise<RegulatorySource | undefined> {
+    const [updated] = await db.update(regulatorySources).set(source).where(eq(regulatorySources.id, id)).returning();
+    return updated;
+  }
+  async deleteRegulatorySource(id: number): Promise<void> {
+    await db.delete(regulatorySources).where(eq(regulatorySources.id, id));
+  }
 
   async getRequirements(): Promise<Requirement[]> {
     return await db.select().from(requirements);
@@ -116,6 +137,17 @@ export class DatabaseStorage implements IStorage {
   async getRequirement(id: number): Promise<Requirement | undefined> {
     const [req] = await db.select().from(requirements).where(eq(requirements.id, id));
     return req;
+  }
+  async createRequirement(req: CreateRequirementRequest): Promise<Requirement> {
+    const [created] = await db.insert(requirements).values(req).returning();
+    return created;
+  }
+  async updateRequirement(id: number, req: UpdateRequirementRequest): Promise<Requirement | undefined> {
+    const [updated] = await db.update(requirements).set(req).where(eq(requirements.id, id)).returning();
+    return updated;
+  }
+  async deleteRequirement(id: number): Promise<void> {
+    await db.delete(requirements).where(eq(requirements.id, id));
   }
 
   async getDocuments(): Promise<Document[]> {
@@ -129,9 +161,12 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(documents).values(doc).returning();
     return created;
   }
-  async updateDocument(id: number, doc: UpdateDocumentRequest): Promise<Document> {
+  async updateDocument(id: number, doc: UpdateDocumentRequest): Promise<Document | undefined> {
     const [updated] = await db.update(documents).set(doc).where(eq(documents.id, id)).returning();
     return updated;
+  }
+  async deleteDocument(id: number): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
   }
 
   async getDocumentVersions(documentId: number): Promise<DocumentVersion[]> {
@@ -211,9 +246,12 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(findings).values(finding).returning();
     return created;
   }
-  async updateFinding(id: number, finding: UpdateFindingRequest): Promise<Finding> {
+  async updateFinding(id: number, finding: UpdateFindingRequest): Promise<Finding | undefined> {
     const [updated] = await db.update(findings).set(finding).where(eq(findings.id, id)).returning();
     return updated;
+  }
+  async deleteFinding(id: number): Promise<void> {
+    await db.delete(findings).where(eq(findings.id, id));
   }
 
   async getFindingEvidence(findingId: number): Promise<FindingEvidence[]> {

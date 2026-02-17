@@ -293,3 +293,7 @@ export type CreateFindingRequest = z.infer<typeof insertFindingSchema>;
 export type UpdateFindingRequest = Partial<CreateFindingRequest>;
 export type CreateRequirementMappingRequest = z.infer<typeof insertRequirementMappingSchema>;
 export type UpdateRequirementMappingRequest = Partial<CreateRequirementMappingRequest>;
+export type CreateRegulatorySourceRequest = z.infer<typeof insertRegulatorySourceSchema>;
+export type UpdateRegulatorySourceRequest = Partial<CreateRegulatorySourceRequest>;
+export type CreateRequirementRequest = z.infer<typeof insertRequirementSchema>;
+export type UpdateRequirementRequest = Partial<CreateRequirementRequest>;

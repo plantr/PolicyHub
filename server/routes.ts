@@ -67,6 +67,41 @@ export async function registerRoutes(
     if (!src) return res.status(404).json({ message: "Source not found" });
     res.json(src);
   });
+  app.post(api.regulatorySources.create.path, async (req, res) => {
+    try {
+      const input = api.regulatorySources.create.input.parse(req.body);
+      const src = await storage.createRegulatorySource(input);
+      await storage.createAuditLogEntry({
+        entityType: "regulatory_source", entityId: src.id,
+        action: "created", actor: "System", details: `Regulatory Source "${src.name}" created`
+      });
+      res.status(201).json(src);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.regulatorySources.update.path, async (req, res) => {
+    try {
+      const input = api.regulatorySources.update.input.parse(req.body);
+      const src = await storage.updateRegulatorySource(Number(req.params.id), input);
+      if (!src) return res.status(404).json({ message: "Source not found" });
+      res.json(src);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.regulatorySources.delete.path, async (req, res) => {
+    const existing = await storage.getRegulatorySource(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Source not found" });
+    await storage.deleteRegulatorySource(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "regulatory_source", entityId: existing.id,
+      action: "deleted", actor: "System", details: `Regulatory Source "${existing.name}" deleted`
+    });
+    res.status(204).send();
+  });
 
   // === REGULATORY PROFILES ===
   app.get(api.regulatoryProfiles.list.path, async (_req, res) => {
@@ -82,6 +117,41 @@ export async function registerRoutes(
     if (!r) return res.status(404).json({ message: "Requirement not found" });
     res.json(r);
   });
+  app.post(api.requirements.create.path, async (req, res) => {
+    try {
+      const input = api.requirements.create.input.parse(req.body);
+      const r = await storage.createRequirement(input);
+      await storage.createAuditLogEntry({
+        entityType: "requirement", entityId: r.id,
+        action: "created", actor: "System", details: `Requirement "${r.code}" created`
+      });
+      res.status(201).json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.requirements.update.path, async (req, res) => {
+    try {
+      const input = api.requirements.update.input.parse(req.body);
+      const r = await storage.updateRequirement(Number(req.params.id), input);
+      if (!r) return res.status(404).json({ message: "Requirement not found" });
+      res.json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.requirements.delete.path, async (req, res) => {
+    const existing = await storage.getRequirement(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Requirement not found" });
+    await storage.deleteRequirement(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "requirement", entityId: existing.id,
+      action: "deleted", actor: "System", details: `Requirement "${existing.code}" deleted`
+    });
+    res.status(204).send();
+  });
 
   // === DOCUMENTS ===
   app.get(api.documents.list.path, async (_req, res) => {
@@ -94,7 +164,9 @@ export async function registerRoutes(
   });
   app.post(api.documents.create.path, async (req, res) => {
     try {
-      const input = api.documents.create.input.parse(req.body);
+      const body = { ...req.body };
+      if (body.nextReviewDate && typeof body.nextReviewDate === "string") body.nextReviewDate = new Date(body.nextReviewDate);
+      const input = api.documents.create.input.parse(body);
       const doc = await storage.createDocument(input);
       await storage.createAuditLogEntry({
         entityType: "document", entityId: doc.id,
@@ -108,13 +180,26 @@ export async function registerRoutes(
   });
   app.put(api.documents.update.path, async (req, res) => {
     try {
-      const input = api.documents.update.input.parse(req.body);
+      const body = { ...req.body };
+      if (body.nextReviewDate && typeof body.nextReviewDate === "string") body.nextReviewDate = new Date(body.nextReviewDate);
+      const input = api.documents.update.input.parse(body);
       const doc = await storage.updateDocument(Number(req.params.id), input);
+      if (!doc) return res.status(404).json({ message: "Document not found" });
       res.json(doc);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
     }
+  });
+  app.delete(api.documents.delete.path, async (req, res) => {
+    const existing = await storage.getDocument(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Document not found" });
+    await storage.deleteDocument(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "document", entityId: existing.id,
+      action: "deleted", actor: "System", details: `Document "${existing.title}" deleted`
+    });
+    res.status(204).send();
   });
 
   // === DOCUMENT VERSIONS ===
@@ -255,7 +340,9 @@ export async function registerRoutes(
   });
   app.post(api.findings.create.path, async (req, res) => {
     try {
-      const input = api.findings.create.input.parse(req.body);
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      const input = api.findings.create.input.parse(body);
       const f = await storage.createFinding(input);
       await storage.createAuditLogEntry({
         entityType: "finding", entityId: f.id,
@@ -269,7 +356,9 @@ export async function registerRoutes(
   });
   app.put(api.findings.update.path, async (req, res) => {
     try {
-      const input = api.findings.update.input.parse(req.body);
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      const input = api.findings.update.input.parse(body);
       const f = await storage.updateFinding(Number(req.params.id), input);
       if (!f) return res.status(404).json({ message: "Finding not found" });
       res.json(f);
@@ -277,6 +366,16 @@ export async function registerRoutes(
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
     }
+  });
+  app.delete(api.findings.delete.path, async (req, res) => {
+    const existing = await storage.getFinding(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Finding not found" });
+    await storage.deleteFinding(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "finding", entityId: existing.id,
+      action: "deleted", actor: "System", details: `Finding "${existing.title}" deleted`
+    });
+    res.status(204).send();
   });
 
   // === FINDING EVIDENCE ===
