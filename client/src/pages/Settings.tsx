@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type AdminRecord = { id: number; value: string; label: string; sortOrder: number; active: boolean };
@@ -109,6 +109,28 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      const res = await apiRequest("POST", `${apiBase}/reorder`, { orderedIds });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [apiBase] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function moveItem(index: number, direction: "up" | "down") {
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sorted.length) return;
+    const reordered = [...sorted];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(newIndex, 0, moved);
+    reorderMutation.mutate(reordered.map((r) => r.id));
+  }
+
   function openCreateDialog() {
     setEditingRecord(null);
     form.reset({
@@ -189,10 +211,33 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                   </TableCell>
                 </TableRow>
               ) : (
-                sorted.map((record) => (
+                sorted.map((record, index) => (
                   <TableRow key={record.id} data-testid={`row-record-${record.id}`}>
-                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-order-${record.id}`}>
-                      {record.sortOrder}
+                    <TableCell data-testid={`text-order-${record.id}`}>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground w-6 text-center">{record.sortOrder}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === 0 || reorderMutation.isPending}
+                          onClick={() => moveItem(index, "up")}
+                          className="visibility-visible"
+                          style={{ visibility: index === 0 ? "hidden" : "visible" }}
+                          data-testid={`button-move-up-${record.id}`}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === sorted.length - 1 || reorderMutation.isPending}
+                          onClick={() => moveItem(index, "down")}
+                          style={{ visibility: index === sorted.length - 1 ? "hidden" : "visible" }}
+                          data-testid={`button-move-down-${record.id}`}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm font-mono" data-testid={`text-value-${record.id}`}>
                       {record.value}

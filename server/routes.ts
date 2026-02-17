@@ -599,6 +599,15 @@ export async function registerRoutes(
     await storage.deleteAdminRecord(req.params.table, Number(req.params.id));
     res.status(204).send();
   });
+  app.post("/api/admin/:table/reorder", async (req, res) => {
+    if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds) || !orderedIds.every((id: any) => typeof id === "number")) {
+      return res.status(400).json({ message: "orderedIds must be an array of numbers" });
+    }
+    const records = await storage.reorderAdminRecords(req.params.table, orderedIds);
+    res.json(records);
+  });
 
   // === STATS ===
   app.get(api.stats.get.path, async (_req, res) => {

@@ -101,6 +101,7 @@ export interface IStorage {
   createAdminRecord(table: string, data: CreateAdminRecordRequest): Promise<AdminRecord>;
   updateAdminRecord(table: string, id: number, data: UpdateAdminRecordRequest): Promise<AdminRecord | undefined>;
   deleteAdminRecord(table: string, id: number): Promise<void>;
+  reorderAdminRecords(table: string, orderedIds: number[]): Promise<AdminRecord[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -360,6 +361,13 @@ export class DatabaseStorage implements IStorage {
   async deleteAdminRecord(table: string, id: number): Promise<void> {
     const t = this.getAdminTable(table);
     await db.delete(t).where(eq(t.id, id));
+  }
+  async reorderAdminRecords(table: string, orderedIds: number[]): Promise<AdminRecord[]> {
+    const t = this.getAdminTable(table);
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.update(t).set({ sortOrder: i + 1 } as any).where(eq(t.id, orderedIds[i]));
+    }
+    return await db.select().from(t) as AdminRecord[];
   }
 }
 
