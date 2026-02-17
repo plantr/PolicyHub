@@ -1,27 +1,28 @@
 import { z } from 'zod';
-import { insertPolicySchema, insertBusinessUnitSchema, insertRequirementSchema, insertFindingSchema, policies, businessUnits, requirements, findings, coverage } from './schema';
+import {
+  insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
+  insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
+  insertRequirementMappingSchema, insertReviewHistorySchema,
+  businessUnits, regulatorySources, requirements, documents, documentVersions,
+  addenda, effectivePolicies, approvals, auditLog, reviewHistory,
+  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles
+} from './schema';
 
 export const errorSchemas = {
-  validation: z.object({
-    message: z.string(),
-    field: z.string().optional(),
-  }),
-  notFound: z.object({
-    message: z.string(),
-  }),
-  internal: z.object({
-    message: z.string(),
-  }),
+  validation: z.object({ message: z.string(), field: z.string().optional() }),
+  notFound: z.object({ message: z.string() }),
+  internal: z.object({ message: z.string() }),
 };
 
 export const api = {
+  // =============================================
+  // BUSINESS UNITS
+  // =============================================
   businessUnits: {
     list: {
       method: 'GET' as const,
       path: '/api/business-units' as const,
-      responses: {
-        200: z.array(z.custom<typeof businessUnits.$inferSelect>()),
-      },
+      responses: { 200: z.array(z.custom<typeof businessUnits.$inferSelect>()) },
     },
     get: {
       method: 'GET' as const,
@@ -30,72 +31,263 @@ export const api = {
         200: z.custom<typeof businessUnits.$inferSelect>(),
         404: errorSchemas.notFound,
       },
-    }
+    },
   },
-  policies: {
+
+  // =============================================
+  // REGULATORY SOURCES
+  // =============================================
+  regulatorySources: {
     list: {
       method: 'GET' as const,
-      path: '/api/policies' as const,
-      input: z.object({
-        businessUnitId: z.string().optional(),
-        status: z.string().optional(),
-      }).optional(),
-      responses: {
-        200: z.array(z.custom<typeof policies.$inferSelect>()),
-      },
+      path: '/api/regulatory-sources' as const,
+      responses: { 200: z.array(z.custom<typeof regulatorySources.$inferSelect>()) },
     },
     get: {
       method: 'GET' as const,
-      path: '/api/policies/:id' as const,
+      path: '/api/regulatory-sources/:id' as const,
       responses: {
-        200: z.custom<typeof policies.$inferSelect>(),
+        200: z.custom<typeof regulatorySources.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // REGULATORY PROFILES (BU ↔ Source applicability)
+  // =============================================
+  regulatoryProfiles: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/regulatory-profiles' as const,
+      responses: { 200: z.array(z.custom<typeof regulatoryProfiles.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // REQUIREMENTS
+  // =============================================
+  requirements: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/requirements' as const,
+      responses: { 200: z.array(z.custom<typeof requirements.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/requirements/:id' as const,
+      responses: {
+        200: z.custom<typeof requirements.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // DOCUMENTS
+  // =============================================
+  documents: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/documents' as const,
+      responses: { 200: z.array(z.custom<typeof documents.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/documents/:id' as const,
+      responses: {
+        200: z.custom<typeof documents.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     create: {
       method: 'POST' as const,
-      path: '/api/policies' as const,
-      input: insertPolicySchema,
+      path: '/api/documents' as const,
+      input: insertDocumentSchema,
       responses: {
-        201: z.custom<typeof policies.$inferSelect>(),
+        201: z.custom<typeof documents.$inferSelect>(),
         400: errorSchemas.validation,
       },
     },
     update: {
       method: 'PUT' as const,
-      path: '/api/policies/:id' as const,
-      input: insertPolicySchema.partial(),
+      path: '/api/documents/:id' as const,
+      input: insertDocumentSchema.partial(),
       responses: {
-        200: z.custom<typeof policies.$inferSelect>(),
-        400: errorSchemas.validation,
+        200: z.custom<typeof documents.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
   },
-  requirements: {
+
+  // =============================================
+  // DOCUMENT VERSIONS
+  // =============================================
+  documentVersions: {
     list: {
       method: 'GET' as const,
-      path: '/api/requirements' as const,
+      path: '/api/documents/:documentId/versions' as const,
+      responses: { 200: z.array(z.custom<typeof documentVersions.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/documents/:documentId/versions' as const,
+      input: insertDocumentVersionSchema,
       responses: {
-        200: z.array(z.custom<typeof requirements.$inferSelect>()),
+        201: z.custom<typeof documentVersions.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    updateStatus: {
+      method: 'PUT' as const,
+      path: '/api/document-versions/:id/status' as const,
+      input: z.object({ status: z.string() }),
+      responses: {
+        200: z.custom<typeof documentVersions.$inferSelect>(),
+        404: errorSchemas.notFound,
       },
     },
   },
-  coverage: {
+
+  // =============================================
+  // ADDENDA (Model A)
+  // =============================================
+  addenda: {
     list: {
       method: 'GET' as const,
-      path: '/api/coverage' as const,
+      path: '/api/documents/:documentId/addenda' as const,
+      responses: { 200: z.array(z.custom<typeof addenda.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/addenda' as const,
+      input: insertAddendumSchema,
       responses: {
-        200: z.array(z.custom<typeof coverage.$inferSelect>()),
+        201: z.custom<typeof addenda.$inferSelect>(),
+        400: errorSchemas.validation,
       },
     },
   },
+
+  // =============================================
+  // EFFECTIVE POLICIES
+  // =============================================
+  effectivePolicies: {
+    get: {
+      method: 'GET' as const,
+      path: '/api/effective-policies/:documentId/:businessUnitId' as const,
+      responses: {
+        200: z.custom<typeof effectivePolicies.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    generate: {
+      method: 'POST' as const,
+      path: '/api/effective-policies/generate' as const,
+      input: z.object({
+        documentId: z.number(),
+        businessUnitId: z.number(),
+        versionId: z.number(),
+        addendumId: z.number().optional(),
+      }),
+      responses: {
+        201: z.custom<typeof effectivePolicies.$inferSelect>(),
+      },
+    },
+  },
+
+  // =============================================
+  // APPROVALS
+  // =============================================
+  approvals: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/approvals' as const,
+      responses: { 200: z.array(z.custom<typeof approvals.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/approvals' as const,
+      input: insertApprovalSchema,
+      responses: {
+        201: z.custom<typeof approvals.$inferSelect>(),
+      },
+    },
+  },
+
+  // =============================================
+  // AUDIT LOG
+  // =============================================
+  auditLog: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/audit-log' as const,
+      responses: { 200: z.array(z.custom<typeof auditLog.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // REVIEW HISTORY
+  // =============================================
+  reviewHistory: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/documents/:documentId/reviews' as const,
+      responses: { 200: z.array(z.custom<typeof reviewHistory.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/reviews' as const,
+      input: insertReviewHistorySchema,
+      responses: {
+        201: z.custom<typeof reviewHistory.$inferSelect>(),
+      },
+    },
+  },
+
+  // =============================================
+  // REQUIREMENT MAPPINGS
+  // =============================================
+  requirementMappings: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/requirement-mappings' as const,
+      responses: { 200: z.array(z.custom<typeof requirementMappings.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/requirement-mappings' as const,
+      input: insertRequirementMappingSchema,
+      responses: {
+        201: z.custom<typeof requirementMappings.$inferSelect>(),
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/requirement-mappings/:id' as const,
+      input: insertRequirementMappingSchema.partial(),
+      responses: {
+        200: z.custom<typeof requirementMappings.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // FINDINGS & REMEDIATION
+  // =============================================
   findings: {
     list: {
       method: 'GET' as const,
       path: '/api/findings' as const,
+      responses: { 200: z.array(z.custom<typeof findings.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/findings/:id' as const,
       responses: {
-        200: z.array(z.custom<typeof findings.$inferSelect>()),
+        200: z.custom<typeof findings.$inferSelect>(),
+        404: errorSchemas.notFound,
       },
     },
     create: {
@@ -104,23 +296,63 @@ export const api = {
       input: insertFindingSchema,
       responses: {
         201: z.custom<typeof findings.$inferSelect>(),
+        400: errorSchemas.validation,
       },
-    }
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/findings/:id' as const,
+      input: insertFindingSchema.partial(),
+      responses: {
+        200: z.custom<typeof findings.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
+
+  findingEvidence: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/findings/:findingId/evidence' as const,
+      responses: { 200: z.array(z.custom<typeof findingEvidence.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // POLICY LINKS (Graph)
+  // =============================================
+  policyLinks: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/policy-links' as const,
+      responses: { 200: z.array(z.custom<typeof policyLinks.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // DASHBOARD STATS
+  // =============================================
   stats: {
     get: {
       method: 'GET' as const,
       path: '/api/stats' as const,
       responses: {
         200: z.object({
-          totalPolicies: z.number(),
+          totalDocuments: z.number(),
           totalRequirements: z.number(),
-          gapCount: z.number(),
+          totalSources: z.number(),
+          businessUnits: z.number(),
+          coveredCount: z.number(),
+          partiallyCoveredCount: z.number(),
+          notCoveredCount: z.number(),
           openFindings: z.number(),
+          overdueFindings: z.number(),
+          pendingApprovals: z.number(),
+          pendingReviews: z.number(),
         }),
-      }
-    }
-  }
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {

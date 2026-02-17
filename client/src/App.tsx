@@ -3,39 +3,62 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Sidebar } from "@/components/Sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 
 import Dashboard from "@/pages/Dashboard";
-import Policies from "@/pages/Policies";
+import Documents from "@/pages/Documents";
+import DocumentDetail from "@/pages/DocumentDetail";
 import Requirements from "@/pages/Requirements";
+import RegulatorySources from "@/pages/RegulatorySources";
 import GapAnalysis from "@/pages/GapAnalysis";
 import Findings from "@/pages/Findings";
+import AuditTrail from "@/pages/AuditTrail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
-    <div className="flex min-h-screen bg-background text-foreground font-sans antialiased">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto h-screen bg-slate-50/50">
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/policies" component={Policies} />
-          <Route path="/requirements" component={Requirements} />
-          <Route path="/gap-analysis" component={GapAnalysis} />
-          <Route path="/findings" component={Findings} />
-          <Route component={NotFound} />
-        </Switch>
-      </main>
-    </div>
+    <Switch>
+      <Route path="/" component={Dashboard} />
+      <Route path="/documents" component={Documents} />
+      <Route path="/documents/:id" component={DocumentDetail} />
+      <Route path="/requirements" component={Requirements} />
+      <Route path="/sources" component={RegulatorySources} />
+      <Route path="/gap-analysis" component={GapAnalysis} />
+      <Route path="/findings" component={Findings} />
+      <Route path="/audit-trail" component={AuditTrail} />
+      <Route component={NotFound} />
+    </Switch>
   );
 }
+
+const sidebarStyle = {
+  "--sidebar-width": "16rem",
+} as React.CSSProperties;
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <ThemeProvider>
+          <SidebarProvider style={sidebarStyle}>
+            <div className="flex h-screen w-full">
+              <AppSidebar />
+              <div className="flex flex-col flex-1">
+                <header className="flex items-center justify-between gap-2 border-b p-2">
+                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                  <ThemeToggle />
+                </header>
+                <main className="flex-1 overflow-auto p-6">
+                  <Router />
+                </main>
+              </div>
+            </div>
+          </SidebarProvider>
+          <Toaster />
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
