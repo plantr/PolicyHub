@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import type { Document, BusinessUnit } from "@shared/schema";
+import type { Document, BusinessUnit, User } from "@shared/schema";
 import { insertDocumentSchema } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +117,15 @@ export default function Documents() {
     queryKey: ["/api/admin", "document-categories"],
     queryFn: () => fetch("/api/admin/document-categories").then((r) => r.json()),
   });
+
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const activeUsers = useMemo(
+    () => (users ?? []).filter((u) => u.status === "Active").sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
+    [users],
+  );
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -539,9 +548,20 @@ export default function Documents() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Owner</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Jane Smith" {...field} data-testid="input-doc-owner" />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-doc-owner">
+                          <SelectValue placeholder="Select owner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {activeUsers.map((u) => (
+                          <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`} data-testid={`option-doc-owner-${u.id}`}>
+                            {u.firstName} {u.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
