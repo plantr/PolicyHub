@@ -224,6 +224,19 @@ export const policyLinks = pgTable("policy_links", {
 });
 
 // =============================================
+// LOOKUPS (Configurable reference data)
+// =============================================
+
+export const lookups = pgTable("lookups", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+// =============================================
 // INSERT SCHEMAS
 // =============================================
 
@@ -240,6 +253,7 @@ export const insertRequirementMappingSchema = createInsertSchema(requirementMapp
 export const insertFindingSchema = createInsertSchema(findings).omit({ id: true, createdAt: true, closedAt: true });
 export const insertFindingEvidenceSchema = createInsertSchema(findingEvidence).omit({ id: true, uploadedAt: true });
 export const insertPolicyLinkSchema = createInsertSchema(policyLinks).omit({ id: true });
+export const insertLookupSchema = createInsertSchema(lookups).omit({ id: true });
 
 // =============================================
 // SELECT TYPES
@@ -260,14 +274,18 @@ export type RequirementMapping = typeof requirementMappings.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type FindingEvidence = typeof findingEvidence.$inferSelect;
 export type PolicyLink = typeof policyLinks.$inferSelect;
+export type Lookup = typeof lookups.$inferSelect;
 
 // =============================================
 // REQUEST TYPES
 // =============================================
 
 export type CreateBusinessUnitRequest = z.infer<typeof insertBusinessUnitSchema>;
+export type UpdateBusinessUnitRequest = Partial<CreateBusinessUnitRequest>;
 export type CreateDocumentRequest = z.infer<typeof insertDocumentSchema>;
 export type UpdateDocumentRequest = Partial<CreateDocumentRequest>;
+export type CreateLookupRequest = z.infer<typeof insertLookupSchema>;
+export type UpdateLookupRequest = Partial<CreateLookupRequest>;
 export type CreateDocumentVersionRequest = z.infer<typeof insertDocumentVersionSchema>;
 export type CreateAddendumRequest = z.infer<typeof insertAddendumSchema>;
 export type CreateApprovalRequest = z.infer<typeof insertApprovalSchema>;
