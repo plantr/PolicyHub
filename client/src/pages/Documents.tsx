@@ -489,13 +489,26 @@ export default function Documents() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. AML Policy" {...field} data-testid="input-doc-title" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="documentReference"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Document Reference</FormLabel>
+                      <FormLabel>Reference</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. POL-001" {...field} value={field.value ?? ""} data-testid="input-doc-reference" />
                       </FormControl>
@@ -503,21 +516,6 @@ export default function Documents() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem className="col-span-2">
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. AML Policy" {...field} data-testid="input-doc-title" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="docType"
@@ -565,31 +563,31 @@ export default function Documents() {
                   )}
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="owner"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Owner</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ""}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-doc-owner">
-                          <SelectValue placeholder="Select owner" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {activeUsers.map((u) => (
-                          <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`} data-testid={`option-doc-owner-${u.id}`}>
-                            {u.firstName} {u.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="owner"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Owner</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-doc-owner">
+                            <SelectValue placeholder="Select owner" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {activeUsers.map((u) => (
+                            <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`} data-testid={`option-doc-owner-${u.id}`}>
+                              {u.firstName} {u.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="reviewFrequency"
