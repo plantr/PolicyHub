@@ -300,7 +300,6 @@ export const jurisdictions = pgTable("jurisdictions", {
 
 export const documentCategories = pgTable("document_categories", {
   id: serial("id").primaryKey(),
-  value: text("value").notNull(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
   active: boolean("active").notNull().default(true),
@@ -375,7 +374,7 @@ export type CreateBusinessUnitRequest = z.infer<typeof insertBusinessUnitSchema>
 export type UpdateBusinessUnitRequest = Partial<CreateBusinessUnitRequest>;
 export type CreateDocumentRequest = z.infer<typeof insertDocumentSchema>;
 export type UpdateDocumentRequest = Partial<CreateDocumentRequest>;
-export type CreateAdminRecordRequest = { value: string; label: string; sortOrder: number; active: boolean };
+export type CreateAdminRecordRequest = { value?: string; label: string; sortOrder: number; active: boolean };
 export type UpdateAdminRecordRequest = Partial<CreateAdminRecordRequest>;
 export type CreateDocumentVersionRequest = z.infer<typeof insertDocumentVersionSchema>;
 export type CreateAddendumRequest = z.infer<typeof insertAddendumSchema>;

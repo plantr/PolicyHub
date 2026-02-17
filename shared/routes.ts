@@ -515,23 +515,23 @@ export const api = {
     list: {
       method: 'GET' as const,
       path: '/api/admin/:table' as const,
-      responses: { 200: z.array(z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() })) },
+      responses: { 200: z.array(z.object({ id: z.number(), value: z.string().optional(), label: z.string(), sortOrder: z.number(), active: z.boolean() })) },
     },
     create: {
       method: 'POST' as const,
       path: '/api/admin/:table' as const,
-      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
+      input: z.object({ value: z.string().optional(), label: z.string(), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
       responses: {
-        201: z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
+        201: z.object({ id: z.number(), value: z.string().optional(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
         400: errorSchemas.validation,
       },
     },
     update: {
       method: 'PUT' as const,
       path: '/api/admin/:table/:id' as const,
-      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
+      input: z.object({ value: z.string().optional(), label: z.string(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
       responses: {
-        200: z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
+        200: z.object({ id: z.number(), value: z.string().optional(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
         404: errorSchemas.notFound,
       },
     },

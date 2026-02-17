@@ -17,10 +17,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 
-type AdminRecord = { id: number; value: string; label: string; sortOrder: number; active: boolean };
+type AdminRecord = { id: number; value?: string; label: string; sortOrder: number; active: boolean };
+
+const TABLES_WITHOUT_VALUE = ["document-categories"];
 
 const adminFormSchema = z.object({
-  value: z.string().min(1, "Value is required"),
+  value: z.string().optional().default(""),
   label: z.string().min(1, "Label is required"),
   sortOrder: z.coerce.number().int().min(0),
   active: z.boolean().default(true),
@@ -41,6 +43,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
   const pageTitle = config?.label ?? slug;
   const singular = config?.singular ?? "Item";
   const apiBase = `/api/admin/${slug}`;
+  const hasValue = !TABLES_WITHOUT_VALUE.includes(slug);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AdminRecord | null>(null);
@@ -66,7 +69,8 @@ export default function LookupAdmin({ slug }: { slug: string }) {
 
   const createMutation = useMutation({
     mutationFn: async (data: AdminFormValues) => {
-      const res = await apiRequest("POST", apiBase, data);
+      const payload = hasValue ? data : { label: data.label, sortOrder: data.sortOrder, active: data.active };
+      const res = await apiRequest("POST", apiBase, payload);
       return res.json();
     },
     onSuccess: () => {
@@ -81,7 +85,8 @@ export default function LookupAdmin({ slug }: { slug: string }) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<AdminFormValues> }) => {
-      const res = await apiRequest("PUT", `${apiBase}/${id}`, data);
+      const payload = hasValue ? data : { label: data.label, sortOrder: data.sortOrder, active: data.active };
+      const res = await apiRequest("PUT", `${apiBase}/${id}`, payload);
       return res.json();
     },
     onSuccess: () => {
@@ -193,7 +198,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
             <TableHeader>
               <TableRow>
                 <TableHead data-testid="th-order">Order</TableHead>
-                <TableHead data-testid="th-value">Value</TableHead>
+                {hasValue && <TableHead data-testid="th-value">Value</TableHead>}
                 <TableHead data-testid="th-label">Label</TableHead>
                 <TableHead data-testid="th-status">Status</TableHead>
                 <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
@@ -202,7 +207,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
             <TableBody>
               {sorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-records">
+                  <TableCell colSpan={hasValue ? 5 : 4} className="h-32 text-center text-muted-foreground" data-testid="text-no-records">
                     No {pageTitle.toLowerCase()} configured. Click "Add {singular}" to create one.
                   </TableCell>
                 </TableRow>
@@ -235,9 +240,11 @@ export default function LookupAdmin({ slug }: { slug: string }) {
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm font-mono" data-testid={`text-value-${record.id}`}>
-                      {record.value}
-                    </TableCell>
+                    {hasValue && (
+                      <TableCell className="text-sm font-mono" data-testid={`text-value-${record.id}`}>
+                        {record.value}
+                      </TableCell>
+                    )}
                     <TableCell className="text-sm font-medium" data-testid={`text-label-${record.id}`}>
                       {record.label}
                     </TableCell>
@@ -289,19 +296,21 @@ export default function LookupAdmin({ slug }: { slug: string }) {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-              <FormField
-                control={form.control}
-                name="value"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Value (code)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. EMI" {...field} data-testid="input-record-value" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {hasValue && (
+                <FormField
+                  control={form.control}
+                  name="value"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Value (code)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. EMI" {...field} data-testid="input-record-value" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="label"
