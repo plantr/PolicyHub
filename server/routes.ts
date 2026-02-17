@@ -9,7 +9,7 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks, audits,
+  findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from "@shared/schema";
 
@@ -431,6 +431,58 @@ export async function registerRoutes(
     await storage.deleteAudit(Number(req.params.id));
     await storage.createAuditLogEntry({ entityType: "audit", entityId: existing.id, action: "deleted", actor: "System", details: `Audit deleted: ${existing.title}` });
     res.status(204).send();
+  });
+
+  // === USERS ===
+  app.get(api.users.list.path, async (_req, res) => {
+    res.json(await storage.getUsers());
+  });
+  app.get(api.users.get.path, async (req, res) => {
+    const user = await storage.getUser(Number(req.params.id));
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  });
+  app.post(api.users.create.path, async (req, res) => {
+    try {
+      const input = api.users.create.input.parse(req.body);
+      const user = await storage.createUser(input);
+      await storage.createAuditLogEntry({
+        entityType: "user", entityId: user.id,
+        action: "created", actor: "System",
+        details: `User "${user.firstName} ${user.lastName}" created`
+      });
+      res.status(201).json(user);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.users.update.path, async (req, res) => {
+    try {
+      const input = api.users.update.input.parse(req.body);
+      const user = await storage.updateUser(Number(req.params.id), input);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      await storage.createAuditLogEntry({
+        entityType: "user", entityId: user.id,
+        action: "updated", actor: "System",
+        details: `User "${user.firstName} ${user.lastName}" updated`
+      });
+      res.json(user);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put("/api/users/:id/deactivate", async (req, res) => {
+    const existing = await storage.getUser(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "User not found" });
+    const deactivated = await storage.deactivateUser(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "user", entityId: existing.id,
+      action: "deactivated", actor: "System",
+      details: `User "${existing.firstName} ${existing.lastName}" deactivated`
+    });
+    res.json(deactivated);
   });
 
   // === ADMIN TABLES ===

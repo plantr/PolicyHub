@@ -10,6 +10,7 @@ import {
   History,
   Building2,
   Users,
+  UserCog,
   MapPin,
   FolderOpen,
   Gauge,
@@ -60,6 +61,7 @@ const navGroups = [
     label: "Administration",
     items: [
       { title: "Business Units", icon: Building2, path: "/business-units" },
+      { title: "Users", icon: UserCog, path: "/users" },
       { title: "Entity Types", icon: Blocks, path: "/admin/entity-types" },
       { title: "Roles / Actors", icon: Users, path: "/admin/roles" },
       { title: "Jurisdictions", icon: MapPin, path: "/admin/jurisdictions" },

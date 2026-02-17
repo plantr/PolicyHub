@@ -19,6 +19,7 @@ import Findings from "@/pages/Findings";
 import AuditTrail from "@/pages/AuditTrail";
 import BusinessUnits from "@/pages/BusinessUnits";
 import Audits from "@/pages/Audits";
+import UsersPage from "@/pages/Users";
 import LookupAdmin from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/audit-trail" component={AuditTrail} />
       <Route path="/audits" component={Audits} />
       <Route path="/business-units" component={BusinessUnits} />
+      <Route path="/users" component={UsersPage} />
       <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" icon={Blocks} />}</Route>
       <Route path="/admin/roles">{() => <LookupAdmin slug="roles" icon={Users} />}</Route>
       <Route path="/admin/jurisdictions">{() => <LookupAdmin slug="jurisdictions" icon={MapPin} />}</Route>

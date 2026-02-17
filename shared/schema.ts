@@ -249,6 +249,25 @@ export const audits = pgTable("audits", {
 });
 
 // =============================================
+// USERS
+// =============================================
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull(),
+  jobTitle: text("job_title"),
+  department: text("department"),
+  businessUnitId: integer("business_unit_id"),
+  status: text("status").notNull().default("Active"),
+  phone: text("phone"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================
 // ADMINISTRATION REFERENCE TABLES
 // =============================================
 
@@ -310,6 +329,7 @@ export const insertFindingSchema = createInsertSchema(findings).omit({ id: true,
 export const insertFindingEvidenceSchema = createInsertSchema(findingEvidence).omit({ id: true, uploadedAt: true });
 export const insertPolicyLinkSchema = createInsertSchema(policyLinks).omit({ id: true });
 export const insertAuditSchema = createInsertSchema(audits).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertEntityTypeSchema = createInsertSchema(entityTypes).omit({ id: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({ id: true });
@@ -336,6 +356,7 @@ export type Finding = typeof findings.$inferSelect;
 export type FindingEvidence = typeof findingEvidence.$inferSelect;
 export type PolicyLink = typeof policyLinks.$inferSelect;
 export type Audit = typeof audits.$inferSelect;
+export type User = typeof users.$inferSelect;
 export type EntityType = typeof entityTypes.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type Jurisdiction = typeof jurisdictions.$inferSelect;
@@ -362,6 +383,8 @@ export type CreateRequirementMappingRequest = z.infer<typeof insertRequirementMa
 export type UpdateRequirementMappingRequest = Partial<CreateRequirementMappingRequest>;
 export type CreateAuditRequest = z.infer<typeof insertAuditSchema>;
 export type UpdateAuditRequest = Partial<CreateAuditRequest>;
+export type CreateUserRequest = z.infer<typeof insertUserSchema>;
+export type UpdateUserRequest = Partial<CreateUserRequest>;
 export type CreateRegulatorySourceRequest = z.infer<typeof insertRegulatorySourceSchema>;
 export type UpdateRegulatorySourceRequest = Partial<CreateRegulatorySourceRequest>;
 export type CreateRequirementRequest = z.infer<typeof insertRequirementSchema>;

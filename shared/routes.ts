@@ -4,10 +4,11 @@ import {
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
   insertRequirementMappingSchema, insertReviewHistorySchema,
   insertRegulatorySourceSchema, insertRequirementSchema, insertAuditSchema,
+  insertUserSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
-  audits, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  audits, users, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from './schema';
 
 export const errorSchemas = {
@@ -465,6 +466,43 @@ export const api = {
       path: '/api/audits/:id' as const,
       responses: {
         204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // USERS
+  // =============================================
+  users: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/users' as const,
+      responses: { 200: z.array(z.custom<typeof users.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/users/:id' as const,
+      responses: {
+        200: z.custom<typeof users.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/users' as const,
+      input: insertUserSchema,
+      responses: {
+        201: z.custom<typeof users.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/users/:id' as const,
+      input: insertUserSchema.partial(),
+      responses: {
+        200: z.custom<typeof users.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },

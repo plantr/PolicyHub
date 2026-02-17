@@ -3,13 +3,14 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks, audits,
+  findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
   type RequirementMapping, type Finding, type FindingEvidence, type PolicyLink,
   type Audit, type CreateAuditRequest, type UpdateAuditRequest,
+  type User, type CreateUserRequest, type UpdateUserRequest,
   type AdminRecord, type CreateAdminRecordRequest, type UpdateAdminRecordRequest,
   type CreateBusinessUnitRequest, type UpdateBusinessUnitRequest,
   type CreateDocumentRequest, type UpdateDocumentRequest,
@@ -86,6 +87,12 @@ export interface IStorage {
   createAudit(audit: CreateAuditRequest): Promise<Audit>;
   updateAudit(id: number, audit: UpdateAuditRequest): Promise<Audit | undefined>;
   deleteAudit(id: number): Promise<void>;
+
+  getUsers(): Promise<User[]>;
+  getUser(id: number): Promise<User | undefined>;
+  createUser(user: CreateUserRequest): Promise<User>;
+  updateUser(id: number, user: UpdateUserRequest): Promise<User | undefined>;
+  deactivateUser(id: number): Promise<User | undefined>;
 
   getAdminRecords(table: string): Promise<AdminRecord[]>;
   getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined>;
@@ -286,6 +293,26 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteAudit(id: number): Promise<void> {
     await db.delete(audits).where(eq(audits.id, id));
+  }
+
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  async createUser(data: CreateUserRequest): Promise<User> {
+    const [created] = await db.insert(users).values(data).returning();
+    return created;
+  }
+  async updateUser(id: number, data: UpdateUserRequest): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+  async deactivateUser(id: number): Promise<User | undefined> {
+    const [updated] = await db.update(users).set({ status: "Inactive" }).where(eq(users.id, id)).returning();
+    return updated;
   }
 
   private getAdminTable(table: string) {
