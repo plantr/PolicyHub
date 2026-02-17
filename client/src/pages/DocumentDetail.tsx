@@ -50,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Plus, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -300,6 +300,67 @@ export default function DocumentDetail() {
     createVersionMutation.mutate(data);
   }
 
+  const [editVersionOpen, setEditVersionOpen] = useState(false);
+  const [editingVersion, setEditingVersion] = useState<DocumentVersion | null>(null);
+
+  const editVersionForm = useForm<AddVersionValues>({
+    resolver: zodResolver(addVersionSchema),
+    defaultValues: {
+      version: "",
+      status: "Draft",
+      changeReason: "",
+      createdBy: "",
+      effectiveDate: null,
+    },
+  });
+
+  function openEditVersion(ver: DocumentVersion) {
+    setEditingVersion(ver);
+    editVersionForm.reset({
+      version: ver.version,
+      status: ver.status,
+      changeReason: ver.changeReason ?? "",
+      createdBy: ver.createdBy,
+      effectiveDate: ver.effectiveDate ? format(new Date(ver.effectiveDate), "yyyy-MM-dd") : null,
+    });
+    setEditVersionOpen(true);
+  }
+
+  const editVersionMutation = useMutation({
+    mutationFn: async (data: AddVersionValues) => {
+      const res = await fetch(`/api/document-versions/${editingVersion!.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          version: data.version,
+          status: data.status,
+          changeReason: data.changeReason || null,
+          createdBy: data.createdBy,
+          effectiveDate: data.effectiveDate || null,
+        }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to update version" }));
+        throw new Error(err.message || "Failed to update version");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      toast({ title: "Version updated" });
+      setEditVersionOpen(false);
+      setEditingVersion(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function onEditVersionSubmit(data: AddVersionValues) {
+    editVersionMutation.mutate(data);
+  }
+
   const handleVersionDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -489,12 +550,13 @@ export default function DocumentDetail() {
                     <TableHead data-testid="col-created-by">Created By</TableHead>
                     <TableHead data-testid="col-date">Issued Date</TableHead>
                     <TableHead data-testid="col-pdf">PDF Attachment</TableHead>
+                    <TableHead data-testid="col-actions">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!versions?.length ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
                         No versions found
                       </TableCell>
                     </TableRow>
@@ -573,6 +635,16 @@ export default function DocumentDetail() {
                               Attach PDF
                             </Button>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditVersion(ver)}
+                            data-testid={`button-edit-version-${ver.id}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -949,6 +1021,133 @@ export default function DocumentDetail() {
                 <Button type="submit" disabled={createVersionMutation.isPending} data-testid="button-submit-version">
                   {createVersionMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                   Create Version
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editVersionOpen} onOpenChange={(open) => {
+        setEditVersionOpen(open);
+        if (!open) {
+          editVersionForm.reset();
+          setEditingVersion(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-edit-version">
+          <DialogHeader>
+            <DialogTitle data-testid="text-edit-dialog-title">Edit Version</DialogTitle>
+            <DialogDescription data-testid="text-edit-dialog-description">
+              Update version details.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editVersionForm}>
+            <form onSubmit={editVersionForm.handleSubmit(onEditVersionSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editVersionForm.control}
+                  name="version"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Version Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 1.0" {...field} data-testid="input-edit-version-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editVersionForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-version-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {VERSION_STATUSES.map((s) => (
+                            <SelectItem key={s} value={s} data-testid={`option-edit-status-${s.toLowerCase().replace(/\s+/g, "-")}`}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={editVersionForm.control}
+                name="changeReason"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Change Reason</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Reason for this version" {...field} data-testid="input-edit-change-reason" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editVersionForm.control}
+                  name="createdBy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Created By</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-created-by">
+                            <SelectValue placeholder="Select user" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {activeUsers.map((u) => (
+                            <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`} data-testid={`option-edit-user-${u.id}`}>
+                              {u.firstName} {u.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editVersionForm.control}
+                  name="effectiveDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Effective Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                          data-testid="input-edit-effective-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditVersionOpen(false)} data-testid="button-cancel-edit-version">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editVersionMutation.isPending} data-testid="button-submit-edit-version">
+                  {editVersionMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

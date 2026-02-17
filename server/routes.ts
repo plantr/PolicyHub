@@ -297,6 +297,31 @@ export async function registerRoutes(
       throw err;
     }
   });
+  app.put("/api/document-versions/:id", async (req, res) => {
+    try {
+      const versionId = Number(req.params.id);
+      const existing = await storage.getDocumentVersion(versionId);
+      if (!existing) return res.status(404).json({ message: "Version not found" });
+      const { version, status, changeReason, createdBy, effectiveDate } = req.body;
+      const updateData: any = {};
+      if (version !== undefined) updateData.version = version;
+      if (status !== undefined) updateData.status = status;
+      if (changeReason !== undefined) updateData.changeReason = changeReason || null;
+      if (createdBy !== undefined) updateData.createdBy = createdBy;
+      if (effectiveDate !== undefined) updateData.effectiveDate = effectiveDate ? new Date(effectiveDate) : null;
+      const updated = await storage.updateDocumentVersion(versionId, updateData);
+      if (!updated) return res.status(404).json({ message: "Version not found" });
+      await storage.createAuditLogEntry({
+        entityType: "document_version", entityId: updated.id,
+        action: "updated", actor: updated.createdBy,
+        details: `Version ${updated.version} updated`
+      });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
   app.put(api.documentVersions.updateStatus.path, async (req, res) => {
     const { status } = api.documentVersions.updateStatus.input.parse(req.body);
     const version = await storage.updateDocumentVersionStatus(Number(req.params.id), status);
