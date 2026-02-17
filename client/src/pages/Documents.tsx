@@ -48,7 +48,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, Upload, FileText, X } from "lucide-react";
 
 const DOC_TYPES = ["All", "Policy", "Standard", "Procedure"];
-const TAXONOMIES = ["All", "AML", "Safeguarding", "Information Security", "Compliance", "Operations"];
+type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
 const REVIEW_FREQUENCIES = ["Annual", "Semi-Annual", "Quarterly", "Monthly"];
 
 function getDocTypeBadgeVariant(docType: string): "default" | "secondary" | "outline" {
@@ -112,6 +112,16 @@ export default function Documents() {
   const { data: businessUnits, isLoading: busLoading } = useQuery<BusinessUnit[]>({
     queryKey: ["/api/business-units"],
   });
+
+  const { data: categories } = useQuery<AdminRecord[]>({
+    queryKey: ["/api/admin", "document-categories"],
+    queryFn: () => fetch("/api/admin/document-categories").then((r) => r.json()),
+  });
+
+  const activeCategories = useMemo(
+    () => (categories ?? []).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder),
+    [categories],
+  );
 
   const isLoading = docsLoading || busLoading;
 
@@ -338,9 +348,10 @@ export default function Documents() {
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              {TAXONOMIES.map((t) => (
-                <SelectItem key={t} value={t} data-testid={`option-taxonomy-${t.toLowerCase().replace(/\s+/g, "-")}`}>
-                  {t}
+              <SelectItem value="All" data-testid="option-taxonomy-all">All</SelectItem>
+              {activeCategories.map((c) => (
+                <SelectItem key={c.id} value={c.label} data-testid={`option-taxonomy-${c.id}`}>
+                  {c.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -503,9 +514,20 @@ export default function Documents() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Category</FormLabel>
-                      <FormControl>
-                        <Input placeholder="" {...field} data-testid="input-doc-taxonomy" />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-doc-taxonomy">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {activeCategories.map((c) => (
+                            <SelectItem key={c.id} value={c.label} data-testid={`option-doc-taxonomy-${c.id}`}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
