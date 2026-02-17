@@ -335,7 +335,7 @@ export default function Documents() {
 
           <Select value={taxonomyFilter} onValueChange={setTaxonomyFilter}>
             <SelectTrigger className="w-[200px]" data-testid="select-taxonomy-filter">
-              <SelectValue placeholder="Taxonomy" />
+              <SelectValue placeholder="Domain" />
             </SelectTrigger>
             <SelectContent>
               {TAXONOMIES.map((t) => (
@@ -375,7 +375,7 @@ export default function Documents() {
               <TableRow>
                 <TableHead data-testid="col-title">Title</TableHead>
                 <TableHead data-testid="col-type">Type</TableHead>
-                <TableHead data-testid="col-taxonomy">Taxonomy</TableHead>
+                <TableHead data-testid="col-taxonomy">Domain</TableHead>
                 <TableHead data-testid="col-owner">Owner</TableHead>
                 <TableHead data-testid="col-review-frequency">Review Frequency</TableHead>
                 <TableHead data-testid="col-next-review">Next Review</TableHead>
@@ -502,7 +502,7 @@ export default function Documents() {
                   name="taxonomy"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Taxonomy</FormLabel>
+                      <FormLabel>Domain</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. AML" {...field} data-testid="input-doc-taxonomy" />
                       </FormControl>
