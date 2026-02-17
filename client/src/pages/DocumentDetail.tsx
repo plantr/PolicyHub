@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { format } from "date-fns";
 import type {
@@ -22,8 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 function getVersionStatusClass(status: string): string {
   switch (status) {
@@ -117,6 +119,83 @@ export default function DocumentDetail() {
     const approved = versions.find((v) => v.status === "Approved");
     return published || approved || versions[0];
   }, [versions]);
+
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("pdf", file);
+      const res = await fetch(`/api/document-versions/${versionId}/pdf`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      toast({ title: "PDF uploaded successfully" });
+      setUploadingVersionId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      setUploadingVersionId(null);
+    },
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      const res = await fetch(`/api/document-versions/${versionId}/pdf/download`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Download failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.open(data.url, "_blank");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deletePdfMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      const res = await fetch(`/api/document-versions/${versionId}/pdf`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Delete failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      toast({ title: "PDF removed" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function handleFileSelect(versionId: number) {
+    setUploadingVersionId(versionId);
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file && uploadingVersionId) {
+      uploadMutation.mutate({ versionId: uploadingVersionId, file });
+    }
+    e.target.value = "";
+  }
 
   if (docLoading) {
     return (
@@ -242,6 +321,14 @@ export default function DocumentDetail() {
         </TabsList>
 
         <TabsContent value="versions" data-testid="tabcontent-versions">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={handleFileChange}
+            data-testid="input-pdf-file"
+          />
           <Card>
             {versionsLoading ? (
               <div className="p-4 space-y-3" data-testid="loading-versions">
@@ -259,12 +346,13 @@ export default function DocumentDetail() {
                     <TableHead data-testid="col-change-reason">Change Reason</TableHead>
                     <TableHead data-testid="col-created-by">Created By</TableHead>
                     <TableHead data-testid="col-date">Date</TableHead>
+                    <TableHead data-testid="col-pdf">PDF Attachment</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!versions?.length ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
                         No versions found
                       </TableCell>
                     </TableRow>
@@ -298,6 +386,51 @@ export default function DocumentDetail() {
                           {ver.createdAt
                             ? format(new Date(ver.createdAt), "dd MMM yyyy")
                             : "-"}
+                        </TableCell>
+                        <TableCell data-testid={`cell-pdf-${ver.id}`}>
+                          {ver.pdfS3Key ? (
+                            <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mr-1">
+                                <FileText className="h-3.5 w-3.5" />
+                                <span className="max-w-[120px] truncate" data-testid={`text-pdf-name-${ver.id}`}>
+                                  {ver.pdfFileName}
+                                </span>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => downloadMutation.mutate(ver.id)}
+                                disabled={downloadMutation.isPending}
+                                data-testid={`button-download-pdf-${ver.id}`}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => deletePdfMutation.mutate(ver.id)}
+                                disabled={deletePdfMutation.isPending}
+                                data-testid={`button-delete-pdf-${ver.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleFileSelect(ver.id)}
+                              disabled={uploadMutation.isPending && uploadingVersionId === ver.id}
+                              data-testid={`button-upload-pdf-${ver.id}`}
+                            >
+                              {uploadMutation.isPending && uploadingVersionId === ver.id ? (
+                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                              ) : (
+                                <Upload className="h-3.5 w-3.5 mr-1" />
+                              )}
+                              Attach PDF
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

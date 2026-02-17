@@ -50,8 +50,10 @@ export interface IStorage {
   deleteDocument(id: number): Promise<void>;
 
   getDocumentVersions(documentId: number): Promise<DocumentVersion[]>;
+  getDocumentVersion(id: number): Promise<DocumentVersion | undefined>;
   createDocumentVersion(version: CreateDocumentVersionRequest): Promise<DocumentVersion>;
   updateDocumentVersionStatus(id: number, status: string): Promise<DocumentVersion>;
+  updateDocumentVersionPdf(id: number, pdfS3Key: string, pdfFileName: string, pdfFileSize: number): Promise<DocumentVersion>;
 
   getAddenda(documentId: number): Promise<Addendum[]>;
   createAddendum(addendum: CreateAddendumRequest): Promise<Addendum>;
@@ -186,12 +188,20 @@ export class DatabaseStorage implements IStorage {
   async getDocumentVersions(documentId: number): Promise<DocumentVersion[]> {
     return await db.select().from(documentVersions).where(eq(documentVersions.documentId, documentId));
   }
+  async getDocumentVersion(id: number): Promise<DocumentVersion | undefined> {
+    const [version] = await db.select().from(documentVersions).where(eq(documentVersions.id, id));
+    return version;
+  }
   async createDocumentVersion(version: CreateDocumentVersionRequest): Promise<DocumentVersion> {
     const [created] = await db.insert(documentVersions).values(version).returning();
     return created;
   }
   async updateDocumentVersionStatus(id: number, status: string): Promise<DocumentVersion> {
     const [updated] = await db.update(documentVersions).set({ status }).where(eq(documentVersions.id, id)).returning();
+    return updated;
+  }
+  async updateDocumentVersionPdf(id: number, pdfS3Key: string, pdfFileName: string, pdfFileSize: number): Promise<DocumentVersion> {
+    const [updated] = await db.update(documentVersions).set({ pdfS3Key, pdfFileName, pdfFileSize }).where(eq(documentVersions.id, id)).returning();
     return updated;
   }
 

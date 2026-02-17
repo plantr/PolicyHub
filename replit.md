@@ -57,7 +57,7 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `regulatory_sources` - Legislation and regulatory instruments (e.g., FCA rules, MiCA)
 - `requirements` - Individual obligation statements derived from regulatory sources
 - `documents` - Policy documents with metadata (type, taxonomy, owner, review dates, status)
-- `document_versions` - Version history for documents with status tracking
+- `document_versions` - Version history for documents with status tracking and PDF attachment metadata (S3 key, filename, size)
 - `addenda` - Business unit-specific additions/overrides to documents
 - `effective_policies` - Links documents to business units with effective dates
 - `approvals` - Approval records for documents/versions

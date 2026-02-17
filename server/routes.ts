@@ -5,6 +5,20 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { db } from "./db";
 import { createHash } from "crypto";
+import multer from "multer";
+import { generateS3Key, uploadToS3, getPresignedDownloadUrl, deleteFromS3 } from "./s3";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed"));
+    }
+  },
+});
 import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
@@ -237,6 +251,69 @@ export async function registerRoutes(
       details: `Status changed to ${status}`
     });
     res.json(version);
+  });
+
+  // === DOCUMENT VERSION PDF UPLOAD/DOWNLOAD ===
+  app.post("/api/document-versions/:id/pdf", upload.single("pdf"), async (req, res) => {
+    try {
+      const versionId = Number(req.params.id);
+      const version = await storage.getDocumentVersion(versionId);
+      if (!version) return res.status(404).json({ message: "Version not found" });
+      if (!req.file) return res.status(400).json({ message: "No PDF file provided" });
+
+      if (version.pdfS3Key) {
+        try { await deleteFromS3(version.pdfS3Key); } catch {}
+      }
+
+      const s3Key = generateS3Key(version.documentId, versionId, req.file.originalname);
+      await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
+      const updated = await storage.updateDocumentVersionPdf(versionId, s3Key, req.file.originalname, req.file.size);
+
+      await storage.createAuditLogEntry({
+        entityType: "document_version", entityId: versionId,
+        action: "pdf_uploaded", actor: "System",
+        details: `PDF "${req.file.originalname}" uploaded (${(req.file.size / 1024).toFixed(1)} KB)`
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Upload failed" });
+    }
+  });
+
+  app.get("/api/document-versions/:id/pdf/download", async (req, res) => {
+    try {
+      const version = await storage.getDocumentVersion(Number(req.params.id));
+      if (!version) return res.status(404).json({ message: "Version not found" });
+      if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
+
+      const url = await getPresignedDownloadUrl(version.pdfS3Key, version.pdfFileName || "policy.pdf");
+      res.json({ url });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Download failed" });
+    }
+  });
+
+  app.delete("/api/document-versions/:id/pdf", async (req, res) => {
+    try {
+      const versionId = Number(req.params.id);
+      const version = await storage.getDocumentVersion(versionId);
+      if (!version) return res.status(404).json({ message: "Version not found" });
+      if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached" });
+
+      await deleteFromS3(version.pdfS3Key);
+      const updated = await storage.updateDocumentVersionPdf(versionId, "", "", 0);
+
+      await storage.createAuditLogEntry({
+        entityType: "document_version", entityId: versionId,
+        action: "pdf_deleted", actor: "System",
+        details: `PDF "${version.pdfFileName}" removed`
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Delete failed" });
+    }
   });
 
   // === ADDENDA ===

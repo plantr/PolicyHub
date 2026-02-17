@@ -90,6 +90,9 @@ export const documentVersions = pgTable("document_versions", {
   effectiveDate: timestamp("effective_date"),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+  pdfS3Key: text("pdf_s3_key"),
+  pdfFileName: text("pdf_file_name"),
+  pdfFileSize: integer("pdf_file_size"),
 });
 
 // =============================================
