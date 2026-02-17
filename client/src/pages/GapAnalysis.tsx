@@ -56,10 +56,10 @@ export default function GapAnalysis() {
   });
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="gap-analysis-page">
+    <div className="space-y-6" data-testid="gap-analysis-page">
       <div data-testid="gap-analysis-header">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Gap Analysis</h1>
-        <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Requirement coverage and compliance matrix</p>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Gap Analysis</h1>
+        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Requirement coverage and compliance matrix</p>
       </div>
 
       {isLoading ? (

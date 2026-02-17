@@ -31,10 +31,10 @@ export default function AuditTrail() {
   });
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="audit-trail-page">
+    <div className="space-y-6" data-testid="audit-trail-page">
       <div data-testid="audit-trail-header">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Audit Trail</h1>
-        <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Immutable record of all governance actions</p>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Audit Trail</h1>
+        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Immutable record of all governance actions</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3" data-testid="filter-bar">

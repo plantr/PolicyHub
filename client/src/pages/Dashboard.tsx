@@ -112,10 +112,10 @@ export default function Dashboard() {
   const buMap = new Map((businessUnits ?? []).map((bu) => [bu.id, bu]));
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="dashboard-page">
+    <div className="space-y-6" data-testid="dashboard-page">
       <div data-testid="dashboard-header">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Dashboard</h1>
-        <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Policy management overview</p>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Policy management overview</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="stats-grid">
@@ -325,7 +325,7 @@ function StatCard({
 
 function DashboardSkeleton() {
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto" data-testid="dashboard-skeleton">
+    <div className="space-y-6" data-testid="dashboard-skeleton">
       <div className="space-y-2">
         <Skeleton className="h-8 w-[180px]" />
         <Skeleton className="h-4 w-[260px]" />

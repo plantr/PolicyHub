@@ -179,10 +179,16 @@ export default function Requirements() {
   }
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="requirements-page">
-      <div data-testid="requirements-header">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Requirements Library</h1>
-        <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Regulatory obligations and requirement statements</p>
+    <div className="space-y-6" data-testid="requirements-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="requirements-header">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Requirements Library</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Regulatory obligations and requirement statements</p>
+        </div>
+        <Button onClick={openCreateDialog} data-testid="button-add-requirement">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Requirement
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3" data-testid="filter-bar">
@@ -222,12 +228,6 @@ export default function Requirements() {
           </SelectContent>
         </Select>
 
-        <div className="ml-auto">
-          <Button onClick={openCreateDialog} data-testid="button-add-requirement">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Requirement
-          </Button>
-        </div>
       </div>
 
       <Card data-testid="requirements-table-card">

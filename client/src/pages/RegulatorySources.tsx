@@ -176,11 +176,11 @@ export default function RegulatorySources() {
   const groups = groupByJurisdiction(sources ?? []);
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="regulatory-sources-page">
-      <div className="flex items-center justify-between gap-4 flex-wrap" data-testid="regulatory-sources-header">
+    <div className="space-y-6" data-testid="regulatory-sources-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="regulatory-sources-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Regulatory Sources</h1>
-          <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Applicable legislation and regulatory instruments</p>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Regulatory Sources</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Applicable legislation and regulatory instruments</p>
         </div>
         <Button onClick={openCreateDialog} data-testid="button-add-source">
           <Plus className="h-4 w-4 mr-1" />

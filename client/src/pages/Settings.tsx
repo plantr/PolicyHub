@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+
 
 type AdminRecord = { id: number; value: string; label: string; sortOrder: number; active: boolean };
 
@@ -36,7 +36,7 @@ export const ADMIN_CATEGORIES: Record<string, { slug: string; label: string; sin
   "finding-severities": { slug: "finding-severities", label: "Finding Severities", singular: "Finding Severity" },
 };
 
-export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: LucideIcon }) {
+export default function LookupAdmin({ slug }: { slug: string }) {
   const config = ADMIN_CATEGORIES[slug];
   const pageTitle = config?.label ?? slug;
   const singular = config?.singular ?? "Item";
@@ -167,18 +167,14 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6" data-testid={`admin-${slug}-page`}>
-      <div data-testid="admin-header">
-        <div className="flex items-center gap-2">
-          <Icon className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">{pageTitle}</h1>
+    <div className="space-y-6" data-testid={`admin-${slug}-page`}>
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="admin-header">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">{pageTitle}</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
+            Manage {pageTitle.toLowerCase()} used across the platform
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-          Manage {pageTitle.toLowerCase()} used across the platform
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-3" data-testid="admin-toolbar">
         <Button onClick={openCreateDialog} data-testid="button-add-record">
           <Plus className="h-4 w-4 mr-1" />
           Add {singular}

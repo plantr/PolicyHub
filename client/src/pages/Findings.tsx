@@ -223,11 +223,11 @@ export default function Findings() {
   });
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6" data-testid="findings-page">
-      <div className="flex flex-wrap items-start justify-between gap-4" data-testid="findings-header">
+    <div className="space-y-6" data-testid="findings-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="findings-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
-          <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">Audit findings and remediation tracking</p>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Audit findings and remediation tracking</p>
         </div>
         <Button onClick={openCreateDialog} data-testid="button-add-finding">
           <Plus className="h-4 w-4 mr-1" />

@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { UserCog, Plus, Pencil, UserX, Mail, Phone } from "lucide-react";
+import { Plus, Pencil, UserX, Mail, Phone } from "lucide-react";
 import type { User, BusinessUnit, AdminRecord } from "@shared/schema";
 import { insertUserSchema } from "@shared/schema";
 
@@ -213,10 +213,10 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <UserCog className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Users</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Users</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Manage system users and role assignments</p>
         </div>
         <Button onClick={openCreate} data-testid="button-create-user">
           <Plus className="mr-1 h-4 w-4" />

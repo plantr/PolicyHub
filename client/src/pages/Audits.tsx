@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { ClipboardCheck, Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { Audit, BusinessUnit } from "@shared/schema";
 import { insertAuditSchema } from "@shared/schema";
 
@@ -236,15 +236,18 @@ export default function Audits() {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6" data-testid="audits-page">
-      <div data-testid="audits-header">
-        <div className="flex items-center gap-2">
-          <ClipboardCheck className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Audits</h1>
+    <div className="space-y-6" data-testid="audits-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="audits-header">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Audits</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
+            Track internal and external compliance audits across the group
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-          Track internal and external compliance audits across the group
-        </p>
+        <Button onClick={openCreateDialog} data-testid="button-add-audit">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Audit
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -263,35 +266,29 @@ export default function Audits() {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
-              <SelectValue placeholder="All Types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {AUDIT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {AUDIT_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-audit">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Audit
-        </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {AUDIT_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            {AUDIT_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card data-testid="audits-table-card">

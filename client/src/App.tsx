@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { Blocks, Users, MapPin, FolderOpen, Gauge } from "lucide-react";
 
 import Dashboard from "@/pages/Dashboard";
 import Documents from "@/pages/Documents";
@@ -37,11 +36,11 @@ function Router() {
       <Route path="/audits" component={Audits} />
       <Route path="/business-units" component={BusinessUnits} />
       <Route path="/users" component={UsersPage} />
-      <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" icon={Blocks} />}</Route>
-      <Route path="/admin/roles">{() => <LookupAdmin slug="roles" icon={Users} />}</Route>
-      <Route path="/admin/jurisdictions">{() => <LookupAdmin slug="jurisdictions" icon={MapPin} />}</Route>
-      <Route path="/admin/document-categories">{() => <LookupAdmin slug="document-categories" icon={FolderOpen} />}</Route>
-      <Route path="/admin/finding-severities">{() => <LookupAdmin slug="finding-severities" icon={Gauge} />}</Route>
+      <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" />}</Route>
+      <Route path="/admin/roles">{() => <LookupAdmin slug="roles" />}</Route>
+      <Route path="/admin/jurisdictions">{() => <LookupAdmin slug="jurisdictions" />}</Route>
+      <Route path="/admin/document-categories">{() => <LookupAdmin slug="document-categories" />}</Route>
+      <Route path="/admin/finding-severities">{() => <LookupAdmin slug="finding-severities" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

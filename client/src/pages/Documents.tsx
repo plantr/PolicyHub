@@ -244,8 +244,8 @@ export default function Documents() {
     <div className="space-y-6" data-testid="page-documents">
       <div className="flex flex-wrap items-start justify-between gap-3" data-testid="section-page-header">
         <div>
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Documents</h1>
-          <p className="text-muted-foreground text-sm mt-1" data-testid="text-page-subtitle">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Documents</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
             Policy estate document library
           </p>
         </div>

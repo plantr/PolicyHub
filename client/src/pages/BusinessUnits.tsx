@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Archive, Building2, MapPin } from "lucide-react";
+import { Plus, Pencil, Archive, MapPin } from "lucide-react";
 import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
 
@@ -163,18 +163,14 @@ export default function BusinessUnits() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6" data-testid="business-units-page">
-      <div data-testid="bu-header">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Business Units</h1>
+    <div className="space-y-6" data-testid="business-units-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="bu-header">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Business Units</h1>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
+            Manage regulated entities across jurisdictions
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-          Manage regulated entities across jurisdictions
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-3" data-testid="bu-toolbar">
         <Button onClick={openCreateDialog} data-testid="button-add-bu">
           <Plus className="h-4 w-4 mr-1" />
           Add Business Unit

@@ -235,7 +235,7 @@ export default function DocumentDetail() {
 
       <div className="space-y-2" data-testid="section-header">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold" data-testid="text-document-title">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-document-title">
             {document.title}
           </h1>
           <Badge variant={getDocTypeBadgeVariant(document.docType)} data-testid="badge-doc-type">
