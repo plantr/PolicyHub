@@ -487,7 +487,7 @@ export default function DocumentDetail() {
                     <TableHead data-testid="col-content-hash">Content Hash</TableHead>
                     <TableHead data-testid="col-change-reason">Change Reason</TableHead>
                     <TableHead data-testid="col-created-by">Created By</TableHead>
-                    <TableHead data-testid="col-date">Date</TableHead>
+                    <TableHead data-testid="col-date">Issued Date</TableHead>
                     <TableHead data-testid="col-pdf">PDF Attachment</TableHead>
                   </TableRow>
                 </TableHeader>
