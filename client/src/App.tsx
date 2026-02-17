@@ -41,6 +41,7 @@ function Router() {
       <Route path="/admin/jurisdictions">{() => <LookupAdmin slug="jurisdictions" />}</Route>
       <Route path="/admin/document-categories">{() => <LookupAdmin slug="document-categories" />}</Route>
       <Route path="/admin/finding-severities">{() => <LookupAdmin slug="finding-severities" />}</Route>
+      <Route path="/admin/document-statuses">{() => <LookupAdmin slug="document-statuses" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
