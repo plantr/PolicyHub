@@ -26,6 +26,7 @@ const reqFormSchema = insertRequirementSchema.extend({
   description: z.string().min(1, "Description is required"),
   category: z.string().min(1, "Category is required"),
   article: z.string().nullable().default(null),
+  guidance: z.string().nullable().default(null),
 });
 
 type ReqFormValues = z.infer<typeof reqFormSchema>;
@@ -148,6 +149,7 @@ export default function Requirements() {
       description: "",
       category: "",
       article: null,
+      guidance: null,
     });
     setDialogOpen(true);
   }
@@ -161,6 +163,7 @@ export default function Requirements() {
       description: req.description,
       category: req.category,
       article: req.article ?? null,
+      guidance: req.guidance ?? null,
     });
     setDialogOpen(true);
   }
@@ -247,13 +250,14 @@ export default function Requirements() {
                 <TableHead data-testid="th-source">Source</TableHead>
                 <TableHead data-testid="th-category">Category</TableHead>
                 <TableHead data-testid="th-article">Article</TableHead>
+                <TableHead className="max-w-[200px]" data-testid="th-guidance">Guidance</TableHead>
                 <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-requirements">
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-requirements">
                     No requirements found.
                   </TableCell>
                 </TableRow>
@@ -279,6 +283,9 @@ export default function Requirements() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground" data-testid={`text-article-${req.id}`}>
                         {req.article ?? "--"}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" data-testid={`text-guidance-${req.id}`}>
+                        {req.guidance ? req.guidance.substring(0, 80) + (req.guidance.length > 80 ? "..." : "") : "--"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -422,6 +429,26 @@ export default function Requirements() {
                         {...field}
                         value={field.value ?? ""}
                         data-testid="input-requirement-article"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="guidance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Guidance (Markdown)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Implementation guidance, notes, or references (supports Markdown)"
+                        className="min-h-[120px]"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-requirement-guidance"
                       />
                     </FormControl>
                     <FormMessage />
