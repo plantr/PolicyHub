@@ -2,11 +2,12 @@ import { z } from 'zod';
 import {
   insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
-  insertRequirementMappingSchema, insertReviewHistorySchema, insertLookupSchema,
+  insertRequirementMappingSchema, insertReviewHistorySchema,
   insertRegulatorySourceSchema, insertRequirementSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
-  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles, lookups
+  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
+  entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from './schema';
 
 export const errorSchemas = {
@@ -425,40 +426,35 @@ export const api = {
   },
 
   // =============================================
-  // LOOKUPS (configurable reference data)
+  // ADMINISTRATION REFERENCE TABLES
   // =============================================
-  lookups: {
+  admin: {
     list: {
       method: 'GET' as const,
-      path: '/api/lookups' as const,
-      responses: { 200: z.array(z.custom<typeof lookups.$inferSelect>()) },
-    },
-    byCategory: {
-      method: 'GET' as const,
-      path: '/api/lookups/category/:category' as const,
-      responses: { 200: z.array(z.custom<typeof lookups.$inferSelect>()) },
+      path: '/api/admin/:table' as const,
+      responses: { 200: z.array(z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() })) },
     },
     create: {
       method: 'POST' as const,
-      path: '/api/lookups' as const,
-      input: insertLookupSchema,
+      path: '/api/admin/:table' as const,
+      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
       responses: {
-        201: z.custom<typeof lookups.$inferSelect>(),
+        201: z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
         400: errorSchemas.validation,
       },
     },
     update: {
       method: 'PUT' as const,
-      path: '/api/lookups/:id' as const,
-      input: insertLookupSchema.partial(),
+      path: '/api/admin/:table/:id' as const,
+      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
       responses: {
-        200: z.custom<typeof lookups.$inferSelect>(),
+        200: z.object({ id: z.number(), value: z.string(), label: z.string(), sortOrder: z.number(), active: z.boolean() }),
         404: errorSchemas.notFound,
       },
     },
     delete: {
       method: 'DELETE' as const,
-      path: '/api/lookups/:id' as const,
+      path: '/api/admin/:table/:id' as const,
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,

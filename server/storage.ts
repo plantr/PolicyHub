@@ -3,18 +3,18 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks, lookups,
+  findings, findingEvidence, policyLinks,
+  entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
   type RequirementMapping, type Finding, type FindingEvidence, type PolicyLink,
-  type Lookup,
+  type AdminRecord, type CreateAdminRecordRequest, type UpdateAdminRecordRequest,
   type CreateBusinessUnitRequest, type UpdateBusinessUnitRequest,
   type CreateDocumentRequest, type UpdateDocumentRequest,
   type CreateDocumentVersionRequest, type CreateAddendumRequest, type CreateApprovalRequest,
   type CreateFindingRequest, type UpdateFindingRequest,
   type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest,
-  type CreateLookupRequest, type UpdateLookupRequest,
   type CreateRegulatorySourceRequest, type UpdateRegulatorySourceRequest,
   type CreateRequirementRequest, type UpdateRequirementRequest
 } from "@shared/schema";
@@ -80,12 +80,11 @@ export interface IStorage {
 
   getPolicyLinks(): Promise<PolicyLink[]>;
 
-  getLookups(): Promise<Lookup[]>;
-  getLookup(id: number): Promise<Lookup | undefined>;
-  getLookupsByCategory(category: string): Promise<Lookup[]>;
-  createLookup(lookup: CreateLookupRequest): Promise<Lookup>;
-  updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup | undefined>;
-  deleteLookup(id: number): Promise<void>;
+  getAdminRecords(table: string): Promise<AdminRecord[]>;
+  getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined>;
+  createAdminRecord(table: string, data: CreateAdminRecordRequest): Promise<AdminRecord>;
+  updateAdminRecord(table: string, id: number, data: UpdateAdminRecordRequest): Promise<AdminRecord | undefined>;
+  deleteAdminRecord(table: string, id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -263,26 +262,41 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(policyLinks);
   }
 
-  async getLookups(): Promise<Lookup[]> {
-    return await db.select().from(lookups);
+  private getAdminTable(table: string) {
+    const tables: Record<string, any> = {
+      "entity-types": entityTypes,
+      "roles": roles,
+      "jurisdictions": jurisdictions,
+      "document-categories": documentCategories,
+      "finding-severities": findingSeverities,
+    };
+    const t = tables[table];
+    if (!t) throw new Error(`Unknown admin table: ${table}`);
+    return t;
   }
-  async getLookup(id: number): Promise<Lookup | undefined> {
-    const [lookup] = await db.select().from(lookups).where(eq(lookups.id, id));
-    return lookup;
+
+  async getAdminRecords(table: string): Promise<AdminRecord[]> {
+    const t = this.getAdminTable(table);
+    return await db.select().from(t) as AdminRecord[];
   }
-  async getLookupsByCategory(category: string): Promise<Lookup[]> {
-    return await db.select().from(lookups).where(eq(lookups.category, category));
+  async getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined> {
+    const t = this.getAdminTable(table);
+    const rows = await db.select().from(t).where(eq(t.id, id)) as AdminRecord[];
+    return rows[0];
   }
-  async createLookup(lookup: CreateLookupRequest): Promise<Lookup> {
-    const [created] = await db.insert(lookups).values(lookup).returning();
-    return created;
+  async createAdminRecord(table: string, data: CreateAdminRecordRequest): Promise<AdminRecord> {
+    const t = this.getAdminTable(table);
+    const rows = await db.insert(t).values(data as any).returning() as AdminRecord[];
+    return rows[0];
   }
-  async updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup | undefined> {
-    const [updated] = await db.update(lookups).set(lookup).where(eq(lookups.id, id)).returning();
-    return updated;
+  async updateAdminRecord(table: string, id: number, data: UpdateAdminRecordRequest): Promise<AdminRecord | undefined> {
+    const t = this.getAdminTable(table);
+    const rows = await db.update(t).set(data as any).where(eq(t.id, id)).returning() as AdminRecord[];
+    return rows[0];
   }
-  async deleteLookup(id: number): Promise<void> {
-    await db.delete(lookups).where(eq(lookups.id, id));
+  async deleteAdminRecord(table: string, id: number): Promise<void> {
+    const t = this.getAdminTable(table);
+    await db.delete(t).where(eq(t.id, id));
   }
 }
 

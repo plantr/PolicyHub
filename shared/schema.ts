@@ -226,12 +226,43 @@ export const policyLinks = pgTable("policy_links", {
 });
 
 // =============================================
-// LOOKUPS (Configurable reference data)
+// ADMINISTRATION REFERENCE TABLES
 // =============================================
 
-export const lookups = pgTable("lookups", {
+export const entityTypes = pgTable("entity_types", {
   id: serial("id").primaryKey(),
-  category: text("category").notNull(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const jurisdictions = pgTable("jurisdictions", {
+  id: serial("id").primaryKey(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const documentCategories = pgTable("document_categories", {
+  id: serial("id").primaryKey(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const findingSeverities = pgTable("finding_severities", {
+  id: serial("id").primaryKey(),
   value: text("value").notNull(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -255,7 +286,11 @@ export const insertRequirementMappingSchema = createInsertSchema(requirementMapp
 export const insertFindingSchema = createInsertSchema(findings).omit({ id: true, createdAt: true, closedAt: true });
 export const insertFindingEvidenceSchema = createInsertSchema(findingEvidence).omit({ id: true, uploadedAt: true });
 export const insertPolicyLinkSchema = createInsertSchema(policyLinks).omit({ id: true });
-export const insertLookupSchema = createInsertSchema(lookups).omit({ id: true });
+export const insertEntityTypeSchema = createInsertSchema(entityTypes).omit({ id: true });
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
+export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({ id: true });
+export const insertDocumentCategorySchema = createInsertSchema(documentCategories).omit({ id: true });
+export const insertFindingSeveritySchema = createInsertSchema(findingSeverities).omit({ id: true });
 
 // =============================================
 // SELECT TYPES
@@ -276,7 +311,12 @@ export type RequirementMapping = typeof requirementMappings.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type FindingEvidence = typeof findingEvidence.$inferSelect;
 export type PolicyLink = typeof policyLinks.$inferSelect;
-export type Lookup = typeof lookups.$inferSelect;
+export type EntityType = typeof entityTypes.$inferSelect;
+export type Role = typeof roles.$inferSelect;
+export type Jurisdiction = typeof jurisdictions.$inferSelect;
+export type DocumentCategory = typeof documentCategories.$inferSelect;
+export type FindingSeverity = typeof findingSeverities.$inferSelect;
+export type AdminRecord = EntityType | Role | Jurisdiction | DocumentCategory | FindingSeverity;
 
 // =============================================
 // REQUEST TYPES
@@ -286,8 +326,8 @@ export type CreateBusinessUnitRequest = z.infer<typeof insertBusinessUnitSchema>
 export type UpdateBusinessUnitRequest = Partial<CreateBusinessUnitRequest>;
 export type CreateDocumentRequest = z.infer<typeof insertDocumentSchema>;
 export type UpdateDocumentRequest = Partial<CreateDocumentRequest>;
-export type CreateLookupRequest = z.infer<typeof insertLookupSchema>;
-export type UpdateLookupRequest = Partial<CreateLookupRequest>;
+export type CreateAdminRecordRequest = { value: string; label: string; sortOrder: number; active: boolean };
+export type UpdateAdminRecordRequest = Partial<CreateAdminRecordRequest>;
 export type CreateDocumentVersionRequest = z.infer<typeof insertDocumentVersionSchema>;
 export type CreateAddendumRequest = z.infer<typeof insertAddendumSchema>;
 export type CreateApprovalRequest = z.infer<typeof insertApprovalSchema>;

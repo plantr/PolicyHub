@@ -9,7 +9,8 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks, lookups
+  findings, findingEvidence, policyLinks,
+  entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from "@shared/schema";
 
 export async function registerRoutes(
@@ -393,37 +394,40 @@ export async function registerRoutes(
   });
 
   // === LOOKUPS ===
-  app.get(api.lookups.list.path, async (_req, res) => {
-    res.json(await storage.getLookups());
+  const VALID_ADMIN_TABLES = ["entity-types", "roles", "jurisdictions", "document-categories", "finding-severities"];
+
+  app.get("/api/admin/:table", async (req, res) => {
+    if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });
+    res.json(await storage.getAdminRecords(req.params.table));
   });
-  app.get(api.lookups.byCategory.path, async (req, res) => {
-    res.json(await storage.getLookupsByCategory(req.params.category));
-  });
-  app.post(api.lookups.create.path, async (req, res) => {
+  app.post("/api/admin/:table", async (req, res) => {
+    if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });
     try {
-      const input = api.lookups.create.input.parse(req.body);
-      const lookup = await storage.createLookup(input);
-      res.status(201).json(lookup);
+      const input = api.admin.create.input.parse(req.body);
+      const record = await storage.createAdminRecord(req.params.table, input);
+      res.status(201).json(record);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
     }
   });
-  app.put(api.lookups.update.path, async (req, res) => {
+  app.put("/api/admin/:table/:id", async (req, res) => {
+    if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });
     try {
-      const input = api.lookups.update.input.parse(req.body);
-      const lookup = await storage.updateLookup(Number(req.params.id), input);
-      if (!lookup) return res.status(404).json({ message: "Lookup not found" });
-      res.json(lookup);
+      const input = api.admin.update.input.parse(req.body);
+      const record = await storage.updateAdminRecord(req.params.table, Number(req.params.id), input);
+      if (!record) return res.status(404).json({ message: "Record not found" });
+      res.json(record);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
     }
   });
-  app.delete(api.lookups.delete.path, async (req, res) => {
-    const existing = await storage.getLookup(Number(req.params.id));
-    if (!existing) return res.status(404).json({ message: "Lookup not found" });
-    await storage.deleteLookup(Number(req.params.id));
+  app.delete("/api/admin/:table/:id", async (req, res) => {
+    if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });
+    const existing = await storage.getAdminRecord(req.params.table, Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Record not found" });
+    await storage.deleteAdminRecord(req.params.table, Number(req.params.id));
     res.status(204).send();
   });
 
@@ -466,6 +470,7 @@ export async function registerRoutes(
 
   // Seed
   await seedDatabase();
+  await seedAdminTables();
 
   return httpServer;
 }
@@ -1145,43 +1150,65 @@ async function seedDatabase() {
     { entityType: "effective_policy", entityId: 1, action: "generated", actor: "System", details: "Effective policy generated for Gibraltar EMI Safeguarding" },
   ]);
 
-  // ---- DEFAULT LOOKUPS ----
-  const existingLookups = await storage.getLookups();
-  if (existingLookups.length === 0) {
-    await db.insert(lookups).values([
-      { category: "entity_type", value: "EMI", label: "Electronic Money Institution", sortOrder: 1, active: true },
-      { category: "entity_type", value: "PI", label: "Payment Institution", sortOrder: 2, active: true },
-      { category: "entity_type", value: "VASP", label: "Virtual Asset Service Provider", sortOrder: 3, active: true },
-      { category: "entity_type", value: "CASP", label: "Crypto-Asset Service Provider", sortOrder: 4, active: true },
-      { category: "entity_type", value: "DLT", label: "DLT Provider", sortOrder: 5, active: true },
-      { category: "entity_type", value: "Bank", label: "Banking Entity", sortOrder: 6, active: true },
-      { category: "role", value: "cco", label: "Chief Compliance Officer", sortOrder: 1, active: true },
-      { category: "role", value: "cfo", label: "Chief Financial Officer", sortOrder: 2, active: true },
-      { category: "role", value: "mlro", label: "Money Laundering Reporting Officer", sortOrder: 3, active: true },
-      { category: "role", value: "cro", label: "Chief Risk Officer", sortOrder: 4, active: true },
-      { category: "role", value: "dpo", label: "Data Protection Officer", sortOrder: 5, active: true },
-      { category: "role", value: "ciso", label: "Chief Information Security Officer", sortOrder: 6, active: true },
-      { category: "role", value: "internal_audit", label: "Internal Audit", sortOrder: 7, active: true },
-      { category: "role", value: "board", label: "Board of Directors", sortOrder: 8, active: true },
-      { category: "role", value: "compliance_analyst", label: "Compliance Analyst", sortOrder: 9, active: true },
-      { category: "jurisdiction", value: "UK", label: "United Kingdom", sortOrder: 1, active: true },
-      { category: "jurisdiction", value: "GI", label: "Gibraltar", sortOrder: 2, active: true },
-      { category: "jurisdiction", value: "EE", label: "Estonia / EU", sortOrder: 3, active: true },
-      { category: "jurisdiction", value: "INT", label: "International", sortOrder: 4, active: true },
-      { category: "document_category", value: "aml", label: "AML/CTF", sortOrder: 1, active: true },
-      { category: "document_category", value: "safeguarding", label: "Safeguarding", sortOrder: 2, active: true },
-      { category: "document_category", value: "governance", label: "Governance", sortOrder: 3, active: true },
-      { category: "document_category", value: "data_protection", label: "Data Protection", sortOrder: 4, active: true },
-      { category: "document_category", value: "ict", label: "ICT / Resilience", sortOrder: 5, active: true },
-      { category: "document_category", value: "outsourcing", label: "Outsourcing", sortOrder: 6, active: true },
-      { category: "document_category", value: "crypto", label: "Crypto / Digital Assets", sortOrder: 7, active: true },
-      { category: "document_category", value: "payments", label: "Payments", sortOrder: 8, active: true },
-      { category: "finding_severity", value: "critical", label: "Critical", sortOrder: 1, active: true },
-      { category: "finding_severity", value: "high", label: "High", sortOrder: 2, active: true },
-      { category: "finding_severity", value: "medium", label: "Medium", sortOrder: 3, active: true },
-      { category: "finding_severity", value: "low", label: "Low", sortOrder: 4, active: true },
+  console.log("Seed data loaded successfully: 4 BUs, 20+ regulatory sources, 35+ requirements, 10 documents, mappings, findings, and audit trail");
+}
+
+async function seedAdminTables() {
+  const existingEntityTypes = await storage.getAdminRecords("entity-types");
+  if (existingEntityTypes.length === 0) {
+    await db.insert(entityTypes).values([
+      { value: "EMI", label: "Electronic Money Institution", sortOrder: 1, active: true },
+      { value: "PI", label: "Payment Institution", sortOrder: 2, active: true },
+      { value: "VASP", label: "Virtual Asset Service Provider", sortOrder: 3, active: true },
+      { value: "CASP", label: "Crypto-Asset Service Provider", sortOrder: 4, active: true },
+      { value: "DLT", label: "DLT Provider", sortOrder: 5, active: true },
+      { value: "Bank", label: "Banking Entity", sortOrder: 6, active: true },
     ]);
   }
-
-  console.log("Seed data loaded successfully: 4 BUs, 20+ regulatory sources, 35+ requirements, 10 documents, mappings, findings, lookups, and audit trail");
+  const existingRoles = await storage.getAdminRecords("roles");
+  if (existingRoles.length === 0) {
+    await db.insert(roles).values([
+      { value: "cco", label: "Chief Compliance Officer", sortOrder: 1, active: true },
+      { value: "cfo", label: "Chief Financial Officer", sortOrder: 2, active: true },
+      { value: "mlro", label: "Money Laundering Reporting Officer", sortOrder: 3, active: true },
+      { value: "cro", label: "Chief Risk Officer", sortOrder: 4, active: true },
+      { value: "dpo", label: "Data Protection Officer", sortOrder: 5, active: true },
+      { value: "ciso", label: "Chief Information Security Officer", sortOrder: 6, active: true },
+      { value: "internal_audit", label: "Internal Audit", sortOrder: 7, active: true },
+      { value: "board", label: "Board of Directors", sortOrder: 8, active: true },
+      { value: "compliance_analyst", label: "Compliance Analyst", sortOrder: 9, active: true },
+    ]);
+  }
+  const existingJurisdictions = await storage.getAdminRecords("jurisdictions");
+  if (existingJurisdictions.length === 0) {
+    await db.insert(jurisdictions).values([
+      { value: "UK", label: "United Kingdom", sortOrder: 1, active: true },
+      { value: "GI", label: "Gibraltar", sortOrder: 2, active: true },
+      { value: "EE", label: "Estonia / EU", sortOrder: 3, active: true },
+      { value: "INT", label: "International", sortOrder: 4, active: true },
+    ]);
+  }
+  const existingDocCats = await storage.getAdminRecords("document-categories");
+  if (existingDocCats.length === 0) {
+    await db.insert(documentCategories).values([
+      { value: "aml", label: "AML/CTF", sortOrder: 1, active: true },
+      { value: "safeguarding", label: "Safeguarding", sortOrder: 2, active: true },
+      { value: "governance", label: "Governance", sortOrder: 3, active: true },
+      { value: "data_protection", label: "Data Protection", sortOrder: 4, active: true },
+      { value: "ict", label: "ICT / Resilience", sortOrder: 5, active: true },
+      { value: "outsourcing", label: "Outsourcing", sortOrder: 6, active: true },
+      { value: "crypto", label: "Crypto / Digital Assets", sortOrder: 7, active: true },
+      { value: "payments", label: "Payments", sortOrder: 8, active: true },
+    ]);
+  }
+  const existingSeverities = await storage.getAdminRecords("finding-severities");
+  if (existingSeverities.length === 0) {
+    await db.insert(findingSeverities).values([
+      { value: "critical", label: "Critical", sortOrder: 1, active: true },
+      { value: "high", label: "High", sortOrder: 2, active: true },
+      { value: "medium", label: "Medium", sortOrder: 3, active: true },
+      { value: "low", label: "Low", sortOrder: 4, active: true },
+    ]);
+  }
+  console.log("Admin reference tables seeded successfully");
 }

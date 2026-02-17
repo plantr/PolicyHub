@@ -15,42 +15,42 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import type { Lookup } from "@shared/schema";
-import { insertLookupSchema } from "@shared/schema";
 import type { LucideIcon } from "lucide-react";
 
-const lookupFormSchema = insertLookupSchema.extend({
+type AdminRecord = { id: number; value: string; label: string; sortOrder: number; active: boolean };
+
+const adminFormSchema = z.object({
   value: z.string().min(1, "Value is required"),
   label: z.string().min(1, "Label is required"),
   sortOrder: z.coerce.number().int().min(0),
+  active: z.boolean().default(true),
 });
 
-type LookupFormValues = z.infer<typeof lookupFormSchema>;
+type AdminFormValues = z.infer<typeof adminFormSchema>;
 
-export const ADMIN_CATEGORIES: Record<string, { slug: string; category: string; label: string; singular: string }> = {
-  "entity-types": { slug: "entity-types", category: "entity_type", label: "Entity Types", singular: "Entity Type" },
-  "roles": { slug: "roles", category: "role", label: "Roles / Actors", singular: "Role" },
-  "jurisdictions": { slug: "jurisdictions", category: "jurisdiction", label: "Jurisdictions", singular: "Jurisdiction" },
-  "document-categories": { slug: "document-categories", category: "document_category", label: "Document Categories", singular: "Document Category" },
-  "finding-severities": { slug: "finding-severities", category: "finding_severity", label: "Finding Severities", singular: "Finding Severity" },
+export const ADMIN_CATEGORIES: Record<string, { slug: string; label: string; singular: string }> = {
+  "entity-types": { slug: "entity-types", label: "Entity Types", singular: "Entity Type" },
+  "roles": { slug: "roles", label: "Roles / Actors", singular: "Role" },
+  "jurisdictions": { slug: "jurisdictions", label: "Jurisdictions", singular: "Jurisdiction" },
+  "document-categories": { slug: "document-categories", label: "Document Categories", singular: "Document Category" },
+  "finding-severities": { slug: "finding-severities", label: "Finding Severities", singular: "Finding Severity" },
 };
 
 export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: LucideIcon }) {
   const config = ADMIN_CATEGORIES[slug];
-  const categoryKey = config?.category ?? slug;
   const pageTitle = config?.label ?? slug;
   const singular = config?.singular ?? "Item";
+  const apiBase = `/api/admin/${slug}`;
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingLookup, setEditingLookup] = useState<Lookup | null>(null);
+  const [editingRecord, setEditingRecord] = useState<AdminRecord | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingLookup, setDeletingLookup] = useState<Lookup | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<AdminRecord | null>(null);
   const { toast } = useToast();
 
-  const form = useForm<LookupFormValues>({
-    resolver: zodResolver(lookupFormSchema),
+  const form = useForm<AdminFormValues>({
+    resolver: zodResolver(adminFormSchema),
     defaultValues: {
-      category: categoryKey,
       value: "",
       label: "",
       sortOrder: 1,
@@ -58,21 +58,19 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
     },
   });
 
-  const { data: allLookups, isLoading } = useQuery<Lookup[]>({
-    queryKey: ["/api/lookups"],
+  const { data: records, isLoading } = useQuery<AdminRecord[]>({
+    queryKey: [apiBase],
   });
 
-  const filtered = (allLookups ?? [])
-    .filter((l) => l.category === categoryKey)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = (records ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
 
   const createMutation = useMutation({
-    mutationFn: async (data: LookupFormValues) => {
-      const res = await apiRequest("POST", "/api/lookups", data);
+    mutationFn: async (data: AdminFormValues) => {
+      const res = await apiRequest("POST", apiBase, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
+      queryClient.invalidateQueries({ queryKey: [apiBase] });
       toast({ title: `${singular} created` });
       closeDialog();
     },
@@ -82,12 +80,12 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<LookupFormValues> }) => {
-      const res = await apiRequest("PUT", `/api/lookups/${id}`, data);
+    mutationFn: async ({ id, data }: { id: number; data: Partial<AdminFormValues> }) => {
+      const res = await apiRequest("PUT", `${apiBase}/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
+      queryClient.invalidateQueries({ queryKey: [apiBase] });
       toast({ title: `${singular} updated` });
       closeDialog();
     },
@@ -98,13 +96,13 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/lookups/${id}`);
+      await apiRequest("DELETE", `${apiBase}/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lookups"] });
+      queryClient.invalidateQueries({ queryKey: [apiBase] });
       toast({ title: `${singular} deleted` });
       setDeleteConfirmOpen(false);
-      setDeletingLookup(null);
+      setDeletingRecord(null);
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -112,37 +110,35 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
   });
 
   function openCreateDialog() {
-    setEditingLookup(null);
+    setEditingRecord(null);
     form.reset({
-      category: categoryKey,
       value: "",
       label: "",
-      sortOrder: filtered.length + 1,
+      sortOrder: sorted.length + 1,
       active: true,
     });
     setDialogOpen(true);
   }
 
-  function openEditDialog(lookup: Lookup) {
-    setEditingLookup(lookup);
+  function openEditDialog(record: AdminRecord) {
+    setEditingRecord(record);
     form.reset({
-      category: lookup.category,
-      value: lookup.value,
-      label: lookup.label,
-      sortOrder: lookup.sortOrder,
-      active: lookup.active,
+      value: record.value,
+      label: record.label,
+      sortOrder: record.sortOrder,
+      active: record.active,
     });
     setDialogOpen(true);
   }
 
   function closeDialog() {
     setDialogOpen(false);
-    setEditingLookup(null);
+    setEditingRecord(null);
   }
 
-  function onSubmit(values: LookupFormValues) {
-    if (editingLookup) {
-      updateMutation.mutate({ id: editingLookup.id, data: values });
+  function onSubmit(values: AdminFormValues) {
+    if (editingRecord) {
+      updateMutation.mutate({ id: editingRecord.id, data: values });
     } else {
       createMutation.mutate(values);
     }
@@ -161,13 +157,13 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3" data-testid="admin-toolbar">
-        <Button onClick={openCreateDialog} data-testid="button-add-lookup">
+        <Button onClick={openCreateDialog} data-testid="button-add-record">
           <Plus className="h-4 w-4 mr-1" />
           Add {singular}
         </Button>
       </div>
 
-      <Card data-testid="lookups-table-card">
+      <Card data-testid="admin-table-card">
         {isLoading ? (
           <div className="p-6 space-y-3">
             {[1, 2, 3, 4].map((i) => (
@@ -186,27 +182,27 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {sorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-lookups">
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-records">
                     No {pageTitle.toLowerCase()} configured. Click "Add {singular}" to create one.
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((lookup) => (
-                  <TableRow key={lookup.id} data-testid={`row-lookup-${lookup.id}`}>
-                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-order-${lookup.id}`}>
-                      {lookup.sortOrder}
+                sorted.map((record) => (
+                  <TableRow key={record.id} data-testid={`row-record-${record.id}`}>
+                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-order-${record.id}`}>
+                      {record.sortOrder}
                     </TableCell>
-                    <TableCell className="text-sm font-mono" data-testid={`text-value-${lookup.id}`}>
-                      {lookup.value}
+                    <TableCell className="text-sm font-mono" data-testid={`text-value-${record.id}`}>
+                      {record.value}
                     </TableCell>
-                    <TableCell className="text-sm font-medium" data-testid={`text-label-${lookup.id}`}>
-                      {lookup.label}
+                    <TableCell className="text-sm font-medium" data-testid={`text-label-${record.id}`}>
+                      {record.label}
                     </TableCell>
-                    <TableCell data-testid={`badge-status-${lookup.id}`}>
-                      <Badge variant={lookup.active ? "default" : "secondary"} className="no-default-active-elevate">
-                        {lookup.active ? "Active" : "Inactive"}
+                    <TableCell data-testid={`badge-status-${record.id}`}>
+                      <Badge variant={record.active ? "default" : "secondary"} className="no-default-active-elevate">
+                        {record.active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -214,8 +210,8 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => openEditDialog(lookup)}
-                          data-testid={`button-edit-lookup-${lookup.id}`}
+                          onClick={() => openEditDialog(record)}
+                          data-testid={`button-edit-record-${record.id}`}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -223,10 +219,10 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                           size="icon"
                           variant="ghost"
                           onClick={() => {
-                            setDeletingLookup(lookup);
+                            setDeletingRecord(record);
                             setDeleteConfirmOpen(true);
                           }}
-                          data-testid={`button-delete-lookup-${lookup.id}`}
+                          data-testid={`button-delete-record-${record.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -241,13 +237,13 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent data-testid="dialog-lookup">
+        <DialogContent data-testid="dialog-admin-record">
           <DialogHeader>
             <DialogTitle data-testid="text-dialog-title">
-              {editingLookup ? `Edit ${singular}` : `Add ${singular}`}
+              {editingRecord ? `Edit ${singular}` : `Add ${singular}`}
             </DialogTitle>
             <DialogDescription>
-              {editingLookup ? `Update ${singular.toLowerCase()} details.` : `Add a new ${singular.toLowerCase()} value.`}
+              {editingRecord ? `Update ${singular.toLowerCase()} details.` : `Add a new ${singular.toLowerCase()} value.`}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -259,7 +255,7 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                   <FormItem>
                     <FormLabel>Value (code)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. EMI" {...field} data-testid="input-lookup-value" />
+                      <Input placeholder="e.g. EMI" {...field} data-testid="input-record-value" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -272,7 +268,7 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                   <FormItem>
                     <FormLabel>Display Label</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Electronic Money Institution" {...field} data-testid="input-lookup-label" />
+                      <Input placeholder="e.g. Electronic Money Institution" {...field} data-testid="input-record-label" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -285,7 +281,7 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                   <FormItem>
                     <FormLabel>Sort Order</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} data-testid="input-lookup-sort" />
+                      <Input type="number" {...field} data-testid="input-record-sort" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -300,7 +296,7 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        data-testid="switch-lookup-active"
+                        data-testid="switch-record-active"
                       />
                     </FormControl>
                     <FormLabel className="!mt-0">Active</FormLabel>
@@ -308,13 +304,13 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-lookup">
+                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-record">
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  data-testid="button-save-lookup"
+                  data-testid="button-save-record"
                 >
                   {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
                 </Button>
@@ -325,11 +321,11 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
       </Dialog>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent data-testid="dialog-delete-lookup">
+        <DialogContent data-testid="dialog-delete-record">
           <DialogHeader>
             <DialogTitle>Delete {singular}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deletingLookup?.label}"? This action cannot be undone.
+              Are you sure you want to delete "{deletingRecord?.label}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -338,7 +334,7 @@ export default function LookupAdmin({ slug, icon: Icon }: { slug: string; icon: 
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deletingLookup && deleteMutation.mutate(deletingLookup.id)}
+              onClick={() => deletingRecord && deleteMutation.mutate(deletingRecord.id)}
               disabled={deleteMutation.isPending}
               data-testid="button-confirm-delete"
             >
