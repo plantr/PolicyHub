@@ -52,6 +52,8 @@ export async function registerRoutes(
     }
   });
   app.delete(api.businessUnits.delete.path, async (req, res) => {
+    const existing = await storage.getBusinessUnit(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Business Unit not found" });
     await storage.deleteBusinessUnit(Number(req.params.id));
     res.status(204).send();
   });
@@ -316,6 +318,8 @@ export async function registerRoutes(
     }
   });
   app.delete(api.lookups.delete.path, async (req, res) => {
+    const existing = await storage.getLookup(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Lookup not found" });
     await storage.deleteLookup(Number(req.params.id));
     res.status(204).send();
   });

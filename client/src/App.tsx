@@ -16,6 +16,8 @@ import RegulatorySources from "@/pages/RegulatorySources";
 import GapAnalysis from "@/pages/GapAnalysis";
 import Findings from "@/pages/Findings";
 import AuditTrail from "@/pages/AuditTrail";
+import BusinessUnits from "@/pages/BusinessUnits";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +31,8 @@ function Router() {
       <Route path="/gap-analysis" component={GapAnalysis} />
       <Route path="/findings" component={Findings} />
       <Route path="/audit-trail" component={AuditTrail} />
+      <Route path="/business-units" component={BusinessUnits} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

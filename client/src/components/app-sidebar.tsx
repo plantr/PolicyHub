@@ -7,6 +7,8 @@ import {
   GitCompare,
   AlertTriangle,
   History,
+  Building2,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,6 +48,13 @@ const navGroups = [
     label: "Governance",
     items: [
       { title: "Audit Trail", icon: History, path: "/audit-trail" },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      { title: "Business Units", icon: Building2, path: "/business-units" },
+      { title: "Settings", icon: Settings, path: "/settings" },
     ],
   },
 ];

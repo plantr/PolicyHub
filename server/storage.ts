@@ -22,7 +22,7 @@ export interface IStorage {
   getBusinessUnits(): Promise<BusinessUnit[]>;
   getBusinessUnit(id: number): Promise<BusinessUnit | undefined>;
   createBusinessUnit(bu: CreateBusinessUnitRequest): Promise<BusinessUnit>;
-  updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit>;
+  updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit | undefined>;
   deleteBusinessUnit(id: number): Promise<void>;
 
   getRegulatoryProfiles(): Promise<RegulatoryProfile[]>;
@@ -71,9 +71,10 @@ export interface IStorage {
   getPolicyLinks(): Promise<PolicyLink[]>;
 
   getLookups(): Promise<Lookup[]>;
+  getLookup(id: number): Promise<Lookup | undefined>;
   getLookupsByCategory(category: string): Promise<Lookup[]>;
   createLookup(lookup: CreateLookupRequest): Promise<Lookup>;
-  updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup>;
+  updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup | undefined>;
   deleteLookup(id: number): Promise<void>;
 }
 
@@ -89,7 +90,7 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(businessUnits).values(bu).returning();
     return created;
   }
-  async updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit> {
+  async updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit | undefined> {
     const [updated] = await db.update(businessUnits).set(bu).where(eq(businessUnits.id, id)).returning();
     return updated;
   }
@@ -226,6 +227,10 @@ export class DatabaseStorage implements IStorage {
   async getLookups(): Promise<Lookup[]> {
     return await db.select().from(lookups);
   }
+  async getLookup(id: number): Promise<Lookup | undefined> {
+    const [lookup] = await db.select().from(lookups).where(eq(lookups.id, id));
+    return lookup;
+  }
   async getLookupsByCategory(category: string): Promise<Lookup[]> {
     return await db.select().from(lookups).where(eq(lookups.category, category));
   }
@@ -233,7 +238,7 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(lookups).values(lookup).returning();
     return created;
   }
-  async updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup> {
+  async updateLookup(id: number, lookup: UpdateLookupRequest): Promise<Lookup | undefined> {
     const [updated] = await db.update(lookups).set(lookup).where(eq(lookups.id, id)).returning();
     return updated;
   }
