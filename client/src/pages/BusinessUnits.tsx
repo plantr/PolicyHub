@@ -19,6 +19,7 @@ import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
 
 const buFormSchema = insertBusinessUnitSchema.extend({
+  code: z.string().nullable().default(null),
   name: z.string().min(1, "Name is required"),
   jurisdiction: z.string().min(1, "Jurisdiction is required"),
   type: z.string().min(1, "Entity type is required"),
@@ -38,6 +39,7 @@ export default function BusinessUnits() {
   const form = useForm<BUFormValues>({
     resolver: zodResolver(buFormSchema),
     defaultValues: {
+      code: null,
       name: "",
       jurisdiction: "",
       type: "",
@@ -57,6 +59,7 @@ export default function BusinessUnits() {
         .map((a) => a.trim())
         .filter(Boolean);
       const res = await apiRequest("POST", "/api/business-units", {
+        code: data.code || null,
         name: data.name,
         jurisdiction: data.jurisdiction,
         type: data.type,
@@ -83,6 +86,7 @@ export default function BusinessUnits() {
         .map((a) => a.trim())
         .filter(Boolean);
       const res = await apiRequest("PUT", `/api/business-units/${id}`, {
+        code: data.code || null,
         name: data.name,
         jurisdiction: data.jurisdiction,
         type: data.type,
@@ -121,6 +125,7 @@ export default function BusinessUnits() {
   function openCreateDialog() {
     setEditingBU(null);
     form.reset({
+      code: null,
       name: "",
       jurisdiction: "",
       type: "",
@@ -133,6 +138,7 @@ export default function BusinessUnits() {
   function openEditDialog(bu: BusinessUnit) {
     setEditingBU(bu);
     form.reset({
+      code: bu.code ?? null,
       name: bu.name,
       jurisdiction: bu.jurisdiction,
       type: bu.type,
@@ -185,6 +191,7 @@ export default function BusinessUnits() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead data-testid="th-code">Code</TableHead>
                 <TableHead data-testid="th-name">Name</TableHead>
                 <TableHead data-testid="th-type">Type</TableHead>
                 <TableHead data-testid="th-jurisdiction">Jurisdiction</TableHead>
@@ -196,13 +203,16 @@ export default function BusinessUnits() {
             <TableBody>
               {(businessUnits ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
                     No business units configured. Click "Add Business Unit" to create one.
                   </TableCell>
                 </TableRow>
               ) : (
                 (businessUnits ?? []).map((bu) => (
                   <TableRow key={bu.id} data-testid={`row-bu-${bu.id}`}>
+                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-code-${bu.id}`}>
+                      {bu.code ?? "--"}
+                    </TableCell>
                     <TableCell className="font-medium" data-testid={`text-name-${bu.id}`}>
                       {bu.name}
                     </TableCell>
@@ -270,19 +280,34 @@ export default function BusinessUnits() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. UK EMI" {...field} data-testid="input-bu-name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. UK-EMI" {...field} value={field.value ?? ""} data-testid="input-bu-code" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. UK EMI" {...field} data-testid="input-bu-name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}

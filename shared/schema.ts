@@ -8,6 +8,7 @@ import { z } from "zod";
 
 export const businessUnits = pgTable("business_units", {
   id: serial("id").primaryKey(),
+  code: text("code"),
   name: text("name").notNull(),
   jurisdiction: text("jurisdiction").notNull(),
   type: text("type").notNull(),
