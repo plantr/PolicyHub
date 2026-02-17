@@ -9,7 +9,7 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks
+  findings, findingEvidence, policyLinks, lookups
 } from "@shared/schema";
 
 export async function registerRoutes(
@@ -25,6 +25,35 @@ export async function registerRoutes(
     const bu = await storage.getBusinessUnit(Number(req.params.id));
     if (!bu) return res.status(404).json({ message: "Business Unit not found" });
     res.json(bu);
+  });
+  app.post(api.businessUnits.create.path, async (req, res) => {
+    try {
+      const input = api.businessUnits.create.input.parse(req.body);
+      const bu = await storage.createBusinessUnit(input);
+      await storage.createAuditLogEntry({
+        entityType: "business_unit", entityId: bu.id,
+        action: "created", actor: "System", details: `Business Unit "${bu.name}" created`
+      });
+      res.status(201).json(bu);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.businessUnits.update.path, async (req, res) => {
+    try {
+      const input = api.businessUnits.update.input.parse(req.body);
+      const bu = await storage.updateBusinessUnit(Number(req.params.id), input);
+      if (!bu) return res.status(404).json({ message: "Business Unit not found" });
+      res.json(bu);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.businessUnits.delete.path, async (req, res) => {
+    await storage.deleteBusinessUnit(Number(req.params.id));
+    res.status(204).send();
   });
 
   // === REGULATORY SOURCES ===
@@ -256,6 +285,39 @@ export async function registerRoutes(
   // === POLICY LINKS ===
   app.get(api.policyLinks.list.path, async (_req, res) => {
     res.json(await storage.getPolicyLinks());
+  });
+
+  // === LOOKUPS ===
+  app.get(api.lookups.list.path, async (_req, res) => {
+    res.json(await storage.getLookups());
+  });
+  app.get(api.lookups.byCategory.path, async (req, res) => {
+    res.json(await storage.getLookupsByCategory(req.params.category));
+  });
+  app.post(api.lookups.create.path, async (req, res) => {
+    try {
+      const input = api.lookups.create.input.parse(req.body);
+      const lookup = await storage.createLookup(input);
+      res.status(201).json(lookup);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.lookups.update.path, async (req, res) => {
+    try {
+      const input = api.lookups.update.input.parse(req.body);
+      const lookup = await storage.updateLookup(Number(req.params.id), input);
+      if (!lookup) return res.status(404).json({ message: "Lookup not found" });
+      res.json(lookup);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.lookups.delete.path, async (req, res) => {
+    await storage.deleteLookup(Number(req.params.id));
+    res.status(204).send();
   });
 
   // === STATS ===
@@ -976,5 +1038,43 @@ async function seedDatabase() {
     { entityType: "effective_policy", entityId: 1, action: "generated", actor: "System", details: "Effective policy generated for Gibraltar EMI Safeguarding" },
   ]);
 
-  console.log("Seed data loaded successfully: 4 BUs, 20+ regulatory sources, 35+ requirements, 10 documents, mappings, findings, and audit trail");
+  // ---- DEFAULT LOOKUPS ----
+  const existingLookups = await storage.getLookups();
+  if (existingLookups.length === 0) {
+    await db.insert(lookups).values([
+      { category: "entity_type", value: "EMI", label: "Electronic Money Institution", sortOrder: 1, active: true },
+      { category: "entity_type", value: "PI", label: "Payment Institution", sortOrder: 2, active: true },
+      { category: "entity_type", value: "VASP", label: "Virtual Asset Service Provider", sortOrder: 3, active: true },
+      { category: "entity_type", value: "CASP", label: "Crypto-Asset Service Provider", sortOrder: 4, active: true },
+      { category: "entity_type", value: "DLT", label: "DLT Provider", sortOrder: 5, active: true },
+      { category: "entity_type", value: "Bank", label: "Banking Entity", sortOrder: 6, active: true },
+      { category: "role", value: "cco", label: "Chief Compliance Officer", sortOrder: 1, active: true },
+      { category: "role", value: "cfo", label: "Chief Financial Officer", sortOrder: 2, active: true },
+      { category: "role", value: "mlro", label: "Money Laundering Reporting Officer", sortOrder: 3, active: true },
+      { category: "role", value: "cro", label: "Chief Risk Officer", sortOrder: 4, active: true },
+      { category: "role", value: "dpo", label: "Data Protection Officer", sortOrder: 5, active: true },
+      { category: "role", value: "ciso", label: "Chief Information Security Officer", sortOrder: 6, active: true },
+      { category: "role", value: "internal_audit", label: "Internal Audit", sortOrder: 7, active: true },
+      { category: "role", value: "board", label: "Board of Directors", sortOrder: 8, active: true },
+      { category: "role", value: "compliance_analyst", label: "Compliance Analyst", sortOrder: 9, active: true },
+      { category: "jurisdiction", value: "UK", label: "United Kingdom", sortOrder: 1, active: true },
+      { category: "jurisdiction", value: "GI", label: "Gibraltar", sortOrder: 2, active: true },
+      { category: "jurisdiction", value: "EE", label: "Estonia / EU", sortOrder: 3, active: true },
+      { category: "jurisdiction", value: "INT", label: "International", sortOrder: 4, active: true },
+      { category: "document_category", value: "aml", label: "AML/CTF", sortOrder: 1, active: true },
+      { category: "document_category", value: "safeguarding", label: "Safeguarding", sortOrder: 2, active: true },
+      { category: "document_category", value: "governance", label: "Governance", sortOrder: 3, active: true },
+      { category: "document_category", value: "data_protection", label: "Data Protection", sortOrder: 4, active: true },
+      { category: "document_category", value: "ict", label: "ICT / Resilience", sortOrder: 5, active: true },
+      { category: "document_category", value: "outsourcing", label: "Outsourcing", sortOrder: 6, active: true },
+      { category: "document_category", value: "crypto", label: "Crypto / Digital Assets", sortOrder: 7, active: true },
+      { category: "document_category", value: "payments", label: "Payments", sortOrder: 8, active: true },
+      { category: "finding_severity", value: "critical", label: "Critical", sortOrder: 1, active: true },
+      { category: "finding_severity", value: "high", label: "High", sortOrder: 2, active: true },
+      { category: "finding_severity", value: "medium", label: "Medium", sortOrder: 3, active: true },
+      { category: "finding_severity", value: "low", label: "Low", sortOrder: 4, active: true },
+    ]);
+  }
+
+  console.log("Seed data loaded successfully: 4 BUs, 20+ regulatory sources, 35+ requirements, 10 documents, mappings, findings, lookups, and audit trail");
 }

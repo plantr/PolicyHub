@@ -2,10 +2,10 @@ import { z } from 'zod';
 import {
   insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
-  insertRequirementMappingSchema, insertReviewHistorySchema,
+  insertRequirementMappingSchema, insertReviewHistorySchema, insertLookupSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
-  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles
+  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles, lookups
 } from './schema';
 
 export const errorSchemas = {
@@ -29,6 +29,32 @@ export const api = {
       path: '/api/business-units/:id' as const,
       responses: {
         200: z.custom<typeof businessUnits.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/business-units' as const,
+      input: insertBusinessUnitSchema,
+      responses: {
+        201: z.custom<typeof businessUnits.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/business-units/:id' as const,
+      input: insertBusinessUnitSchema.partial(),
+      responses: {
+        200: z.custom<typeof businessUnits.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/business-units/:id' as const,
+      responses: {
+        204: z.object({}),
         404: errorSchemas.notFound,
       },
     },
@@ -326,6 +352,48 @@ export const api = {
       method: 'GET' as const,
       path: '/api/policy-links' as const,
       responses: { 200: z.array(z.custom<typeof policyLinks.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // LOOKUPS (configurable reference data)
+  // =============================================
+  lookups: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/lookups' as const,
+      responses: { 200: z.array(z.custom<typeof lookups.$inferSelect>()) },
+    },
+    byCategory: {
+      method: 'GET' as const,
+      path: '/api/lookups/category/:category' as const,
+      responses: { 200: z.array(z.custom<typeof lookups.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/lookups' as const,
+      input: insertLookupSchema,
+      responses: {
+        201: z.custom<typeof lookups.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/lookups/:id' as const,
+      input: insertLookupSchema.partial(),
+      responses: {
+        200: z.custom<typeof lookups.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/lookups/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
     },
   },
 
