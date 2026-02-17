@@ -51,11 +51,15 @@ export async function registerRoutes(
       throw err;
     }
   });
-  app.delete(api.businessUnits.delete.path, async (req, res) => {
+  app.put("/api/business-units/:id/archive", async (req, res) => {
     const existing = await storage.getBusinessUnit(Number(req.params.id));
     if (!existing) return res.status(404).json({ message: "Business Unit not found" });
-    await storage.deleteBusinessUnit(Number(req.params.id));
-    res.status(204).send();
+    const archived = await storage.archiveBusinessUnit(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "business_unit", entityId: existing.id,
+      action: "archived", actor: "system", details: `Business unit "${existing.name}" archived`
+    });
+    res.json(archived);
   });
 
   // === REGULATORY SOURCES ===

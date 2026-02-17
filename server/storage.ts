@@ -25,7 +25,7 @@ export interface IStorage {
   getBusinessUnit(id: number): Promise<BusinessUnit | undefined>;
   createBusinessUnit(bu: CreateBusinessUnitRequest): Promise<BusinessUnit>;
   updateBusinessUnit(id: number, bu: UpdateBusinessUnitRequest): Promise<BusinessUnit | undefined>;
-  deleteBusinessUnit(id: number): Promise<void>;
+  archiveBusinessUnit(id: number): Promise<BusinessUnit | undefined>;
 
   getRegulatoryProfiles(): Promise<RegulatoryProfile[]>;
 
@@ -104,8 +104,9 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(businessUnits).set(bu).where(eq(businessUnits.id, id)).returning();
     return updated;
   }
-  async deleteBusinessUnit(id: number): Promise<void> {
-    await db.delete(businessUnits).where(eq(businessUnits.id, id));
+  async archiveBusinessUnit(id: number): Promise<BusinessUnit | undefined> {
+    const [updated] = await db.update(businessUnits).set({ status: "Archived" }).where(eq(businessUnits.id, id)).returning();
+    return updated;
   }
 
   async getRegulatoryProfiles(): Promise<RegulatoryProfile[]> {

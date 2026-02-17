@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2, Building2, MapPin } from "lucide-react";
+import { Plus, Pencil, Archive, Building2, MapPin } from "lucide-react";
 import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
 
@@ -32,8 +32,8 @@ type BUFormValues = z.infer<typeof buFormSchema>;
 export default function BusinessUnits() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBU, setEditingBU] = useState<BusinessUnit | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingBU, setDeletingBU] = useState<BusinessUnit | null>(null);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archivingBU, setArchivingBU] = useState<BusinessUnit | null>(null);
   const { toast } = useToast();
 
   const form = useForm<BUFormValues>({
@@ -106,16 +106,17 @@ export default function BusinessUnits() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/business-units/${id}`);
+      const res = await apiRequest("PUT", `/api/business-units/${id}/archive`);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({ title: "Business unit deleted" });
-      setDeleteConfirmOpen(false);
-      setDeletingBU(null);
+      toast({ title: "Business unit archived" });
+      setArchiveConfirmOpen(false);
+      setArchivingBU(null);
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -195,6 +196,7 @@ export default function BusinessUnits() {
                 <TableHead data-testid="th-name">Name</TableHead>
                 <TableHead data-testid="th-type">Type</TableHead>
                 <TableHead data-testid="th-jurisdiction">Jurisdiction</TableHead>
+                <TableHead data-testid="th-status">Status</TableHead>
                 <TableHead data-testid="th-activities">Activities</TableHead>
                 <TableHead data-testid="th-description">Description</TableHead>
                 <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
@@ -203,7 +205,7 @@ export default function BusinessUnits() {
             <TableBody>
               {(businessUnits ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
                     No business units configured. Click "Add Business Unit" to create one.
                   </TableCell>
                 </TableRow>
@@ -224,6 +226,11 @@ export default function BusinessUnits() {
                         <MapPin className="h-3 w-3 text-muted-foreground" />
                         {bu.jurisdiction}
                       </div>
+                    </TableCell>
+                    <TableCell data-testid={`badge-status-${bu.id}`}>
+                      <Badge variant={bu.status === "Active" ? "default" : "secondary"}>
+                        {bu.status}
+                      </Badge>
                     </TableCell>
                     <TableCell data-testid={`text-activities-${bu.id}`}>
                       <div className="flex flex-wrap gap-1">
@@ -251,12 +258,13 @@ export default function BusinessUnits() {
                           size="icon"
                           variant="ghost"
                           onClick={() => {
-                            setDeletingBU(bu);
-                            setDeleteConfirmOpen(true);
+                            setArchivingBU(bu);
+                            setArchiveConfirmOpen(true);
                           }}
-                          data-testid={`button-delete-bu-${bu.id}`}
+                          disabled={bu.status === "Archived"}
+                          data-testid={`button-archive-bu-${bu.id}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Archive className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -390,25 +398,25 @@ export default function BusinessUnits() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent data-testid="dialog-delete-bu">
+      <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <DialogContent data-testid="dialog-archive-bu">
           <DialogHeader>
-            <DialogTitle>Delete Business Unit</DialogTitle>
+            <DialogTitle>Archive Business Unit</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deletingBU?.name}"? This may affect regulatory profiles and document assignments.
+              Are you sure you want to archive "{archivingBU?.name}"? It will no longer appear as active but its data will be preserved.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete-bu">
+            <Button variant="outline" onClick={() => setArchiveConfirmOpen(false)} data-testid="button-cancel-archive-bu">
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deletingBU && deleteMutation.mutate(deletingBU.id)}
-              disabled={deleteMutation.isPending}
-              data-testid="button-confirm-delete-bu"
+              onClick={() => archivingBU && archiveMutation.mutate(archivingBU.id)}
+              disabled={archiveMutation.isPending}
+              data-testid="button-confirm-archive-bu"
             >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              {archiveMutation.isPending ? "Archiving..." : "Archive"}
             </Button>
           </DialogFooter>
         </DialogContent>

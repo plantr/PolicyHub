@@ -13,6 +13,7 @@ export const businessUnits = pgTable("business_units", {
   jurisdiction: text("jurisdiction").notNull(),
   type: text("type").notNull(),
   activities: text("activities").array().notNull(),
+  status: text("status").notNull().default("Active"),
   effectiveDate: timestamp("effective_date"),
   description: text("description"),
 });
