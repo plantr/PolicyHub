@@ -274,16 +274,21 @@ export async function registerRoutes(
       });
 
       if (req.file) {
-        const s3Key = generateS3Key(version.documentId, version.id, req.file.originalname);
-        await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
-        await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
-        await storage.createAuditLogEntry({
-          entityType: "document_version", entityId: version.id,
-          action: "pdf_uploaded", actor: input.createdBy,
-          details: `PDF "${req.file.originalname}" uploaded with version ${input.version}`
-        });
-        const updated = await storage.getDocumentVersion(version.id);
-        return res.status(201).json(updated);
+        try {
+          const s3Key = generateS3Key(version.documentId, version.id, req.file.originalname);
+          await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
+          await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
+          await storage.createAuditLogEntry({
+            entityType: "document_version", entityId: version.id,
+            action: "pdf_uploaded", actor: input.createdBy,
+            details: `PDF "${req.file.originalname}" uploaded with version ${input.version}`
+          });
+          const updated = await storage.getDocumentVersion(version.id);
+          return res.status(201).json(updated);
+        } catch (s3Err) {
+          console.error("S3 upload failed during version creation:", s3Err);
+          return res.status(201).json({ ...version, _pdfWarning: "Version created but PDF upload failed. You can attach the PDF separately." });
+        }
       }
 
       res.status(201).json(version);
