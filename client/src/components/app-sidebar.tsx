@@ -73,6 +73,7 @@ const navGroups = [
       { title: "Roles / Actors", icon: Users, path: "/admin/roles" },
       { title: "Jurisdictions", icon: MapPin, path: "/admin/jurisdictions" },
       { title: "Document Categories", icon: FolderOpen, path: "/admin/document-categories" },
+      { title: "Document Statuses", icon: FileText, path: "/admin/document-statuses" },
       { title: "Finding Severities", icon: Gauge, path: "/admin/finding-severities" },
     ],
   },

@@ -314,6 +314,14 @@ export const findingSeverities = pgTable("finding_severities", {
   active: boolean("active").notNull().default(true),
 });
 
+export const documentStatuses = pgTable("document_statuses", {
+  id: serial("id").primaryKey(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
 // =============================================
 // INSERT SCHEMAS
 // =============================================
@@ -338,6 +346,7 @@ export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({ id: true });
 export const insertDocumentCategorySchema = createInsertSchema(documentCategories).omit({ id: true });
 export const insertFindingSeveritySchema = createInsertSchema(findingSeverities).omit({ id: true });
+export const insertDocumentStatusSchema = createInsertSchema(documentStatuses).omit({ id: true });
 
 // =============================================
 // SELECT TYPES

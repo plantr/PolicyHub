@@ -614,7 +614,7 @@ export async function registerRoutes(
   });
 
   // === ADMIN TABLES ===
-  const VALID_ADMIN_TABLES = ["entity-types", "roles", "jurisdictions", "document-categories", "finding-severities"];
+  const VALID_ADMIN_TABLES = ["entity-types", "roles", "jurisdictions", "document-categories", "finding-severities", "document-statuses"];
 
   app.get("/api/admin/:table", async (req, res) => {
     if (!VALID_ADMIN_TABLES.includes(req.params.table)) return res.status(404).json({ message: "Unknown table" });

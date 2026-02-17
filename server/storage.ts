@@ -4,7 +4,7 @@ import {
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
   findings, findingEvidence, policyLinks, audits, users,
-  entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  entityTypes, roles, jurisdictions, documentCategories, findingSeverities, documentStatuses,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
@@ -333,6 +333,7 @@ export class DatabaseStorage implements IStorage {
       "jurisdictions": jurisdictions,
       "document-categories": documentCategories,
       "finding-severities": findingSeverities,
+      "document-statuses": documentStatuses,
     };
     const t = tables[table];
     if (!t) throw new Error(`Unknown admin table: ${table}`);

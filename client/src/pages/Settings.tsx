@@ -36,6 +36,7 @@ export const ADMIN_CATEGORIES: Record<string, { slug: string; label: string; sin
   "jurisdictions": { slug: "jurisdictions", label: "Jurisdictions", singular: "Jurisdiction" },
   "document-categories": { slug: "document-categories", label: "Document Categories", singular: "Document Category" },
   "finding-severities": { slug: "finding-severities", label: "Finding Severities", singular: "Finding Severity" },
+  "document-statuses": { slug: "document-statuses", label: "Document Statuses", singular: "Document Status" },
 };
 
 export default function LookupAdmin({ slug }: { slug: string }) {
