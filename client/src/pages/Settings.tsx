@@ -199,7 +199,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
               <TableRow>
                 <TableHead data-testid="th-order">Order</TableHead>
                 {hasValue && <TableHead data-testid="th-value">Value</TableHead>}
-                <TableHead data-testid="th-label">Label</TableHead>
+                <TableHead data-testid="th-label">{slug === "document-categories" ? "Category" : "Label"}</TableHead>
                 <TableHead data-testid="th-status">Status</TableHead>
                 <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
               </TableRow>
@@ -316,7 +316,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
                 name="label"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Display Label</FormLabel>
+                    <FormLabel>{slug === "document-categories" ? "Category" : "Display Label"}</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g. Electronic Money Institution" {...field} data-testid="input-record-label" />
                     </FormControl>
