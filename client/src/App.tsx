@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import Dashboard from "@/pages/Dashboard";
 import Documents from "@/pages/Documents";
 import DocumentDetail from "@/pages/DocumentDetail";
+import VersionDetail from "@/pages/VersionDetail";
 import Requirements from "@/pages/Requirements";
 import RegulatorySources from "@/pages/RegulatorySources";
 import GapAnalysis from "@/pages/GapAnalysis";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/documents" component={Documents} />
       <Route path="/documents/:id" component={DocumentDetail} />
+      <Route path="/documents/:docId/versions/:verId" component={VersionDetail} />
       <Route path="/requirements" component={Requirements} />
       <Route path="/sources" component={RegulatorySources} />
       <Route path="/gap-analysis" component={GapAnalysis} />
