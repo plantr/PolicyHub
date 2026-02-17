@@ -492,6 +492,152 @@ export async function registerRoutes(
     res.json(mapping);
   });
 
+  // === GAP ANALYSIS (REFRESH) ===
+  app.get("/api/gap-analysis/refresh", async (_req, res) => {
+    const allRequirements = await storage.getRequirements();
+    const allMappings = await storage.getRequirementMappings();
+    const allDocuments = await storage.getDocuments();
+    const allSources = await storage.getRegulatorySources();
+    const allBusinessUnits = await storage.getBusinessUnits();
+    const allProfiles = await storage.getRegulatoryProfiles();
+
+    const sourceMap = new Map(allSources.map((s) => [s.id, s]));
+    const docMap = new Map(allDocuments.map((d) => [d.id, d]));
+    const reqMap = new Map(allRequirements.map((r) => [r.id, r]));
+    const buMap = new Map(allBusinessUnits.map((b) => [b.id, b]));
+
+    // Build per-BU enabled source sets from regulatory profiles
+    const buEnabledSources = new Map<number, Set<number>>();
+    const globalEnabledSourceIds = new Set<number>();
+    for (const profile of allProfiles) {
+      if (!profile.enabled) continue;
+      globalEnabledSourceIds.add(profile.sourceId);
+      if (!buEnabledSources.has(profile.businessUnitId)) {
+        buEnabledSources.set(profile.businessUnitId, new Set());
+      }
+      buEnabledSources.get(profile.businessUnitId)!.add(profile.sourceId);
+    }
+
+    // Determine applicable requirements: those from sources enabled in at least one BU profile
+    const applicableRequirements = allRequirements.filter((r) => globalEnabledSourceIds.has(r.sourceId));
+
+    // Find unmapped gaps: applicable requirements that have no mapping at all
+    const mappedReqIds = new Set(allMappings.map((m) => m.requirementId));
+    const unmappedRequirements = applicableRequirements
+      .filter((r) => !mappedReqIds.has(r.id))
+      .map((r) => ({
+        requirementId: r.id,
+        code: r.code,
+        title: r.title,
+        category: r.category,
+        sourceId: r.sourceId,
+        sourceName: sourceMap.get(r.sourceId)?.shortName ?? `Source #${r.sourceId}`,
+        article: r.article,
+      }));
+
+    // Find per-BU gaps: for each BU, requirements from its enabled sources that lack a mapping for that BU
+    const perBuGaps: Array<{
+      businessUnitId: number;
+      businessUnitName: string;
+      requirementId: number;
+      code: string;
+      title: string;
+      sourceName: string;
+    }> = [];
+
+    for (const [buId, enabledSources] of Array.from(buEnabledSources.entries())) {
+      const buName = buMap.get(buId)?.name ?? `BU #${buId}`;
+      const buApplicableReqs = allRequirements.filter((r) => enabledSources.has(r.sourceId));
+      const buMappedReqIds = new Set(
+        allMappings
+          .filter((m) => m.businessUnitId === buId || m.businessUnitId === null)
+          .map((m) => m.requirementId)
+      );
+      for (const req of buApplicableReqs) {
+        if (!buMappedReqIds.has(req.id)) {
+          perBuGaps.push({
+            businessUnitId: buId,
+            businessUnitName: buName,
+            requirementId: req.id,
+            code: req.code,
+            title: req.title,
+            sourceName: sourceMap.get(req.sourceId)?.shortName ?? `Source #${req.sourceId}`,
+          });
+        }
+      }
+    }
+
+    // Over-strict: mappings where the requirement's source is NOT enabled for the mapping's BU
+    const overStrictItems: Array<{
+      documentId: number;
+      documentTitle: string;
+      requirementId: number;
+      requirementCode: string;
+      requirementTitle: string;
+      sourceName: string;
+      businessUnitId: number | null;
+      businessUnitName: string;
+      reason: string;
+    }> = [];
+
+    for (const mapping of allMappings) {
+      const req = reqMap.get(mapping.requirementId);
+      if (!req) continue;
+
+      const mappingBuId = mapping.businessUnitId;
+      if (mappingBuId) {
+        const buSources = buEnabledSources.get(mappingBuId);
+        if (!buSources || !buSources.has(req.sourceId)) {
+          const doc = docMap.get(mapping.documentId);
+          const src = sourceMap.get(req.sourceId);
+          const bu = buMap.get(mappingBuId);
+          overStrictItems.push({
+            documentId: mapping.documentId,
+            documentTitle: doc?.title ?? `Doc #${mapping.documentId}`,
+            requirementId: req.id,
+            requirementCode: req.code,
+            requirementTitle: req.title,
+            sourceName: src?.shortName ?? `Source #${req.sourceId}`,
+            businessUnitId: mappingBuId,
+            businessUnitName: bu?.name ?? `BU #${mappingBuId}`,
+            reason: `Source "${src?.shortName ?? req.sourceId}" is not enabled in ${bu?.name ?? "this business unit"}'s regulatory profile`,
+          });
+        }
+      } else {
+        // Mapping has no BU context — check if source is enabled globally
+        if (!globalEnabledSourceIds.has(req.sourceId)) {
+          const doc = docMap.get(mapping.documentId);
+          const src = sourceMap.get(req.sourceId);
+          overStrictItems.push({
+            documentId: mapping.documentId,
+            documentTitle: doc?.title ?? `Doc #${mapping.documentId}`,
+            requirementId: req.id,
+            requirementCode: req.code,
+            requirementTitle: req.title,
+            sourceName: src?.shortName ?? `Source #${req.sourceId}`,
+            businessUnitId: null,
+            businessUnitName: "Group (no BU)",
+            reason: `Source "${src?.shortName ?? req.sourceId}" is not enabled in any regulatory profile`,
+          });
+        }
+      }
+    }
+
+    const summary = {
+      totalRequirements: allRequirements.length,
+      applicableRequirements: applicableRequirements.length,
+      totalMapped: allMappings.length,
+      unmappedCount: unmappedRequirements.length,
+      perBuGapCount: perBuGaps.length,
+      overStrictCount: overStrictItems.length,
+      coveredCount: allMappings.filter((m) => m.coverageStatus === "Covered").length,
+      partiallyCoveredCount: allMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
+      notCoveredCount: allMappings.filter((m) => m.coverageStatus === "Not Covered").length,
+    };
+
+    res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems });
+  });
+
   // === FINDINGS ===
   app.get(api.findings.list.path, async (_req, res) => {
     res.json(await storage.getFindings());
