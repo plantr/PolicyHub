@@ -407,13 +407,12 @@ export default function Documents() {
                 <TableHead data-testid="col-review-frequency">Review Frequency</TableHead>
                 <TableHead data-testid="col-next-review">Next Review</TableHead>
                 <TableHead data-testid="col-bu">BU</TableHead>
-                <TableHead className="text-right" data-testid="col-actions">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredDocuments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                     No documents found
                   </TableCell>
                 </TableRow>
@@ -445,29 +444,6 @@ export default function Documents() {
                     </TableCell>
                     <TableCell data-testid={`text-bu-${doc.id}`}>
                       {doc.businessUnitId ? buMap.get(doc.businessUnitId) || "Unknown" : "Group"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditDialog(doc)}
-                          data-testid={`button-edit-document-${doc.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            setDeletingDoc(doc);
-                            setDeleteConfirmOpen(true);
-                          }}
-                          data-testid={`button-delete-document-${doc.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </TableCell>
                   </TableRow>
                 ))
