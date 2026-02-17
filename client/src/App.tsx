@@ -18,6 +18,7 @@ import GapAnalysis from "@/pages/GapAnalysis";
 import Findings from "@/pages/Findings";
 import AuditTrail from "@/pages/AuditTrail";
 import BusinessUnits from "@/pages/BusinessUnits";
+import Audits from "@/pages/Audits";
 import LookupAdmin from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/gap-analysis" component={GapAnalysis} />
       <Route path="/findings" component={Findings} />
       <Route path="/audit-trail" component={AuditTrail} />
+      <Route path="/audits" component={Audits} />
       <Route path="/business-units" component={BusinessUnits} />
       <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" icon={Blocks} />}</Route>
       <Route path="/admin/roles">{() => <LookupAdmin slug="roles" icon={Users} />}</Route>

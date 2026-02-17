@@ -226,6 +226,29 @@ export const policyLinks = pgTable("policy_links", {
 });
 
 // =============================================
+// AUDITS
+// =============================================
+
+export const audits = pgTable("audits", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  auditType: text("audit_type").notNull(),
+  status: text("status").notNull(),
+  businessUnitId: integer("business_unit_id"),
+  scope: text("scope"),
+  leadAuditor: text("lead_auditor").notNull(),
+  auditFirm: text("audit_firm"),
+  scheduledDate: timestamp("scheduled_date"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  reportDate: timestamp("report_date"),
+  findingsCount: integer("findings_count").default(0),
+  recommendations: text("recommendations"),
+  overallRating: text("overall_rating"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================
 // ADMINISTRATION REFERENCE TABLES
 // =============================================
 
@@ -286,6 +309,7 @@ export const insertRequirementMappingSchema = createInsertSchema(requirementMapp
 export const insertFindingSchema = createInsertSchema(findings).omit({ id: true, createdAt: true, closedAt: true });
 export const insertFindingEvidenceSchema = createInsertSchema(findingEvidence).omit({ id: true, uploadedAt: true });
 export const insertPolicyLinkSchema = createInsertSchema(policyLinks).omit({ id: true });
+export const insertAuditSchema = createInsertSchema(audits).omit({ id: true, createdAt: true });
 export const insertEntityTypeSchema = createInsertSchema(entityTypes).omit({ id: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({ id: true });
@@ -311,6 +335,7 @@ export type RequirementMapping = typeof requirementMappings.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type FindingEvidence = typeof findingEvidence.$inferSelect;
 export type PolicyLink = typeof policyLinks.$inferSelect;
+export type Audit = typeof audits.$inferSelect;
 export type EntityType = typeof entityTypes.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type Jurisdiction = typeof jurisdictions.$inferSelect;
@@ -335,6 +360,8 @@ export type CreateFindingRequest = z.infer<typeof insertFindingSchema>;
 export type UpdateFindingRequest = Partial<CreateFindingRequest>;
 export type CreateRequirementMappingRequest = z.infer<typeof insertRequirementMappingSchema>;
 export type UpdateRequirementMappingRequest = Partial<CreateRequirementMappingRequest>;
+export type CreateAuditRequest = z.infer<typeof insertAuditSchema>;
+export type UpdateAuditRequest = Partial<CreateAuditRequest>;
 export type CreateRegulatorySourceRequest = z.infer<typeof insertRegulatorySourceSchema>;
 export type UpdateRegulatorySourceRequest = Partial<CreateRegulatorySourceRequest>;
 export type CreateRequirementRequest = z.infer<typeof insertRequirementSchema>;

@@ -9,7 +9,7 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks,
+  findings, findingEvidence, policyLinks, audits,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from "@shared/schema";
 
@@ -393,7 +393,47 @@ export async function registerRoutes(
     res.json(await storage.getPolicyLinks());
   });
 
-  // === LOOKUPS ===
+  // === AUDITS ===
+  app.get(api.audits.list.path, async (_req, res) => {
+    res.json(await storage.getAudits());
+  });
+  app.get(api.audits.get.path, async (req, res) => {
+    const audit = await storage.getAudit(Number(req.params.id));
+    if (!audit) return res.status(404).json({ message: "Audit not found" });
+    res.json(audit);
+  });
+  app.post(api.audits.create.path, async (req, res) => {
+    try {
+      const input = api.audits.create.input.parse(req.body);
+      const audit = await storage.createAudit(input);
+      await storage.createAuditLogEntry({ entityType: "audit", entityId: audit.id, action: "created", actor: input.leadAuditor, details: `Audit created: ${audit.title}` });
+      res.status(201).json(audit);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.audits.update.path, async (req, res) => {
+    try {
+      const input = api.audits.update.input.parse(req.body);
+      const audit = await storage.updateAudit(Number(req.params.id), input);
+      if (!audit) return res.status(404).json({ message: "Audit not found" });
+      await storage.createAuditLogEntry({ entityType: "audit", entityId: audit.id, action: "updated", actor: "System", details: `Audit updated: ${audit.title}` });
+      res.json(audit);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.audits.delete.path, async (req, res) => {
+    const existing = await storage.getAudit(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Audit not found" });
+    await storage.deleteAudit(Number(req.params.id));
+    await storage.createAuditLogEntry({ entityType: "audit", entityId: existing.id, action: "deleted", actor: "System", details: `Audit deleted: ${existing.title}` });
+    res.status(204).send();
+  });
+
+  // === ADMIN TABLES ===
   const VALID_ADMIN_TABLES = ["entity-types", "roles", "jurisdictions", "document-categories", "finding-severities"];
 
   app.get("/api/admin/:table", async (req, res) => {

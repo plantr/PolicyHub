@@ -10,6 +10,7 @@ Key capabilities include:
 - Regulatory requirements library with source instrument tracking
 - Requirement-to-document mapping and gap analysis
 - Findings/remediation tracking with evidence capture
+- Audit tracking (internal, external, regulatory, thematic, follow-up) with status lifecycle
 - Immutable audit trail for all governance actions
 - Dashboard with analytics charts and compliance metrics
 
@@ -66,6 +67,8 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `findings` - Compliance findings with severity, status, and due dates
 - `finding_evidence` - Evidence attachments for findings
 - `policy_links` - Relationships between policy documents
+- `audits` - Internal/external compliance audit records with type, status, dates, and ratings
+- `entity_types`, `roles`, `jurisdictions`, `document_categories`, `finding_severities` - Administration reference tables
 
 ### Shared Code
 The `shared/` directory contains code used by both frontend and backend:

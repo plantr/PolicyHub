@@ -3,11 +3,11 @@ import {
   insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
   insertRequirementMappingSchema, insertReviewHistorySchema,
-  insertRegulatorySourceSchema, insertRequirementSchema,
+  insertRegulatorySourceSchema, insertRequirementSchema, insertAuditSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
-  entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  audits, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
 } from './schema';
 
 export const errorSchemas = {
@@ -422,6 +422,51 @@ export const api = {
       method: 'GET' as const,
       path: '/api/policy-links' as const,
       responses: { 200: z.array(z.custom<typeof policyLinks.$inferSelect>()) },
+    },
+  },
+
+  // =============================================
+  // AUDITS
+  // =============================================
+  audits: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/audits' as const,
+      responses: { 200: z.array(z.custom<typeof audits.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/audits/:id' as const,
+      responses: {
+        200: z.custom<typeof audits.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/audits' as const,
+      input: insertAuditSchema,
+      responses: {
+        201: z.custom<typeof audits.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/audits/:id' as const,
+      input: insertAuditSchema.partial(),
+      responses: {
+        200: z.custom<typeof audits.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/audits/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
     },
   },
 

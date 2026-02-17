@@ -3,12 +3,13 @@ import {
   businessUnits, regulatoryProfiles, regulatorySources, requirements,
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, requirementMappings,
-  findings, findingEvidence, policyLinks,
+  findings, findingEvidence, policyLinks, audits,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
   type RequirementMapping, type Finding, type FindingEvidence, type PolicyLink,
+  type Audit, type CreateAuditRequest, type UpdateAuditRequest,
   type AdminRecord, type CreateAdminRecordRequest, type UpdateAdminRecordRequest,
   type CreateBusinessUnitRequest, type UpdateBusinessUnitRequest,
   type CreateDocumentRequest, type UpdateDocumentRequest,
@@ -79,6 +80,12 @@ export interface IStorage {
   getFindingEvidence(findingId: number): Promise<FindingEvidence[]>;
 
   getPolicyLinks(): Promise<PolicyLink[]>;
+
+  getAudits(): Promise<Audit[]>;
+  getAudit(id: number): Promise<Audit | undefined>;
+  createAudit(audit: CreateAuditRequest): Promise<Audit>;
+  updateAudit(id: number, audit: UpdateAuditRequest): Promise<Audit | undefined>;
+  deleteAudit(id: number): Promise<void>;
 
   getAdminRecords(table: string): Promise<AdminRecord[]>;
   getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined>;
@@ -260,6 +267,25 @@ export class DatabaseStorage implements IStorage {
 
   async getPolicyLinks(): Promise<PolicyLink[]> {
     return await db.select().from(policyLinks);
+  }
+
+  async getAudits(): Promise<Audit[]> {
+    return await db.select().from(audits);
+  }
+  async getAudit(id: number): Promise<Audit | undefined> {
+    const [audit] = await db.select().from(audits).where(eq(audits.id, id));
+    return audit;
+  }
+  async createAudit(data: CreateAuditRequest): Promise<Audit> {
+    const [created] = await db.insert(audits).values(data).returning();
+    return created;
+  }
+  async updateAudit(id: number, data: UpdateAuditRequest): Promise<Audit | undefined> {
+    const [updated] = await db.update(audits).set(data).where(eq(audits.id, id)).returning();
+    return updated;
+  }
+  async deleteAudit(id: number): Promise<void> {
+    await db.delete(audits).where(eq(audits.id, id));
   }
 
   private getAdminTable(table: string) {

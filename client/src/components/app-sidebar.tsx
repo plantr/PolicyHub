@@ -6,6 +6,7 @@ import {
   Scale,
   GitCompare,
   AlertTriangle,
+  ClipboardCheck,
   History,
   Building2,
   Users,
@@ -46,6 +47,7 @@ const navGroups = [
     items: [
       { title: "Gap Analysis", icon: GitCompare, path: "/gap-analysis" },
       { title: "Findings", icon: AlertTriangle, path: "/findings" },
+      { title: "Audits", icon: ClipboardCheck, path: "/audits" },
     ],
   },
   {
