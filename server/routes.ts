@@ -411,8 +411,8 @@ export async function registerRoutes(
       const filePath = getLocalFilePath(version.pdfS3Key);
       const fs = await import("fs/promises");
       const buffer = await fs.readFile(filePath);
-      const parsePdf = _require("pdf-parse");
-      const pdfData = await parsePdf(buffer);
+      const { PDFParse } = _require("pdf-parse");
+      const pdfData = await PDFParse(buffer);
       const text = pdfData.text || "";
 
       const lines = text.split("\n").map((l: string) => l.trimEnd());
