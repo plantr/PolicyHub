@@ -95,6 +95,18 @@ export default function ControlDetail() {
 
   const coveredCount = mappings.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
 
+  const bestPct = useMemo(() => {
+    let best = -1;
+    for (const m of mappings) {
+      const match = m.rationale?.match(/\((\d+)%\)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (val > best) best = val;
+      }
+    }
+    return best >= 0 ? best : null;
+  }, [mappings]);
+
   const createMappingMutation = useMutation({
     mutationFn: async (data: { documentId: number; coverageStatus: string; rationale?: string }) => {
       const res = await apiRequest("POST", "/api/requirement-mappings", {
@@ -219,78 +231,38 @@ export default function ControlDetail() {
         </TabsList>
 
         <TabsContent value="mapped" className="mt-6 space-y-6">
-          <Card data-testid="card-tests-section">
-            <CardContent className="pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-base font-semibold">Tests</h3>
-                  <Badge variant="outline" className="text-xs" data-testid="badge-test-count">
-                    {coveredCount} / {mappings.length} OK
-                  </Badge>
+          {bestPct !== null && (
+            <Card data-testid="card-coverage-summary">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <svg width="56" height="56" viewBox="0 0 36 36" data-testid="coverage-circle">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted" />
+                    <circle
+                      cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round"
+                      strokeDasharray={`${(bestPct / 100) * 87.96} ${87.96}`}
+                      transform="rotate(-90 18 18)"
+                      className={bestPct >= 45 ? "stroke-green-500 dark:stroke-green-400" : bestPct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                    />
+                    <text x="18" y="19" textAnchor="middle" dominantBaseline="central" className="fill-current text-[7px] font-semibold">{bestPct}%</text>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold" data-testid="text-coverage-label">Coverage Score</p>
+                    <p className="text-xs text-muted-foreground">
+                      Best match across {mappedDocuments.length} linked document{mappedDocuments.length !== 1 ? "s" : ""} — {coveredCount} of {mappings.length} providing coverage
+                    </p>
+                  </div>
                 </div>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => navigate(`/tests/new?controlId=${controlId}`)}
-                  data-testid="button-add-test"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {mappings.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4" data-testid="text-no-tests">
-                  No tests mapped to this control yet.
-                </p>
-              ) : (
-                <div className="divide-y">
-                  {mappings.map((mapping) => {
-                    const doc = mapping.documentId ? documentMap.get(mapping.documentId) : undefined;
-                    const passed = mapping.coverageStatus === "Covered" || mapping.coverageStatus === "Partially Covered";
-                    return (
-                      <div
-                        key={mapping.id}
-                        className="flex flex-wrap items-center gap-3 py-3 cursor-pointer hover-elevate"
-                        onClick={() => navigate(`/tests/${mapping.id}`)}
-                        data-testid={`row-test-${mapping.id}`}
-                      >
-                        {passed ? (
-                          <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-destructive shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium">
-                            {mapping.rationale || (doc ? `${doc.title} is mapped` : `Mapping #${mapping.id}`)}
-                          </span>
-                        </div>
-                        {doc && (
-                          <span className="text-xs text-muted-foreground shrink-0">{doc.owner}</span>
-                        )}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="shrink-0 text-muted-foreground"
-                          onClick={(e) => { e.stopPropagation(); deleteMappingMutation.mutate(mapping.id); }}
-                          data-testid={`button-delete-test-${mapping.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card data-testid="card-documents-section">
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-base font-semibold">Documents</h3>
+                  <h3 className="text-base font-semibold">Linked Documents</h3>
                   <Badge variant="outline" className="text-xs" data-testid="badge-doc-count">
-                    {coveredCount} / {mappedDocuments.length} OK
+                    {mappedDocuments.length}
                   </Badge>
                 </div>
                 <Button
@@ -325,7 +297,7 @@ export default function ControlDetail() {
                     return (
                       <div
                         key={mapping.id}
-                        className="py-4 space-y-2"
+                        className="py-4 space-y-3"
                         data-testid={`row-mapped-doc-${mapping.id}`}
                       >
                         <div className="flex flex-wrap items-center gap-3">
@@ -357,13 +329,15 @@ export default function ControlDetail() {
                             >
                               {doc!.title}
                             </Link>
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                              <Badge variant="secondary" className={`border-0 text-xs ${coverageColor}`} data-testid={`badge-coverage-${mapping.id}`}>
+                                {mapping.coverageStatus}
+                              </Badge>
+                              {doc!.owner && (
+                                <span className="text-xs text-muted-foreground">Owner: {doc!.owner}</span>
+                              )}
+                            </div>
                           </div>
-                          <Badge variant="secondary" className={`border-0 shrink-0 ${coverageColor}`} data-testid={`badge-coverage-${mapping.id}`}>
-                            {mapping.coverageStatus}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground shrink-0" data-testid={`text-doc-owner-${doc!.id}`}>
-                            {doc!.owner}
-                          </span>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -375,13 +349,21 @@ export default function ControlDetail() {
                           </Button>
                         </div>
                         {matchedTerms.length > 0 && (
-                          <div className="ml-11 flex flex-wrap gap-1.5" data-testid={`matched-terms-${mapping.id}`}>
-                            <span className="text-xs text-muted-foreground mr-1">Matched:</span>
-                            {matchedTerms.map((term, i) => (
-                              <Badge key={i} variant="outline" className="text-xs font-normal">
-                                {term}
-                              </Badge>
-                            ))}
+                          <div className="ml-11 space-y-1.5" data-testid={`matched-terms-${mapping.id}`}>
+                            <span className="text-xs font-medium text-muted-foreground">Coverage reason — matched terms:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {matchedTerms.map((term, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-normal">
+                                  {term}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {!matchedTerms.length && mapping.rationale && !mapping.rationale.startsWith("Auto-mapped") && (
+                          <div className="ml-11" data-testid={`manual-rationale-${mapping.id}`}>
+                            <span className="text-xs font-medium text-muted-foreground">Rationale: </span>
+                            <span className="text-xs text-muted-foreground">{mapping.rationale}</span>
                           </div>
                         )}
                       </div>
