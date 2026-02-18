@@ -1,18 +1,56 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ArrowLeft, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
+
+const testFormSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
+  documentId: z.coerce.number().min(1, "Document is required"),
+});
+
+type TestFormValues = z.infer<typeof testFormSchema>;
+
+const linkDocFormSchema = z.object({
+  documentId: z.coerce.number().min(1, "Document is required"),
+  coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
+  rationale: z.string().optional(),
+});
+
+type LinkDocFormValues = z.infer<typeof linkDocFormSchema>;
 
 export default function ControlDetail() {
   const [, params] = useRoute("/controls/:id");
   const [, navigate] = useLocation();
   const controlId = Number(params?.id);
+  const { toast } = useToast();
+  const [addTestOpen, setAddTestOpen] = useState(false);
+  const [linkDocOpen, setLinkDocOpen] = useState(false);
+
+  const testForm = useForm<TestFormValues>({
+    resolver: zodResolver(testFormSchema),
+    defaultValues: { description: "", coverageStatus: "Covered", documentId: 0 },
+  });
+
+  const linkDocForm = useForm<LinkDocFormValues>({
+    resolver: zodResolver(linkDocFormSchema),
+    defaultValues: { documentId: 0, coverageStatus: "Covered", rationale: "" },
+  });
 
   const { data: control, isLoading: controlLoading } = useQuery<Requirement>({
     queryKey: [`/api/requirements/${controlId}`],
@@ -46,12 +84,19 @@ export default function ControlDetail() {
     [allDocuments]
   );
 
+  const mappedDocIds = useMemo(
+    () => new Set(mappings.map((m) => m.documentId)),
+    [mappings]
+  );
+
+  const unmappedDocuments = useMemo(
+    () => (allDocuments ?? []).filter((d) => !mappedDocIds.has(d.id)),
+    [allDocuments, mappedDocIds]
+  );
+
   const mappedDocuments = useMemo(() => {
     return mappings
-      .map((m) => ({
-        mapping: m,
-        document: documentMap.get(m.documentId),
-      }))
+      .map((m) => ({ mapping: m, document: documentMap.get(m.documentId) }))
       .filter((entry) => entry.document);
   }, [mappings, documentMap]);
 
@@ -63,6 +108,64 @@ export default function ControlDetail() {
   }, [mappings]);
 
   const coveredCount = mappings.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
+
+  const createMappingMutation = useMutation({
+    mutationFn: async (data: { documentId: number; coverageStatus: string; rationale?: string }) => {
+      const res = await apiRequest("POST", "/api/requirement-mappings", {
+        requirementId: controlId,
+        documentId: data.documentId,
+        coverageStatus: data.coverageStatus,
+        rationale: data.rationale || null,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMappingMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/requirement-mappings/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function onAddTest(values: TestFormValues) {
+    createMappingMutation.mutate(
+      { documentId: values.documentId, coverageStatus: values.coverageStatus, rationale: values.description },
+      {
+        onSuccess: () => {
+          toast({ title: "Test added" });
+          setAddTestOpen(false);
+          testForm.reset({ description: "", coverageStatus: "Covered", documentId: 0 });
+        },
+      }
+    );
+  }
+
+  function onLinkDoc(values: LinkDocFormValues) {
+    createMappingMutation.mutate(
+      { documentId: values.documentId, coverageStatus: values.coverageStatus, rationale: values.rationale },
+      {
+        onSuccess: () => {
+          toast({ title: "Document linked" });
+          setLinkDocOpen(false);
+          linkDocForm.reset({ documentId: 0, coverageStatus: "Covered", rationale: "" });
+        },
+      }
+    );
+  }
 
   if (controlLoading) {
     return (
@@ -146,11 +249,21 @@ export default function ControlDetail() {
         <TabsContent value="mapped" className="mt-6 space-y-6">
           <Card data-testid="card-tests-section">
             <CardContent className="pt-6">
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h3 className="text-base font-semibold">Tests</h3>
-                <Badge variant="outline" className="text-xs" data-testid="badge-test-count">
-                  {coveredCount} / {mappings.length} OK
-                </Badge>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-base font-semibold">Tests</h3>
+                  <Badge variant="outline" className="text-xs" data-testid="badge-test-count">
+                    {coveredCount} / {mappings.length} OK
+                  </Badge>
+                </div>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setAddTestOpen(true)}
+                  data-testid="button-add-test"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
 
               {mappings.length === 0 ? (
@@ -181,6 +294,15 @@ export default function ControlDetail() {
                         {doc && (
                           <span className="text-xs text-muted-foreground shrink-0">{doc.owner}</span>
                         )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0 text-muted-foreground"
+                          onClick={() => deleteMappingMutation.mutate(mapping.id)}
+                          data-testid={`button-delete-test-${mapping.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}
@@ -191,16 +313,26 @@ export default function ControlDetail() {
 
           <Card data-testid="card-documents-section">
             <CardContent className="pt-6">
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h3 className="text-base font-semibold">Documents</h3>
-                <Badge variant="outline" className="text-xs" data-testid="badge-doc-count">
-                  {coveredCount} / {mappedDocuments.length} OK
-                </Badge>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-base font-semibold">Documents</h3>
+                  <Badge variant="outline" className="text-xs" data-testid="badge-doc-count">
+                    {coveredCount} / {mappedDocuments.length} OK
+                  </Badge>
+                </div>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setLinkDocOpen(true)}
+                  data-testid="button-link-document"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
 
               {mappedDocuments.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4" data-testid="text-no-documents">
-                  No documents mapped to this control yet.
+                  No documents linked to this control yet.
                 </p>
               ) : (
                 <div className="divide-y">
@@ -232,6 +364,15 @@ export default function ControlDetail() {
                       <span className="text-xs text-muted-foreground shrink-0" data-testid={`text-doc-owner-${doc!.id}`}>
                         {doc!.owner}
                       </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-muted-foreground"
+                        onClick={() => deleteMappingMutation.mutate(mapping.id)}
+                        data-testid={`button-unlink-doc-${mapping.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -251,6 +392,167 @@ export default function ControlDetail() {
         </TabsContent>
       </Tabs>
 
+      <Dialog open={addTestOpen} onOpenChange={setAddTestOpen}>
+        <DialogContent className="sm:max-w-[480px]" data-testid="dialog-add-test">
+          <DialogHeader>
+            <DialogTitle>Add Test</DialogTitle>
+          </DialogHeader>
+          <Form {...testForm}>
+            <form onSubmit={testForm.handleSubmit(onAddTest)} className="space-y-4">
+              <FormField
+                control={testForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Company has an approved policy" {...field} data-testid="input-test-description" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={testForm.control}
+                name="documentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Document</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-test-document">
+                          <SelectValue placeholder="Select a document" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {(allDocuments ?? []).map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)} data-testid={`select-item-test-doc-${d.id}`}>
+                            {d.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={testForm.control}
+                name="coverageStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-test-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Covered" data-testid="select-item-test-covered">Covered</SelectItem>
+                        <SelectItem value="Partially Covered" data-testid="select-item-test-partial">Partially Covered</SelectItem>
+                        <SelectItem value="Not Covered" data-testid="select-item-test-not-covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setAddTestOpen(false)} data-testid="button-cancel-test">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMappingMutation.isPending} data-testid="button-submit-test">
+                  {createMappingMutation.isPending ? "Adding..." : "Add test"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={linkDocOpen} onOpenChange={setLinkDocOpen}>
+        <DialogContent className="sm:max-w-[480px]" data-testid="dialog-link-document">
+          <DialogHeader>
+            <DialogTitle>Link Document</DialogTitle>
+          </DialogHeader>
+          <Form {...linkDocForm}>
+            <form onSubmit={linkDocForm.handleSubmit(onLinkDoc)} className="space-y-4">
+              <FormField
+                control={linkDocForm.control}
+                name="documentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Document</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-link-document">
+                          <SelectValue placeholder="Select a document" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {unmappedDocuments.length === 0 ? (
+                          <div className="py-2 px-3 text-sm text-muted-foreground">All documents are already linked</div>
+                        ) : (
+                          unmappedDocuments.map((d) => (
+                            <SelectItem key={d.id} value={String(d.id)} data-testid={`select-item-link-doc-${d.id}`}>
+                              {d.title}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={linkDocForm.control}
+                name="coverageStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Coverage Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-link-coverage">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Covered" data-testid="select-item-link-covered">Covered</SelectItem>
+                        <SelectItem value="Partially Covered" data-testid="select-item-link-partial">Partially Covered</SelectItem>
+                        <SelectItem value="Not Covered" data-testid="select-item-link-not-covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={linkDocForm.control}
+                name="rationale"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rationale (optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Why does this document cover this control?" {...field} data-testid="input-link-rationale" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setLinkDocOpen(false)} data-testid="button-cancel-link">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMappingMutation.isPending} data-testid="button-submit-link">
+                  {createMappingMutation.isPending ? "Linking..." : "Link document"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -491,6 +491,10 @@ export async function registerRoutes(
     if (!mapping) return res.status(404).json({ message: "Mapping not found" });
     res.json(mapping);
   });
+  app.delete(api.requirementMappings.delete.path, async (req, res) => {
+    await storage.deleteRequirementMapping(Number(req.params.id));
+    res.status(204).end();
+  });
 
   // === GAP ANALYSIS (REFRESH) ===
   app.get("/api/gap-analysis/refresh", async (_req, res) => {

@@ -363,6 +363,14 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/requirement-mappings/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // =============================================

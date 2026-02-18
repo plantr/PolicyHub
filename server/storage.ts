@@ -83,6 +83,7 @@ export interface IStorage {
   getRequirementMappings(): Promise<RequirementMapping[]>;
   createRequirementMapping(mapping: CreateRequirementMappingRequest): Promise<RequirementMapping>;
   updateRequirementMapping(id: number, mapping: UpdateRequirementMappingRequest): Promise<RequirementMapping>;
+  deleteRequirementMapping(id: number): Promise<void>;
 
   getFindings(): Promise<Finding[]>;
   getFinding(id: number): Promise<Finding | undefined>;
@@ -321,6 +322,9 @@ export class DatabaseStorage implements IStorage {
   async updateRequirementMapping(id: number, mapping: UpdateRequirementMappingRequest): Promise<RequirementMapping> {
     const [updated] = await db.update(requirementMappings).set(mapping).where(eq(requirementMappings.id, id)).returning();
     return updated;
+  }
+  async deleteRequirementMapping(id: number): Promise<void> {
+    await db.delete(requirementMappings).where(eq(requirementMappings.id, id));
   }
 
   async getFindings(): Promise<Finding[]> {
