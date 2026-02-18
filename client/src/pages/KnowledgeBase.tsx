@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { Plus, Pencil, Trash2, BookOpen, Search, ArrowLeft } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, Search, ArrowLeft, FileUp } from "lucide-react";
+import * as XLSX from "xlsx";
 import type { KnowledgeBaseArticle, Document } from "@shared/schema";
 import { insertKnowledgeBaseArticleSchema } from "@shared/schema";
 
@@ -45,6 +46,7 @@ export default function KnowledgeBase() {
   const [editingArticle, setEditingArticle] = useState<KnowledgeBaseArticle | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingArticle, setDeletingArticle] = useState<KnowledgeBaseArticle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const form = useForm<ArticleFormValues>({
@@ -60,6 +62,46 @@ export default function KnowledgeBase() {
       relatedDocumentId: null,
     },
   });
+
+  const handleFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const lines: string[] = [];
+        workbook.SheetNames.forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          if (rows.length === 0) return;
+          if (workbook.SheetNames.length > 1) {
+            lines.push(`## ${sheetName}\n`);
+          }
+          const header = rows[0] as string[];
+          lines.push("| " + header.map((h) => String(h ?? "")).join(" | ") + " |");
+          lines.push("| " + header.map(() => "---").join(" | ") + " |");
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i] as unknown[];
+            const cells = header.map((_, ci) => {
+              const val = row[ci];
+              return val != null ? String(val).replace(/\|/g, "\\|").replace(/\n/g, " ") : "";
+            });
+            lines.push("| " + cells.join(" | ") + " |");
+          }
+          lines.push("");
+        });
+        const markdown = lines.join("\n");
+        form.setValue("content", markdown, { shouldValidate: true });
+        toast({ title: "File imported", description: `Converted "${file.name}" to markdown` });
+      } catch {
+        toast({ title: "Import failed", description: "Could not parse the file", variant: "destructive" });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [form, toast]);
 
   const { data: articles, isLoading } = useQuery<KnowledgeBaseArticle[]>({
     queryKey: ["/api/knowledge-base"],
@@ -437,7 +479,27 @@ export default function KnowledgeBase() {
               )} />
               <FormField control={form.control} name="content" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Content</FormLabel>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <FormLabel>Content</FormLabel>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={handleFileImport}
+                      data-testid="input-file-import"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="button-import-file"
+                    >
+                      <FileUp className="h-4 w-4 mr-1" />
+                      Import from file
+                    </Button>
+                  </div>
                   <FormControl><Textarea {...field} rows={12} className="font-mono text-sm" data-testid="input-article-content" /></FormControl>
                   <FormMessage />
                 </FormItem>
