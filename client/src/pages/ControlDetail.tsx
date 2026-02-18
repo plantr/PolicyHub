@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { X, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Plus, Trash2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
 const linkDocFormSchema = z.object({
@@ -257,7 +257,7 @@ export default function ControlDetail() {
                         {passed ? (
                           <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
                         ) : (
-                          <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <XCircle className="h-5 w-5 text-destructive shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium">
@@ -317,10 +317,8 @@ export default function ControlDetail() {
                     >
                       {mapping.coverageStatus === "Covered" ? (
                         <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                      ) : mapping.coverageStatus === "Partially Covered" ? (
-                        <AlertCircle className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                       ) : (
-                        <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                        <XCircle className="h-5 w-5 text-destructive shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
                         <Link
