@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import type { Requirement, RegulatorySource } from "@shared/schema";
+import { Plus, Pencil, Trash2, Search, CheckCircle2 } from "lucide-react";
+import { Link } from "wouter";
+import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
 
 const reqFormSchema = insertRequirementSchema.extend({
@@ -30,10 +31,76 @@ const reqFormSchema = insertRequirementSchema.extend({
 
 type ReqFormValues = z.infer<typeof reqFormSchema>;
 
+function CoverageBar({ percent, color }: { percent: number; color: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 w-full">
+      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
+      </div>
+      <span className="text-sm font-medium w-10 text-right">{percent}%</span>
+    </div>
+  );
+}
+
+function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, centerSub }: {
+  segments: { value: number; className: string }[];
+  size?: number;
+  strokeWidth?: number;
+  centerLabel: string;
+  centerSub: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  let accumulated = 0;
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          className="text-muted"
+        />
+        {total > 0 && segments.map((seg, i) => {
+          const pct = seg.value / total;
+          const dashLen = pct * circumference;
+          const offset = (accumulated / total) * circumference;
+          accumulated += seg.value;
+          return (
+            <circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={strokeWidth}
+              strokeDasharray={`${dashLen} ${circumference - dashLen}`}
+              strokeDashoffset={-offset}
+              strokeLinecap="butt"
+              className={seg.className}
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold">{centerLabel}</span>
+        <span className="text-xs text-muted-foreground">{centerSub}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Requirements() {
-  const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReq, setEditingReq] = useState<Requirement | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -60,6 +127,14 @@ export default function Requirements() {
     queryKey: ["/api/regulatory-sources"],
   });
 
+  const { data: allMappings } = useQuery<RequirementMapping[]>({
+    queryKey: ["/api/requirement-mappings"],
+  });
+
+  const { data: allDocuments } = useQuery<PolicyDocument[]>({
+    queryKey: ["/api/documents"],
+  });
+
   const isLoading = reqLoading || srcLoading;
 
   const sourceMap = useMemo(
@@ -67,16 +142,79 @@ export default function Requirements() {
     [sources]
   );
 
-  const jurisdictions = Array.from(new Set((sources ?? []).map((s) => s.jurisdiction))).sort();
-  const categories = Array.from(new Set((requirements ?? []).map((r) => r.category))).sort();
+  const categories = useMemo(
+    () => Array.from(new Set((requirements ?? []).map((r) => r.category))).sort(),
+    [requirements]
+  );
 
-  const filtered = (requirements ?? []).filter((req) => {
-    const source = sourceMap.get(req.sourceId);
-    if (jurisdictionFilter !== "all" && source?.jurisdiction !== jurisdictionFilter) return false;
-    if (categoryFilter !== "all" && req.category !== categoryFilter) return false;
-    if (sourceFilter !== "all" && String(req.sourceId) !== sourceFilter) return false;
-    return true;
-  });
+  const mappingsByReq = useMemo(() => {
+    const lookup = new Map<number, RequirementMapping[]>();
+    for (const m of allMappings ?? []) {
+      const list = lookup.get(m.requirementId) || [];
+      list.push(m);
+      lookup.set(m.requirementId, list);
+    }
+    return lookup;
+  }, [allMappings]);
+
+  const metrics = useMemo(() => {
+    const reqs = requirements ?? [];
+    const total = reqs.length;
+    if (total === 0) return { total: 0, covered: 0, partial: 0, notCovered: 0, coveragePercent: 0, mappedDocCount: 0, totalDocCount: 0 };
+
+    const coveredIds = new Set<number>();
+    const partialIds = new Set<number>();
+    const docIds = new Set<number>();
+
+    mappingsByReq.forEach((maps, reqId) => {
+      for (const m of maps) {
+        docIds.add(m.documentId);
+        if (m.coverageStatus === "Covered") coveredIds.add(reqId);
+        else if (m.coverageStatus === "Partially Covered") partialIds.add(reqId);
+      }
+    });
+
+    const covered = coveredIds.size;
+    const partial = Array.from(partialIds).filter((id) => !coveredIds.has(id)).length;
+    const notCovered = total - covered - partial;
+    const coveragePercent = Math.round(((covered + partial * 0.5) / total) * 100);
+
+    return {
+      total,
+      covered,
+      partial,
+      notCovered,
+      coveragePercent,
+      mappedDocCount: docIds.size,
+      totalDocCount: (allDocuments ?? []).length,
+    };
+  }, [requirements, mappingsByReq, allDocuments]);
+
+  function getBestStatus(reqId: number): string {
+    const maps = mappingsByReq.get(reqId);
+    if (!maps || maps.length === 0) return "Not Covered";
+    if (maps.some((m) => m.coverageStatus === "Covered")) return "Covered";
+    if (maps.some((m) => m.coverageStatus === "Partially Covered")) return "Partially Covered";
+    return "Not Covered";
+  }
+
+  const filtered = useMemo(() => {
+    return (requirements ?? []).filter((req) => {
+      if (frameworkFilter !== "all" && String(req.sourceId) !== frameworkFilter) return false;
+      if (categoryFilter !== "all" && req.category !== categoryFilter) return false;
+      if (statusFilter !== "all") {
+        const status = getBestStatus(req.id);
+        if (statusFilter === "covered" && status !== "Covered") return false;
+        if (statusFilter === "partial" && status !== "Partially Covered") return false;
+        if (statusFilter === "not_covered" && status !== "Not Covered") return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (!req.title.toLowerCase().includes(q) && !req.code.toLowerCase().includes(q) && !(req.description && req.description.toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+  }, [requirements, frameworkFilter, categoryFilter, statusFilter, searchQuery, mappingsByReq]);
 
   const createMutation = useMutation({
     mutationFn: async (data: ReqFormValues) => {
@@ -93,7 +231,7 @@ export default function Requirements() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({ title: "Requirement created" });
+      toast({ title: "Control created" });
       closeDialog();
     },
     onError: (err: Error) => {
@@ -115,7 +253,7 @@ export default function Requirements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
-      toast({ title: "Requirement updated" });
+      toast({ title: "Control updated" });
       closeDialog();
     },
     onError: (err: Error) => {
@@ -130,7 +268,7 @@ export default function Requirements() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({ title: "Requirement deleted" });
+      toast({ title: "Control deleted" });
       setDeleteConfirmOpen(false);
       setDeletingReq(null);
     },
@@ -179,32 +317,118 @@ export default function Requirements() {
   }
 
   return (
-    <div className="space-y-6" data-testid="requirements-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="requirements-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Requirements Library</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Regulatory obligations and requirement statements</p>
-        </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-requirement">
+    <div className="space-y-6" data-testid="controls-page">
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="controls-header">
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
+        <Button onClick={openCreateDialog} data-testid="button-add-control">
           <Plus className="h-4 w-4 mr-1" />
-          Add Requirement
+          Add control
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3" data-testid="filter-bar">
-        <Select value={jurisdictionFilter} onValueChange={setJurisdictionFilter} data-testid="select-jurisdiction">
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-jurisdiction">
-            <SelectValue placeholder="Jurisdiction" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card data-testid="card-assignment-summary">
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-semibold mb-4">Coverage</h3>
+            <div className="flex flex-wrap items-center gap-6">
+              <DonutChart
+                segments={[
+                  { value: metrics.covered, className: "text-emerald-500 dark:text-emerald-400" },
+                  { value: metrics.partial, className: "text-amber-500 dark:text-amber-400" },
+                  { value: metrics.notCovered, className: "text-muted-foreground/30" },
+                ]}
+                centerLabel={`${metrics.total > 0 ? Math.round((metrics.notCovered / metrics.total) * 100) : 0}%`}
+                centerSub="Unmapped"
+              />
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30 inline-block" />
+                  <span className="text-muted-foreground">Unmapped</span>
+                  <span className="font-medium ml-auto">{metrics.notCovered}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 inline-block" />
+                  <span className="text-muted-foreground">Covered</span>
+                  <span className="font-medium ml-auto">{metrics.covered}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
+                  <span className="text-muted-foreground">Partially covered</span>
+                  <span className="font-medium ml-auto">{metrics.partial}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-controls-summary">
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-semibold mb-2">Controls</h3>
+            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+              <div className="flex-1">
+                <p className="text-3xl font-bold" data-testid="text-controls-coverage">{metrics.coveragePercent}%</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">Of controls have passing evidence</p>
+                <CoverageBar
+                  percent={metrics.coveragePercent}
+                  color="bg-emerald-500 dark:bg-emerald-400"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mt-2">
+                  <span>{metrics.covered + metrics.partial} controls</span>
+                  <span>{metrics.total} total</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 lg:w-52 shrink-0">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                    <span className="text-xs text-muted-foreground">Mapped controls</span>
+                    <span className="text-xs font-medium">{metrics.covered + metrics.partial}/{metrics.total}</span>
+                  </div>
+                  <CoverageBar
+                    percent={metrics.total > 0 ? Math.round(((metrics.covered + metrics.partial) / metrics.total) * 100) : 0}
+                    color="bg-emerald-500 dark:bg-emerald-400"
+                  />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                    <span className="text-xs text-muted-foreground">Documents</span>
+                    <span className="text-xs font-medium">{metrics.mappedDocCount}/{metrics.totalDocCount}</span>
+                  </div>
+                  <CoverageBar
+                    percent={metrics.totalDocCount > 0 ? Math.round((metrics.mappedDocCount / metrics.totalDocCount) * 100) : 0}
+                    color="bg-emerald-500 dark:bg-emerald-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3" data-testid="controls-filter-bar">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search controls"
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search-controls"
+          />
+        </div>
+
+        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-trigger-framework">
+            <SelectValue placeholder="Framework" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" data-testid="select-item-jurisdiction-all">All Jurisdictions</SelectItem>
-            {jurisdictions.map((j) => (
-              <SelectItem key={j} value={j} data-testid={`select-item-jurisdiction-${j}`}>{j}</SelectItem>
+            <SelectItem value="all" data-testid="select-item-framework-all">All Frameworks</SelectItem>
+            {(sources ?? []).map((s) => (
+              <SelectItem key={s.id} value={String(s.id)} data-testid={`select-item-framework-${s.id}`}>{s.shortName}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter} data-testid="select-category">
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-[180px]" data-testid="select-trigger-category">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
@@ -216,110 +440,122 @@ export default function Requirements() {
           </SelectContent>
         </Select>
 
-        <Select value={sourceFilter} onValueChange={setSourceFilter} data-testid="select-source">
-          <SelectTrigger className="w-[220px]" data-testid="select-trigger-source">
-            <SelectValue placeholder="Source" />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-trigger-status">
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" data-testid="select-item-source-all">All Sources</SelectItem>
-            {(sources ?? []).map((s) => (
-              <SelectItem key={s.id} value={String(s.id)} data-testid={`select-item-source-${s.id}`}>{s.shortName}</SelectItem>
-            ))}
+            <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
+            <SelectItem value="covered" data-testid="select-item-status-covered">Covered</SelectItem>
+            <SelectItem value="partial" data-testid="select-item-status-partial">Partially Covered</SelectItem>
+            <SelectItem value="not_covered" data-testid="select-item-status-not-covered">Not Covered</SelectItem>
           </SelectContent>
         </Select>
-
       </div>
 
-      <Card data-testid="requirements-table-card">
-        {isLoading ? (
-          <div className="p-6 space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : (
+        <Table data-testid="controls-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[100px]" data-testid="th-id">ID</TableHead>
+              <TableHead data-testid="th-control">Control</TableHead>
+              <TableHead className="w-[160px]" data-testid="th-frameworks">Frameworks</TableHead>
+              <TableHead className="w-[120px]" data-testid="th-status">Status</TableHead>
+              <TableHead className="w-[100px]" data-testid="th-mappings">Mappings</TableHead>
+              <TableHead className="w-[60px]" data-testid="th-actions"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
               <TableRow>
-                <TableHead className="w-[120px]" data-testid="th-code">Code</TableHead>
-                <TableHead data-testid="th-title">Title</TableHead>
-                <TableHead className="max-w-[300px]" data-testid="th-description">Description</TableHead>
-                <TableHead data-testid="th-source">Source</TableHead>
-                <TableHead data-testid="th-category">Category</TableHead>
-                <TableHead data-testid="th-article">Article</TableHead>
-                <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
+                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                  No controls found.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-requirements">
-                    No requirements found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((req) => {
-                  const source = sourceMap.get(req.sourceId);
-                  return (
-                    <TableRow key={req.id} data-testid={`row-requirement-${req.id}`}>
-                      <TableCell className="font-mono text-sm font-medium" data-testid={`text-code-${req.id}`}>
-                        {req.code}
-                      </TableCell>
-                      <TableCell className="font-medium" data-testid={`text-title-${req.id}`}>
-                        {req.title}
-                      </TableCell>
-                      <TableCell className="max-w-[300px] truncate text-muted-foreground text-sm" data-testid={`text-description-${req.id}`}>
-                        {req.description}
-                      </TableCell>
-                      <TableCell className="text-sm" data-testid={`text-source-${req.id}`}>
-                        {source?.shortName ?? `Source #${req.sourceId}`}
-                      </TableCell>
-                      <TableCell data-testid={`badge-category-${req.id}`}>
-                        <Badge variant="outline">{req.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground" data-testid={`text-article-${req.id}`}>
-                        {req.article ?? "--"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => openEditDialog(req)}
-                            data-testid={`button-edit-requirement-${req.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              setDeletingReq(req);
-                              setDeleteConfirmOpen(true);
-                            }}
-                            data-testid={`button-delete-requirement-${req.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+            ) : (
+              filtered.map((req) => {
+                const source = sourceMap.get(req.sourceId);
+                const maps = mappingsByReq.get(req.id) || [];
+                const bestStatus = getBestStatus(req.id);
+                const statusVariant = bestStatus === "Covered" ? "default" as const
+                  : bestStatus === "Partially Covered" ? "secondary" as const
+                  : "destructive" as const;
+                return (
+                  <TableRow key={req.id} data-testid={`row-control-${req.id}`}>
+                    <TableCell className="font-mono text-xs text-muted-foreground align-top" data-testid={`text-id-${req.id}`}>
+                      {req.code}
+                    </TableCell>
+                    <TableCell className="align-top" data-testid={`text-control-${req.id}`}>
+                      <div className="font-medium text-sm">{req.title}</div>
+                      {req.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 max-w-lg">{req.description}</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="align-top" data-testid={`text-framework-${req.id}`}>
+                      {source && (
+                        <Link href={`/sources/${source.id}`} className="text-sm hover:underline">
+                          {source.shortName}
+                        </Link>
+                      )}
+                    </TableCell>
+                    <TableCell className="align-top" data-testid={`badge-status-${req.id}`}>
+                      <Badge variant={statusVariant} className="text-xs">{bestStatus}</Badge>
+                    </TableCell>
+                    <TableCell className="align-top" data-testid={`text-mappings-${req.id}`}>
+                      {maps.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                          <span className="text-sm">{maps.length}</span>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">--</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditDialog(req)}
+                          data-testid={`button-edit-control-${req.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setDeletingReq(req);
+                            setDeleteConfirmOpen(true);
+                          }}
+                          data-testid={`button-delete-control-${req.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-requirement">
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-control">
           <DialogHeader>
             <DialogTitle data-testid="text-dialog-title">
-              {editingReq ? "Edit Requirement" : "Add Requirement"}
+              {editingReq ? "Edit Control" : "Add Control"}
             </DialogTitle>
             <DialogDescription>
-              {editingReq ? "Update requirement details." : "Create a new regulatory requirement."}
+              {editingReq ? "Update control details." : "Create a new control."}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -329,14 +565,14 @@ export default function Requirements() {
                 name="sourceId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Source</FormLabel>
+                    <FormLabel>Framework</FormLabel>
                     <Select
                       value={field.value ? String(field.value) : ""}
                       onValueChange={(val) => field.onChange(Number(val))}
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-trigger-sourceId">
-                          <SelectValue placeholder="Select a source" />
+                          <SelectValue placeholder="Select a framework" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -359,7 +595,7 @@ export default function Requirements() {
                     <FormItem>
                       <FormLabel>Code</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. REQ-001" {...field} data-testid="input-requirement-code" />
+                        <Input placeholder="e.g. CTL-001" {...field} data-testid="input-control-code" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -372,7 +608,7 @@ export default function Requirements() {
                     <FormItem>
                       <FormLabel>Category</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. AML/KYC" {...field} data-testid="input-requirement-category" />
+                        <Input placeholder="e.g. AML/KYC" {...field} data-testid="input-control-category" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -386,7 +622,7 @@ export default function Requirements() {
                   <FormItem>
                     <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Requirement title" {...field} data-testid="input-requirement-title" />
+                      <Input placeholder="Control title" {...field} data-testid="input-control-title" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -400,10 +636,10 @@ export default function Requirements() {
                     <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Describe the requirement"
+                        placeholder="Describe the control"
                         className="resize-none"
                         {...field}
-                        data-testid="input-requirement-description"
+                        data-testid="input-control-description"
                       />
                     </FormControl>
                     <FormMessage />
@@ -421,7 +657,7 @@ export default function Requirements() {
                         placeholder="e.g. Art. 5(1)"
                         {...field}
                         value={field.value ?? ""}
-                        data-testid="input-requirement-article"
+                        data-testid="input-control-article"
                       />
                     </FormControl>
                     <FormMessage />
@@ -429,13 +665,13 @@ export default function Requirements() {
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-requirement">
+                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-control">
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  data-testid="button-save-requirement"
+                  data-testid="button-save-control"
                 >
                   {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
                 </Button>
@@ -446,22 +682,22 @@ export default function Requirements() {
       </Dialog>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent data-testid="dialog-delete-requirement">
+        <DialogContent data-testid="dialog-delete-control">
           <DialogHeader>
-            <DialogTitle>Delete Requirement</DialogTitle>
+            <DialogTitle>Delete Control</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{deletingReq?.title}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete-requirement">
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete-control">
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={() => deletingReq && deleteMutation.mutate(deletingReq.id)}
               disabled={deleteMutation.isPending}
-              data-testid="button-confirm-delete-requirement"
+              data-testid="button-confirm-delete-control"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
