@@ -304,11 +304,18 @@ export default function DocumentDetail() {
         const err = await res.json();
         throw new Error(err.message || "Download failed");
       }
-      return res.json();
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition");
+      const match = disposition?.match(/filename="(.+)"/);
+      const fileName = match?.[1] || "policy.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
     },
-    onSuccess: (data: { url: string }) => {
-      window.open(data.url, "_blank");
-    },
+    onSuccess: () => {},
     onError: (err: Error) => {
       toast({ title: "Download failed", description: err.message, variant: "destructive" });
     },

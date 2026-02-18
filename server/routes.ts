@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { createHash } from "crypto";
 import multer from "multer";
-import { generateS3Key, uploadToS3, getPresignedDownloadUrl, deleteFromS3 } from "./s3";
+import { generateS3Key, uploadToS3, getLocalFilePath, deleteFromS3 } from "./s3";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -368,8 +368,11 @@ export async function registerRoutes(
       if (!version) return res.status(404).json({ message: "Version not found" });
       if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
 
-      const url = await getPresignedDownloadUrl(version.pdfS3Key, version.pdfFileName || "policy.pdf");
-      res.json({ url });
+      const filePath = getLocalFilePath(version.pdfS3Key);
+      const fileName = version.pdfFileName || "policy.pdf";
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.setHeader("Content-Type", "application/pdf");
+      res.sendFile(filePath);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Download failed" });
     }
