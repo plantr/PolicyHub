@@ -1,20 +1,60 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft } from "lucide-react";
+import { ChevronDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { RegulatorySource, Requirement, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
+
+const editFrameworkSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  shortName: z.string().min(1, "Short name is required"),
+  jurisdiction: z.string().min(1, "Jurisdiction is required"),
+  category: z.string().min(1, "Category is required"),
+  url: z.string().nullable().default(null),
+  description: z.string().nullable().default(null),
+});
+
+type EditFrameworkValues = z.infer<typeof editFrameworkSchema>;
 
 function CoverageBar({ percent, color }: { percent: number; color: string }) {
   return (
@@ -95,9 +135,51 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCategorySidebar, setShowCategorySidebar] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: source, isLoading: sourceLoading } = useQuery<RegulatorySource>({
     queryKey: [`/api/regulatory-sources/${sourceId}`],
+  });
+
+  const editForm = useForm<EditFrameworkValues>({
+    resolver: zodResolver(editFrameworkSchema),
+    defaultValues: {
+      name: "",
+      shortName: "",
+      jurisdiction: "",
+      category: "",
+      url: null,
+      description: null,
+    },
+  });
+
+  function openEditDialog() {
+    if (!source) return;
+    editForm.reset({
+      name: source.name,
+      shortName: source.shortName,
+      jurisdiction: source.jurisdiction,
+      category: source.category ?? "",
+      url: source.url ?? null,
+      description: source.description ?? null,
+    });
+    setEditOpen(true);
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: EditFrameworkValues) => {
+      await apiRequest("PUT", `/api/regulatory-sources/${sourceId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/regulatory-sources/${sourceId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
+      toast({ title: "Framework updated" });
+      setEditOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
   });
 
   const { data: allRequirements } = useQuery<Requirement[]>({
@@ -159,7 +241,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
 
   const linkedDocIds = useMemo(() => {
     const ids = new Set<number>();
-    for (const m of mappings) ids.add(m.documentId);
+    for (const m of mappings) if (m.documentId != null) ids.add(m.documentId);
     return ids;
   }, [mappings]);
 
@@ -228,7 +310,13 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
         <Link href="/sources" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-back-frameworks">
           Frameworks
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight mt-1" data-testid="text-framework-title">{source.name}</h1>
+        <div className="flex flex-wrap items-center gap-3 mt-1">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-framework-title">{source.name}</h1>
+          <Button variant="outline" size="sm" onClick={openEditDialog} data-testid="button-edit-framework">
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" data-testid="framework-tabs">
@@ -595,6 +683,129 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) editForm.reset(); }}>
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-edit-framework">
+          <DialogHeader>
+            <DialogTitle data-testid="text-edit-dialog-title">Edit Framework</DialogTitle>
+            <DialogDescription>Update the framework details below.</DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((data) => updateMutation.mutate(data))} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="shortName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Short Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-short-name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="jurisdiction"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jurisdiction</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-jurisdiction">
+                            <SelectValue placeholder="Select jurisdiction" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="UK">UK</SelectItem>
+                          <SelectItem value="Gibraltar">Gibraltar</SelectItem>
+                          <SelectItem value="Estonia/EU">Estonia/EU</SelectItem>
+                          <SelectItem value="International">International</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-category" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://..."
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        data-testid="input-edit-url"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Description of this framework"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        className="resize-none"
+                        data-testid="input-edit-description"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)} data-testid="button-cancel-edit">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending} data-testid="button-save-framework">
+                  {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  Save changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
