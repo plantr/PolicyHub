@@ -1,23 +1,18 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
 export default function ControlDetail() {
   const [, params] = useRoute("/controls/:id");
   const [, navigate] = useLocation();
   const controlId = Number(params?.id);
-  const { toast } = useToast();
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: control, isLoading: controlLoading } = useQuery<Requirement>({
     queryKey: [`/api/requirements/${controlId}`],
@@ -68,21 +63,6 @@ export default function ControlDetail() {
   }, [mappings]);
 
   const coveredCount = mappings.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("DELETE", `/api/requirements/${controlId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({ title: "Control deleted" });
-      navigate("/requirements");
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
 
   if (controlLoading) {
     return (
@@ -164,6 +144,51 @@ export default function ControlDetail() {
         </TabsList>
 
         <TabsContent value="mapped" className="mt-6 space-y-6">
+          <Card data-testid="card-tests-section">
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <h3 className="text-base font-semibold">Tests</h3>
+                <Badge variant="outline" className="text-xs" data-testid="badge-test-count">
+                  {coveredCount} / {mappings.length} OK
+                </Badge>
+              </div>
+
+              {mappings.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4" data-testid="text-no-tests">
+                  No tests mapped to this control yet.
+                </p>
+              ) : (
+                <div className="divide-y">
+                  {mappings.map((mapping) => {
+                    const doc = documentMap.get(mapping.documentId);
+                    const passed = mapping.coverageStatus === "Covered" || mapping.coverageStatus === "Partially Covered";
+                    return (
+                      <div
+                        key={mapping.id}
+                        className="flex flex-wrap items-center gap-3 py-3"
+                        data-testid={`row-test-${mapping.id}`}
+                      >
+                        {passed ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">
+                            {mapping.rationale || (doc ? `${doc.title} is mapped` : `Mapping #${mapping.id}`)}
+                          </span>
+                        </div>
+                        {doc && (
+                          <span className="text-xs text-muted-foreground shrink-0">{doc.owner}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card data-testid="card-documents-section">
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -226,40 +251,6 @@ export default function ControlDetail() {
         </TabsContent>
       </Tabs>
 
-      <div className="border-t pt-6">
-        <Button
-          variant="destructive"
-          onClick={() => setDeleteConfirmOpen(true)}
-          data-testid="button-delete-control"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete control
-        </Button>
-      </div>
-
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent data-testid="dialog-delete-confirm">
-          <DialogHeader>
-            <DialogTitle>Delete Control</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{control.title}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete">
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
-              data-testid="button-confirm-delete"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
