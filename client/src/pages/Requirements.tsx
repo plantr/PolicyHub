@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
@@ -169,7 +169,7 @@ export default function Requirements() {
 
     mappingsByReq.forEach((maps, reqId) => {
       for (const m of maps) {
-        docIds.add(m.documentId);
+        if (m.documentId) docIds.add(m.documentId);
         if (m.coverageStatus === "Covered") coveredIds.add(reqId);
         else if (m.coverageStatus === "Partially Covered") partialIds.add(reqId);
       }
@@ -319,156 +319,40 @@ export default function Requirements() {
 
   return (
     <div className="space-y-6" data-testid="controls-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="controls-header">
+      <div className="flex flex-wrap items-center justify-between gap-3" data-testid="controls-header">
         <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
-        <Button onClick={openCreateDialog} data-testid="button-add-control">
-          <Plus className="h-4 w-4 mr-1" />
-          Add control
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card data-testid="card-assignment-summary">
-          <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-4">Coverage</h3>
-            <div className="flex flex-wrap items-center gap-6">
-              <DonutChart
-                segments={[
-                  { value: metrics.covered, className: "text-emerald-500 dark:text-emerald-400" },
-                  { value: metrics.partial, className: "text-amber-500 dark:text-amber-400" },
-                  { value: metrics.notCovered, className: "text-muted-foreground/30" },
-                ]}
-                centerLabel={`${metrics.total > 0 ? Math.round((metrics.notCovered / metrics.total) * 100) : 0}%`}
-                centerSub="Unmapped"
-              />
-              <div className="flex flex-col gap-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30 inline-block" />
-                  <span className="text-muted-foreground">Unmapped</span>
-                  <span className="font-medium ml-auto">{metrics.notCovered}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 inline-block" />
-                  <span className="text-muted-foreground">Covered</span>
-                  <span className="font-medium ml-auto">{metrics.covered}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
-                  <span className="text-muted-foreground">Partially covered</span>
-                  <span className="font-medium ml-auto">{metrics.partial}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-controls-summary">
-          <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-2">Controls</h3>
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              <div className="flex-1">
-                <p className="text-3xl font-bold" data-testid="text-controls-coverage">{metrics.coveragePercent}%</p>
-                <p className="text-xs text-muted-foreground mt-1 mb-3">Of controls have passing evidence</p>
-                <CoverageBar
-                  percent={metrics.coveragePercent}
-                  color="bg-emerald-500 dark:bg-emerald-400"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mt-2">
-                  <span>{metrics.covered + metrics.partial} controls</span>
-                  <span>{metrics.total} total</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 lg:w-52 shrink-0">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Mapped controls</span>
-                    <span className="text-xs font-medium">{metrics.covered + metrics.partial}/{metrics.total}</span>
-                  </div>
-                  <CoverageBar
-                    percent={metrics.total > 0 ? Math.round(((metrics.covered + metrics.partial) / metrics.total) * 100) : 0}
-                    color="bg-emerald-500 dark:bg-emerald-400"
-                  />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Documents</span>
-                    <span className="text-xs font-medium">{metrics.mappedDocCount}/{metrics.totalDocCount}</span>
-                  </div>
-                  <CoverageBar
-                    percent={metrics.totalDocCount > 0 ? Math.round((metrics.mappedDocCount / metrics.totalDocCount) * 100) : 0}
-                    color="bg-emerald-500 dark:bg-emerald-400"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3" data-testid="controls-filter-bar">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search controls"
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            data-testid="input-search-controls"
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search"
+              className="pl-9 w-[200px]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-controls"
+            />
+          </div>
+          <Button variant="outline" onClick={openCreateDialog} data-testid="button-add-control">
+            Add control
+          </Button>
         </div>
-
-        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-framework">
-            <SelectValue placeholder="Framework" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-framework-all">All Frameworks</SelectItem>
-            {(sources ?? []).map((s) => (
-              <SelectItem key={s.id} value={String(s.id)} data-testid={`select-item-framework-${s.id}`}>{s.shortName}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-category">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-category-all">All Categories</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c} data-testid={`select-item-category-${c}`}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
-            <SelectItem value="covered" data-testid="select-item-status-covered">Covered</SelectItem>
-            <SelectItem value="partial" data-testid="select-item-status-partial">Partially Covered</SelectItem>
-            <SelectItem value="not_covered" data-testid="select-item-status-not-covered">Not Covered</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className="h-14 w-full" />
           ))}
         </div>
       ) : (
         <Table data-testid="controls-table">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]" data-testid="th-id">ID</TableHead>
+              <TableHead className="w-[120px]" data-testid="th-id">ID</TableHead>
               <TableHead data-testid="th-control">Control</TableHead>
-              <TableHead className="w-[160px]" data-testid="th-frameworks">Frameworks</TableHead>
-              <TableHead className="w-[120px]" data-testid="th-status">Status</TableHead>
-              <TableHead className="w-[100px]" data-testid="th-mappings">Mappings</TableHead>
+              <TableHead className="w-[200px]" data-testid="th-owner">Owner</TableHead>
+              <TableHead data-testid="th-frameworks">Frameworks</TableHead>
+              <TableHead className="w-[50px]" data-testid="th-actions"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -482,10 +366,13 @@ export default function Requirements() {
               filtered.map((req) => {
                 const source = sourceMap.get(req.sourceId);
                 const maps = mappingsByReq.get(req.id) || [];
-                const bestStatus = getBestStatus(req.id);
-                const statusVariant = bestStatus === "Covered" ? "default" as const
-                  : bestStatus === "Partially Covered" ? "secondary" as const
-                  : "destructive" as const;
+                const linkedDoc = maps.length > 0 && maps[0].documentId
+                  ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
+                  : null;
+                const frameworkLabels: string[] = [];
+                if (source) {
+                  frameworkLabels.push(`${source.shortName} · ${req.code}`);
+                }
                 return (
                   <TableRow
                     key={req.id}
@@ -493,25 +380,39 @@ export default function Requirements() {
                     onClick={() => navigate(`/controls/${req.id}`)}
                     data-testid={`row-control-${req.id}`}
                   >
-                    <TableCell className="font-mono text-xs text-muted-foreground align-top" data-testid={`text-id-${req.id}`}>
+                    <TableCell className="font-mono text-sm text-muted-foreground" data-testid={`text-id-${req.id}`}>
                       {req.code}
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-control-${req.id}`}>
-                      <div className="font-medium text-sm">{req.title}</div>
-                      {req.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 max-w-lg">{req.description}</p>
-                      )}
+                    <TableCell data-testid={`text-control-${req.id}`}>
+                      <span className="text-sm font-medium">{req.title}</span>
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-framework-${req.id}`}>
-                      {source && (
-                        <span className="text-sm">{source.shortName}</span>
-                      )}
+                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-owner-${req.id}`}>
+                      {linkedDoc?.owner || "—"}
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`badge-status-${req.id}`}>
-                      <Badge variant={statusVariant} className="text-xs">{bestStatus}</Badge>
+                    <TableCell data-testid={`text-framework-${req.id}`}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {frameworkLabels.slice(0, 2).map((label, i) => (
+                          <span key={i} className="text-xs text-muted-foreground whitespace-nowrap">{label}</span>
+                        ))}
+                        {frameworkLabels.length > 2 && (
+                          <span className="text-xs text-muted-foreground">+{frameworkLabels.length - 2}</span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-mappings-${req.id}`}>
-                      <span className="text-sm">{maps.length > 0 ? maps.length : "--"}</span>
+                    <TableCell>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingReq(req);
+                          setDeleteConfirmOpen(true);
+                        }}
+                        data-testid={`button-delete-${req.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
