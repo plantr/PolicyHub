@@ -1,20 +1,32 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Archive, MapPin } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, MapPin } from "lucide-react";
 import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
 
@@ -34,6 +46,11 @@ export default function BusinessUnits() {
   const [editingBU, setEditingBU] = useState<BusinessUnit | null>(null);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [archivingBU, setArchivingBU] = useState<BusinessUnit | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const { toast } = useToast();
 
   const form = useForm<BUFormValues>({
@@ -123,6 +140,40 @@ export default function BusinessUnits() {
     },
   });
 
+  const uniqueTypes = useMemo(() => {
+    const set = new Set<string>();
+    (businessUnits ?? []).forEach((bu) => { if (bu.type) set.add(bu.type); });
+    return Array.from(set).sort();
+  }, [businessUnits]);
+
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "all" || typeFilter !== "all";
+
+  const filteredUnits = useMemo(() => {
+    if (!businessUnits) return [];
+    return businessUnits.filter((bu) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!bu.name.toLowerCase().includes(q) && !bu.jurisdiction.toLowerCase().includes(q)) return false;
+      }
+      if (statusFilter !== "all" && bu.status !== statusFilter) return false;
+      if (typeFilter !== "all" && bu.type !== typeFilter) return false;
+      return true;
+    });
+  }, [businessUnits, searchQuery, statusFilter, typeFilter]);
+
+  const totalResults = filteredUnits.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedUnits = filteredUnits.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
+  function resetFilters() {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setCurrentPage(1);
+  }
+
   function openCreateDialog() {
     setEditingBU(null);
     form.reset({
@@ -163,114 +214,200 @@ export default function BusinessUnits() {
   }
 
   return (
-    <div className="space-y-6" data-testid="business-units-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="bu-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Business Units</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-            Manage regulated entities across jurisdictions
-          </p>
+    <div className="space-y-4" data-testid="business-units-page">
+      <div className="flex flex-wrap items-center gap-2" data-testid="bu-header">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Business Units</h1>
+
+        <div className="relative ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-bu"
+          />
         </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-bu">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Business Unit
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Active"); setCurrentPage(1); }}>Active</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Archived"); setCurrentPage(1); }}>Archived</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-type">
+              Type <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setTypeFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {uniqueTypes.map((t) => (
+              <DropdownMenuItem key={t} onClick={() => { setTypeFilter(t); setCurrentPage(1); }}>{t}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-bu">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Business Unit
+          </Button>
+        </div>
       </div>
 
-      <Card data-testid="bu-table-card">
-        {isLoading ? (
-          <div className="p-6 space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead data-testid="th-code">Code</TableHead>
-                <TableHead data-testid="th-name">Name</TableHead>
-                <TableHead data-testid="th-type">Type</TableHead>
-                <TableHead data-testid="th-jurisdiction">Jurisdiction</TableHead>
-                <TableHead data-testid="th-status">Status</TableHead>
-                <TableHead data-testid="th-activities">Activities</TableHead>
-                <TableHead data-testid="th-description">Description</TableHead>
-                <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(businessUnits ?? []).length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
-                    No business units configured. Click "Add Business Unit" to create one.
-                  </TableCell>
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="border rounded-md" data-testid="bu-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-code">Code</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-name">Name</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-type">Type</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-jurisdiction">Jurisdiction</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-status">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-activities">Activities</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-description">Description</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="th-actions" />
                 </TableRow>
-              ) : (
-                (businessUnits ?? []).map((bu) => (
-                  <TableRow key={bu.id} data-testid={`row-bu-${bu.id}`}>
-                    <TableCell className="text-sm text-muted-foreground" data-testid={`text-code-${bu.id}`}>
-                      {bu.code ?? "--"}
-                    </TableCell>
-                    <TableCell className="font-medium" data-testid={`text-name-${bu.id}`}>
-                      {bu.name}
-                    </TableCell>
-                    <TableCell data-testid={`badge-type-${bu.id}`}>
-                      <Badge variant="outline">{bu.type}</Badge>
-                    </TableCell>
-                    <TableCell data-testid={`text-jurisdiction-${bu.id}`}>
-                      <div className="flex items-center gap-1 text-sm">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                        {bu.jurisdiction}
-                      </div>
-                    </TableCell>
-                    <TableCell data-testid={`badge-status-${bu.id}`}>
-                      <Badge variant={bu.status === "Active" ? "default" : "secondary"}>
-                        {bu.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell data-testid={`text-activities-${bu.id}`}>
-                      <div className="flex flex-wrap gap-1">
-                        {(bu.activities ?? []).map((a, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs no-default-active-elevate">
-                            {a}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate" data-testid={`text-desc-${bu.id}`}>
-                      {bu.description ?? "--"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditDialog(bu)}
-                          data-testid={`button-edit-bu-${bu.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            setArchivingBU(bu);
-                            setArchiveConfirmOpen(true);
-                          }}
-                          disabled={bu.status === "Archived"}
-                          data-testid={`button-archive-bu-${bu.id}`}
-                        >
-                          <Archive className="h-4 w-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {paginatedUnits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-bus">
+                      No business units configured. Click "Add Business Unit" to create one.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+                ) : (
+                  paginatedUnits.map((bu) => (
+                    <TableRow key={bu.id} className="group" data-testid={`row-bu-${bu.id}`}>
+                      <TableCell className="text-sm text-muted-foreground" data-testid={`text-code-${bu.id}`}>
+                        {bu.code ?? "--"}
+                      </TableCell>
+                      <TableCell className="font-medium" data-testid={`text-name-${bu.id}`}>
+                        {bu.name}
+                      </TableCell>
+                      <TableCell data-testid={`badge-type-${bu.id}`}>
+                        <Badge variant="outline">{bu.type}</Badge>
+                      </TableCell>
+                      <TableCell data-testid={`text-jurisdiction-${bu.id}`}>
+                        <div className="flex items-center gap-1 text-sm">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          {bu.jurisdiction}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`badge-status-${bu.id}`}>
+                        <Badge variant={bu.status === "Active" ? "default" : "secondary"}>
+                          {bu.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell data-testid={`text-activities-${bu.id}`}>
+                        <div className="flex flex-wrap gap-1">
+                          {(bu.activities ?? []).map((a, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs no-default-active-elevate">
+                              {a}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate" data-testid={`text-desc-${bu.id}`}>
+                        {bu.description ?? "--"}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              data-testid={`button-actions-bu-${bu.id}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(bu)} data-testid={`menu-edit-bu-${bu.id}`}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={bu.status === "Archived"}
+                              onClick={() => {
+                                setArchivingBU(bu);
+                                setArchiveConfirmOpen(true);
+                              }}
+                              data-testid={`menu-archive-bu-${bu.id}`}
+                            >
+                              Archive
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-results-count">
+              {startItem} to {endItem} of {totalResults} results
+            </span>
+            <div className="flex items-center gap-2">
+              <span>Show per page</span>
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[70px]" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[500px]" data-testid="dialog-bu">

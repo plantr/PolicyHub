@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { AlertTriangle, Clock, FileWarning, ListChecks, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Search, MoreHorizontal } from "lucide-react";
 import type { Finding, BusinessUnit } from "@shared/schema";
 import { insertFindingSchema } from "@shared/schema";
 
@@ -58,10 +63,13 @@ function formatDateForInput(date: string | Date | null | undefined): string {
 }
 
 export default function Findings() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [buFilter, setBuFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFinding, setEditingFinding] = useState<Finding | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -210,167 +218,146 @@ export default function Findings() {
   const buMap = new Map((businessUnits ?? []).map((b) => [b.id, b]));
   const allFindings = findings ?? [];
 
-  const totalFindings = allFindings.length;
-  const openCount = allFindings.filter((f) => f.status !== "Closed" && f.status !== "Verified").length;
-  const highCount = allFindings.filter((f) => f.severity === "High").length;
-  const overdueCount = allFindings.filter(isOverdue).length;
+  const hasActiveFilters = severityFilter !== "all" || statusFilter !== "all" || buFilter !== "all" || searchQuery !== "";
+
+  function resetFilters() {
+    setSeverityFilter("all");
+    setStatusFilter("all");
+    setBuFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
 
   const filtered = allFindings.filter((f) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!f.title.toLowerCase().includes(q)) return false;
+    }
     if (severityFilter !== "all" && f.severity !== severityFilter) return false;
     if (statusFilter !== "all" && f.status !== statusFilter) return false;
     if (buFilter !== "all" && String(f.businessUnitId) !== buFilter) return false;
     return true;
   });
 
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedFindings = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
   return (
-    <div className="space-y-6" data-testid="findings-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="findings-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Audit findings and remediation tracking</p>
+    <div className="space-y-4" data-testid="findings-page">
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Findings & Remediation</h1>
+
+        <div className="relative ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-findings"
+          />
         </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-finding">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Finding
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-severity">
+              Severity <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setSeverityFilter("all"); setCurrentPage(1); }} data-testid="filter-severity-all">All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setSeverityFilter("High"); setCurrentPage(1); }} data-testid="filter-severity-high">High</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setSeverityFilter("Medium"); setCurrentPage(1); }} data-testid="filter-severity-medium">Medium</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setSeverityFilter("Low"); setCurrentPage(1); }} data-testid="filter-severity-low">Low</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }} data-testid="filter-status-all">All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("New"); setCurrentPage(1); }} data-testid="filter-status-new">New</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Triage"); setCurrentPage(1); }} data-testid="filter-status-triage">Triage</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("In Remediation"); setCurrentPage(1); }} data-testid="filter-status-remediation">In Remediation</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Evidence Submitted"); setCurrentPage(1); }} data-testid="filter-status-evidence">Evidence Submitted</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Verified"); setCurrentPage(1); }} data-testid="filter-status-verified">Verified</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Closed"); setCurrentPage(1); }} data-testid="filter-status-closed">Closed</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-bu">
+              Business Unit <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setBuFilter("all"); setCurrentPage(1); }} data-testid="filter-bu-all">All</DropdownMenuItem>
+            {(businessUnits ?? []).map((bu) => (
+              <DropdownMenuItem key={bu.id} onClick={() => { setBuFilter(String(bu.id)); setCurrentPage(1); }} data-testid={`filter-bu-${bu.id}`}>{bu.name}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-finding">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Finding
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-6" data-testid="findings-skeleton">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
-          </div>
-          <Skeleton className="h-10 w-full" />
-          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+        <div className="space-y-3" data-testid="findings-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="summary-cards">
-            <Card data-testid="stat-total-findings">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-total-findings-label">Total Findings</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-total-findings-value">{totalFindings}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-muted">
-                    <ListChecks className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-open">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-open-label">Open</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-open-value">{openCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-muted">
-                    <FileWarning className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-high-severity">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-high-severity-label">High Severity</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-high-severity-value">{highCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-red-100 dark:bg-red-900">
-                    <AlertTriangle className="w-5 h-5 text-red-700 dark:text-red-300" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-overdue">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-overdue-label">Overdue</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-overdue-value">{overdueCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-amber-100 dark:bg-amber-900">
-                    <Clock className="w-5 h-5 text-amber-700 dark:text-amber-300" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3" data-testid="filter-bar">
-            <Select value={severityFilter} onValueChange={setSeverityFilter} data-testid="select-severity">
-              <SelectTrigger className="w-[160px]" data-testid="select-trigger-severity">
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" data-testid="select-item-severity-all">All Severity</SelectItem>
-                <SelectItem value="High" data-testid="select-item-severity-high">High</SelectItem>
-                <SelectItem value="Medium" data-testid="select-item-severity-medium">Medium</SelectItem>
-                <SelectItem value="Low" data-testid="select-item-severity-low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter} data-testid="select-status">
-              <SelectTrigger className="w-[200px]" data-testid="select-trigger-status">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
-                <SelectItem value="New" data-testid="select-item-status-new">New</SelectItem>
-                <SelectItem value="Triage" data-testid="select-item-status-triage">Triage</SelectItem>
-                <SelectItem value="In Remediation" data-testid="select-item-status-remediation">In Remediation</SelectItem>
-                <SelectItem value="Evidence Submitted" data-testid="select-item-status-evidence">Evidence Submitted</SelectItem>
-                <SelectItem value="Verified" data-testid="select-item-status-verified">Verified</SelectItem>
-                <SelectItem value="Closed" data-testid="select-item-status-closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={buFilter} onValueChange={setBuFilter} data-testid="select-bu">
-              <SelectTrigger className="w-[200px]" data-testid="select-trigger-bu">
-                <SelectValue placeholder="Business Unit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" data-testid="select-item-bu-all">All Business Units</SelectItem>
-                {(businessUnits ?? []).map((bu) => (
-                  <SelectItem key={bu.id} value={String(bu.id)} data-testid={`select-item-bu-${bu.id}`}>{bu.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Card data-testid="findings-table-card">
+          <div className="border rounded-md" data-testid="findings-table-wrapper">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" data-testid="th-expand"></TableHead>
-                  <TableHead data-testid="th-title">Title</TableHead>
-                  <TableHead data-testid="th-source">Source</TableHead>
-                  <TableHead data-testid="th-severity">Severity</TableHead>
-                  <TableHead data-testid="th-status">Status</TableHead>
-                  <TableHead data-testid="th-bu">Business Unit</TableHead>
-                  <TableHead data-testid="th-owner">Owner</TableHead>
-                  <TableHead data-testid="th-due-date">Due Date</TableHead>
-                  <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-8 text-xs font-medium text-muted-foreground" data-testid="th-expand"></TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-title">Title</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-source">Source</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-severity">Severity</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-status">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bu">Business Unit</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-owner">Owner</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-due-date">Due Date</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-actions"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {paginatedFindings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-muted-foreground" data-testid="text-no-findings">
                       No findings found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((f) => {
+                  paginatedFindings.map((f) => {
                     const overdue = isOverdue(f);
                     const expanded = expandedId === f.id;
                     return (
                       <Fragment key={f.id}>
                         <TableRow
-                          className={`cursor-pointer ${overdue ? "bg-red-50 dark:bg-red-950/30" : ""}`}
+                          className={`group cursor-pointer ${overdue ? "bg-red-50 dark:bg-red-950/30" : ""}`}
                           onClick={() => setExpandedId(expanded ? null : f.id)}
                           data-testid={`row-finding-${f.id}`}
                         >
@@ -395,28 +382,24 @@ export default function Findings() {
                           <TableCell className="text-sm text-muted-foreground" data-testid={`text-due-date-${f.id}`}>
                             {f.dueDate ? format(new Date(f.dueDate), "MMM d, yyyy") : "--"}
                           </TableCell>
-                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => openEditDialog(f)}
-                                data-testid={`button-edit-finding-${f.id}`}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => {
-                                  setDeletingFinding(f);
-                                  setDeleteConfirmOpen(true);
-                                }}
-                                data-testid={`button-delete-finding-${f.id}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`button-actions-${f.id}`}>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(f)} data-testid={`menu-edit-${f.id}`}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => { setDeletingFinding(f); setDeleteConfirmOpen(true); }}
+                                  data-testid={`menu-delete-${f.id}`}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                         {expanded && (
@@ -469,7 +452,50 @@ export default function Findings() {
                 )}
               </TableBody>
             </Table>
-          </Card>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-results-count">
+              {totalResults === 0 ? "0 results" : `${startItem} to ${endItem} of ${totalResults} results`}
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span>Show per page</span>
+                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  data-testid="button-next-page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </>
       )}
 

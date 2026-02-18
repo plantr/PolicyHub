@@ -1,14 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { RequirementMapping, Requirement, Document, BusinessUnit } from "@shared/schema";
-import { ShieldCheck, AlertTriangle, XCircle, ListChecks, RefreshCw, FileWarning, ShieldAlert, Building2 } from "lucide-react";
+import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function getCoverageBadgeClass(status: string) {
@@ -67,9 +73,12 @@ interface GapAnalysisResult {
 }
 
 export default function GapAnalysis() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [buFilter, setBuFilter] = useState("all");
   const [analysisResult, setAnalysisResult] = useState<GapAnalysisResult | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const { toast } = useToast();
 
   const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
@@ -114,145 +123,109 @@ export default function GapAnalysis() {
   const buMap = new Map((businessUnits ?? []).map((b) => [b.id, b]));
 
   const allMappings = mappings ?? [];
-  const coveredCount = allMappings.filter((m) => m.coverageStatus === "Covered").length;
-  const partialCount = allMappings.filter((m) => m.coverageStatus === "Partially Covered").length;
-  const notCoveredCount = allMappings.filter((m) => m.coverageStatus === "Not Covered").length;
 
-  const filtered = allMappings.filter((m) => {
-    if (statusFilter !== "all" && m.coverageStatus !== statusFilter) return false;
-    if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
-    return true;
-  });
+  const hasActiveFilters = statusFilter !== "all" || buFilter !== "all" || searchQuery !== "";
+
+  const filtered = useMemo(() => {
+    return allMappings.filter((m) => {
+      if (statusFilter !== "all" && m.coverageStatus !== statusFilter) return false;
+      if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const req = reqMap.get(m.requirementId);
+        const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
+        const code = (req?.code ?? "").toLowerCase();
+        const title = (req?.title ?? "").toLowerCase();
+        const docTitle = (doc?.title ?? "").toLowerCase();
+        if (!code.includes(q) && !title.includes(q) && !docTitle.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [allMappings, statusFilter, buFilter, searchQuery, reqMap, docMap]);
+
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedMappings = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
+  function resetFilters() {
+    setStatusFilter("all");
+    setBuFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
 
   return (
-    <div className="space-y-6" data-testid="gap-analysis-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="gap-analysis-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Gap Analysis</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Requirement coverage and compliance matrix</p>
+    <div className="space-y-4" data-testid="gap-analysis-page">
+      <div className="flex flex-wrap items-center gap-2" data-testid="gap-analysis-header">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Gap Analysis</h1>
+
+        <div className="relative ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-gap-analysis"
+          />
         </div>
-        <Button
-          onClick={() => refreshMutation.mutate()}
-          disabled={refreshMutation.isPending}
-          data-testid="button-refresh-gap-analysis"
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-          {refreshMutation.isPending ? "Analysing..." : "Refresh Analysis"}
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-coverage-status">
+              Coverage status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Covered"); setCurrentPage(1); }}>Covered</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Partially Covered"); setCurrentPage(1); }}>Partially Covered</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("Not Covered"); setCurrentPage(1); }}>Not Covered</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-business-unit">
+              Business unit <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setBuFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {(businessUnits ?? []).map((bu) => (
+              <DropdownMenuItem key={bu.id} onClick={() => { setBuFilter(String(bu.id)); setCurrentPage(1); }}>{bu.name}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+            data-testid="button-refresh-gap-analysis"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+            {refreshMutation.isPending ? "Analysing..." : "Refresh Analysis"}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-6" data-testid="gap-analysis-skeleton">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
-          </div>
-          <Skeleton className="h-10 w-full" />
-          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+        <div className="space-y-3" data-testid="gap-analysis-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="summary-cards">
-            <Card data-testid="stat-covered">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-covered-label">Covered</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-covered-value">{analysisResult ? analysisResult.summary.coveredCount : coveredCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-green-100 dark:bg-green-900">
-                    <ShieldCheck className="w-5 h-5 text-green-700 dark:text-green-300" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-partial">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-partial-label">Partially Covered</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-partial-value">{analysisResult ? analysisResult.summary.partiallyCoveredCount : partialCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-amber-100 dark:bg-amber-900">
-                    <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-not-covered">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-not-covered-label">Not Covered</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-not-covered-value">{analysisResult ? analysisResult.summary.notCoveredCount : notCoveredCount}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-red-100 dark:bg-red-900">
-                    <XCircle className="w-5 h-5 text-red-700 dark:text-red-300" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="stat-total-mapped">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground" data-testid="stat-total-mapped-label">Total Mapped</p>
-                    <p className="text-2xl font-bold mt-1" data-testid="stat-total-mapped-value">{analysisResult ? analysisResult.summary.totalMapped : allMappings.length}</p>
-                  </div>
-                  <div className="p-2 rounded-md bg-muted">
-                    <ListChecks className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {analysisResult && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="analysis-extra-stats">
-              <Card data-testid="stat-unmapped">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground" data-testid="stat-unmapped-label">Unmapped Requirements</p>
-                      <p className="text-2xl font-bold mt-1" data-testid="stat-unmapped-value">{analysisResult.summary.unmappedCount}</p>
-                      <p className="text-xs text-muted-foreground mt-1">of {analysisResult.summary.applicableRequirements} applicable</p>
-                    </div>
-                    <div className="p-2 rounded-md bg-red-100 dark:bg-red-900">
-                      <FileWarning className="w-5 h-5 text-red-700 dark:text-red-300" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card data-testid="stat-bu-gaps">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground" data-testid="stat-bu-gaps-label">Per-Entity Gaps</p>
-                      <p className="text-2xl font-bold mt-1" data-testid="stat-bu-gaps-value">{analysisResult.summary.perBuGapCount}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Applicable but unmapped per BU</p>
-                    </div>
-                    <div className="p-2 rounded-md bg-orange-100 dark:bg-orange-900">
-                      <Building2 className="w-5 h-5 text-orange-700 dark:text-orange-300" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card data-testid="stat-over-strict">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground" data-testid="stat-over-strict-label">Over-Strict</p>
-                      <p className="text-2xl font-bold mt-1" data-testid="stat-over-strict-value">{analysisResult.summary.overStrictCount}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Mapped to non-applicable sources</p>
-                    </div>
-                    <div className="p-2 rounded-md bg-blue-100 dark:bg-blue-900">
-                      <ShieldAlert className="w-5 h-5 text-blue-700 dark:text-blue-300" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           <Tabs defaultValue="mappings" data-testid="gap-analysis-tabs">
             <TabsList data-testid="tabs-list">
               <TabsTrigger value="mappings" data-testid="tab-mappings">
@@ -274,55 +247,29 @@ export default function GapAnalysis() {
             </TabsList>
 
             <TabsContent value="mappings" className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3" data-testid="filter-bar">
-                <Select value={statusFilter} onValueChange={setStatusFilter} data-testid="select-coverage-status">
-                  <SelectTrigger className="w-[200px]" data-testid="select-trigger-coverage-status">
-                    <SelectValue placeholder="Coverage Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
-                    <SelectItem value="Covered" data-testid="select-item-status-covered">Covered</SelectItem>
-                    <SelectItem value="Partially Covered" data-testid="select-item-status-partial">Partially Covered</SelectItem>
-                    <SelectItem value="Not Covered" data-testid="select-item-status-not-covered">Not Covered</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={buFilter} onValueChange={setBuFilter} data-testid="select-bu">
-                  <SelectTrigger className="w-[200px]" data-testid="select-trigger-bu">
-                    <SelectValue placeholder="Business Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" data-testid="select-item-bu-all">All Business Units</SelectItem>
-                    {(businessUnits ?? []).map((bu) => (
-                      <SelectItem key={bu.id} value={String(bu.id)} data-testid={`select-item-bu-${bu.id}`}>{bu.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Card data-testid="gap-analysis-table-card">
+              <div className="border rounded-md" data-testid="gap-analysis-table">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead data-testid="th-req-code">Requirement Code</TableHead>
-                      <TableHead data-testid="th-req-title">Requirement Title</TableHead>
-                      <TableHead data-testid="th-document">Document</TableHead>
-                      <TableHead data-testid="th-bu">Business Unit</TableHead>
-                      <TableHead data-testid="th-coverage">Coverage Status</TableHead>
-                      <TableHead data-testid="th-rationale">Rationale</TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-req-code">Requirement Code</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-req-title">Requirement Title</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-document">Document</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bu">Business Unit</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-coverage">Coverage Status</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rationale">Rationale</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.length === 0 ? (
+                    {paginatedMappings.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-mappings">
                           No mappings found.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filtered.map((m) => {
+                      paginatedMappings.map((m) => {
                         const req = reqMap.get(m.requirementId);
-                        const doc = docMap.get(m.documentId);
+                        const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
                         const bu = m.businessUnitId ? buMap.get(m.businessUnitId) : null;
                         return (
                           <TableRow key={m.id} data-testid={`row-mapping-${m.id}`}>
@@ -352,24 +299,58 @@ export default function GapAnalysis() {
                     )}
                   </TableBody>
                 </Table>
-              </Card>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="pagination-mappings">
+                <span data-testid="text-pagination-info">
+                  {startItem} to {endItem} of {totalResults} results
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>Show per page</span>
+                  <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    data-testid="button-prev-page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    data-testid="button-next-page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </TabsContent>
 
             {analysisResult && (
               <>
                 <TabsContent value="unmapped" className="space-y-4">
-                  <p className="text-sm text-muted-foreground" data-testid="text-unmapped-description">
-                    Requirements from enabled regulatory sources that have no document mapping. These are compliance gaps requiring attention.
-                  </p>
-                  <Card data-testid="unmapped-table-card">
+                  <div className="border rounded-md" data-testid="unmapped-table">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead data-testid="th-unmapped-code">Code</TableHead>
-                          <TableHead data-testid="th-unmapped-title">Title</TableHead>
-                          <TableHead data-testid="th-unmapped-category">Category</TableHead>
-                          <TableHead data-testid="th-unmapped-source">Source</TableHead>
-                          <TableHead data-testid="th-unmapped-article">Article</TableHead>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-code">Code</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-title">Title</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-category">Category</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-source">Source</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-article">Article</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -402,21 +383,18 @@ export default function GapAnalysis() {
                         )}
                       </TableBody>
                     </Table>
-                  </Card>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="bu-gaps" className="space-y-4">
-                  <p className="text-sm text-muted-foreground" data-testid="text-bu-gaps-description">
-                    Requirements applicable to a specific business unit (via its regulatory profile) that lack a mapping for that entity. Group-level mappings (no BU) are included.
-                  </p>
-                  <Card data-testid="bu-gaps-table-card">
+                  <div className="border rounded-md" data-testid="bu-gaps-table">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead data-testid="th-bugap-bu">Business Unit</TableHead>
-                          <TableHead data-testid="th-bugap-code">Requirement Code</TableHead>
-                          <TableHead data-testid="th-bugap-title">Requirement Title</TableHead>
-                          <TableHead data-testid="th-bugap-source">Source</TableHead>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-bu">Business Unit</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-code">Requirement Code</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-title">Requirement Title</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-source">Source</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -446,23 +424,20 @@ export default function GapAnalysis() {
                         )}
                       </TableBody>
                     </Table>
-                  </Card>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="over-strict" className="space-y-4">
-                  <p className="text-sm text-muted-foreground" data-testid="text-over-strict-description">
-                    Mappings where the requirement comes from a source not enabled in the business unit's regulatory profile. This may indicate over-strict implementation beyond what is required.
-                  </p>
-                  <Card data-testid="over-strict-table-card">
+                  <div className="border rounded-md" data-testid="over-strict-table">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead data-testid="th-strict-req-code">Requirement Code</TableHead>
-                          <TableHead data-testid="th-strict-req-title">Requirement Title</TableHead>
-                          <TableHead data-testid="th-strict-document">Document</TableHead>
-                          <TableHead data-testid="th-strict-bu">Business Unit</TableHead>
-                          <TableHead data-testid="th-strict-source">Source</TableHead>
-                          <TableHead data-testid="th-strict-reason">Reason</TableHead>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-req-code">Requirement Code</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-req-title">Requirement Title</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-document">Document</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-bu">Business Unit</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-source">Source</TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-reason">Reason</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -498,7 +473,7 @@ export default function GapAnalysis() {
                         )}
                       </TableBody>
                     </Table>
-                  </Card>
+                  </div>
                 </TabsContent>
               </>
             )}

@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { Plus, Pencil, Trash2, Target, Clock, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Commitment, BusinessUnit } from "@shared/schema";
 import { insertCommitmentSchema } from "@shared/schema";
 
@@ -68,10 +73,12 @@ const STATUSES = ["Open", "In Progress", "Completed", "Closed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 export default function Commitments() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -197,189 +204,239 @@ export default function Commitments() {
     }
   }
 
+  const hasActiveFilters = statusFilter !== "all" || categoryFilter !== "all" || priorityFilter !== "all" || searchQuery !== "";
+
+  function resetFilters() {
+    setStatusFilter("all");
+    setCategoryFilter("all");
+    setPriorityFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
   const filtered = (commitmentsList || []).filter(c => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!c.title.toLowerCase().includes(q) && !c.owner.toLowerCase().includes(q) && !c.source.toLowerCase().includes(q)) return false;
+    }
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (categoryFilter !== "all" && c.category !== categoryFilter) return false;
     if (priorityFilter !== "all" && c.priority !== priorityFilter) return false;
     return true;
   });
 
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
   const buMap = Object.fromEntries((businessUnits || []).map(bu => [bu.id, bu.name]));
 
   if (commitmentsLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Commitments</h1>
-            <p className="text-muted-foreground mt-1">Regulatory conditions and undertakings</p>
-          </div>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Commitments</h1>
         </div>
-        <Card><CardContent className="pt-6"><Skeleton className="h-64" /></CardContent></Card>
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  const openCount = (commitmentsList || []).filter(c => c.status === "Open" || c.status === "In Progress").length;
-  const overdueCount = (commitmentsList || []).filter(c => c.dueDate && new Date(c.dueDate) < new Date() && c.status !== "Completed" && c.status !== "Closed").length;
-  const completedCount = (commitmentsList || []).filter(c => c.status === "Completed" || c.status === "Closed").length;
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Commitments</h1>
-          <p className="text-muted-foreground mt-1">Track regulatory conditions, undertakings, and remediation actions</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Commitments</h1>
+
+        <div className="relative ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-commitments"
+          />
         </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-commitment">
-          <Plus className="mr-2 h-4 w-4" /> Add Commitment
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All Statuses</DropdownMenuItem>
+            {STATUSES.map(s => (
+              <DropdownMenuItem key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}>{s}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
+              Category <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All Categories</DropdownMenuItem>
+            {CATEGORIES.map(c => (
+              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setCurrentPage(1); }}>{c}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-priority">
+              Priority <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setPriorityFilter("all"); setCurrentPage(1); }}>All Priorities</DropdownMenuItem>
+            {PRIORITIES.map(p => (
+              <DropdownMenuItem key={p} onClick={() => { setPriorityFilter(p); setCurrentPage(1); }}>{p}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button onClick={openCreateDialog} data-testid="button-add-commitment">
+            <Plus className="mr-2 h-4 w-4" /> Add Commitment
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-6">
-            <Target className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <div className="text-2xl font-bold" data-testid="text-stat-open">{openCount}</div>
-              <p className="text-xs text-muted-foreground">Open</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-6">
-            <Clock className="h-5 w-5 text-orange-500 dark:text-orange-400" />
-            <div>
-              <div className="text-2xl font-bold" data-testid="text-stat-overdue">{overdueCount}</div>
-              <p className="text-xs text-muted-foreground">Overdue</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-6">
-            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-            <div>
-              <div className="text-2xl font-bold" data-testid="text-stat-completed">{completedCount}</div>
-              <p className="text-xs text-muted-foreground">Completed</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-category-filter">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="w-[140px]" data-testid="select-priority-filter">
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Priorities</SelectItem>
-            {PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
+      <div className="border rounded-md" data-testid="section-commitments-table">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-xs font-medium text-muted-foreground">Title</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Category</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Priority</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Owner</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Entity</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">Due Date</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedItems.length === 0 && (
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Entity</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  No commitments found
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    No commitments found
+            )}
+            {paginatedItems.map(c => {
+              const isOverdue = c.dueDate && new Date(c.dueDate) < new Date() && c.status !== "Completed" && c.status !== "Closed";
+              return (
+                <TableRow
+                  key={c.id}
+                  className="group"
+                  data-testid={`row-commitment-${c.id}`}
+                >
+                  <TableCell>
+                    <span className="font-medium">{c.title}</span>
                   </TableCell>
-                </TableRow>
-              )}
-              {filtered.map(c => {
-                const isOverdue = c.dueDate && new Date(c.dueDate) < new Date() && c.status !== "Completed" && c.status !== "Closed";
-                const expanded = expandedId === c.id;
-                return (
-                  <TableRow
-                    key={c.id}
-                    className="cursor-pointer"
-                    onClick={() => setExpandedId(expanded ? null : c.id)}
-                    data-testid={`row-commitment-${c.id}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {expanded ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
-                        <span className="font-medium">{c.title}</span>
-                      </div>
-                      {expanded && (
-                        <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-                          {c.description && <p>{c.description}</p>}
-                          <p><span className="font-medium">Source:</span> {c.source} {c.sourceReference && `(${c.sourceReference})`}</p>
-                          {c.evidenceNotes && <p><span className="font-medium">Evidence:</span> {c.evidenceNotes}</p>}
-                          {c.completedDate && <p><span className="font-medium">Completed:</span> {format(new Date(c.completedDate), "dd MMM yyyy")}</p>}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
-                    <TableCell><Badge variant={getPriorityVariant(c.priority)}>{c.priority}</Badge></TableCell>
-                    <TableCell>
-                      <Badge variant={isOverdue ? "destructive" : getStatusVariant(c.status)}>
-                        {isOverdue ? "Overdue" : c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{c.owner}</TableCell>
-                    <TableCell>{c.businessUnitId ? buMap[c.businessUnitId] || "-" : "All"}</TableCell>
-                    <TableCell>{c.dueDate ? format(new Date(c.dueDate), "dd MMM yyyy") : "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
+                  <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
+                  <TableCell><Badge variant={getPriorityVariant(c.priority)}>{c.priority}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant={isOverdue ? "destructive" : getStatusVariant(c.status)}>
+                      {isOverdue ? "Overdue" : c.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{c.owner}</TableCell>
+                  <TableCell>{c.businessUnitId ? buMap[c.businessUnitId] || "-" : "All"}</TableCell>
+                  <TableCell>{c.dueDate ? format(new Date(c.dueDate), "dd MMM yyyy") : "-"}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); openEditDialog(c); }}
-                          data-testid={`button-edit-commitment-${c.id}`}
+                          className="opacity-0 group-hover:opacity-100"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`button-actions-commitment-${c.id}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); setDeletingCommitment(c); setDeleteConfirmOpen(true); }}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(c)} data-testid={`button-edit-commitment-${c.id}`}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => { setDeletingCommitment(c); setDeleteConfirmOpen(true); }}
+                          className="text-destructive"
                           data-testid={`button-delete-commitment-${c.id}`}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+        <span data-testid="text-pagination-info">
+          {totalResults === 0 ? "0 results" : `${startItem} to ${endItem} of ${totalResults} results`}
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span>Show per page</span>
+            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[70px]" data-testid="select-page-size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              data-testid="button-prev-page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              data-testid="button-next-page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">

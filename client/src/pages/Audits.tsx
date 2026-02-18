@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Audit, BusinessUnit } from "@shared/schema";
 import { insertAuditSchema } from "@shared/schema";
 
@@ -70,9 +75,11 @@ function formatDateForInput(date: string | Date | null | undefined): string {
 }
 
 export default function Audits() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAudit, setEditingAudit] = useState<Audit | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -220,121 +227,127 @@ export default function Audits() {
     }
   }
 
+  const hasActiveFilters = typeFilter !== "all" || statusFilter !== "all" || searchQuery !== "";
+
+  function resetFilters() {
+    setTypeFilter("all");
+    setStatusFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
   const filtered = (auditsData ?? []).filter((a) => {
     if (typeFilter !== "all" && a.auditType !== typeFilter) return false;
     if (statusFilter !== "all" && a.status !== statusFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!a.title.toLowerCase().includes(q) && !a.leadAuditor.toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
   const buMap = new Map((businessUnits ?? []).map((bu) => [bu.id, bu.name]));
 
-  const stats = {
-    total: (auditsData ?? []).length,
-    planned: (auditsData ?? []).filter((a) => a.status === "Planned").length,
-    inProgress: (auditsData ?? []).filter((a) => ["In Progress", "Fieldwork Complete", "Draft Report"].includes(a.status)).length,
-    completed: (auditsData ?? []).filter((a) => ["Final Report", "Closed"].includes(a.status)).length,
-  };
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedAudits = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
 
   return (
-    <div className="space-y-6" data-testid="audits-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="audits-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Audits</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-            Track internal and external compliance audits across the group
-          </p>
+    <div className="space-y-4" data-testid="audits-page">
+      <div className="flex flex-wrap items-center gap-2" data-testid="audits-header">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Audits</h1>
+
+        <div className="relative ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-audits"
+          />
         </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-audit">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Audit
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Total Audits", value: stats.total, testId: "stat-total" },
-          { label: "Planned", value: stats.planned, testId: "stat-planned" },
-          { label: "In Progress", value: stats.inProgress, testId: "stat-in-progress" },
-          { label: "Completed", value: stats.completed, testId: "stat-completed" },
-        ].map((stat) => (
-          <Card key={stat.testId}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground" data-testid={`text-${stat.testId}-label`}>{stat.label}</p>
-              <p className="text-2xl font-bold" data-testid={`text-${stat.testId}-value`}>{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
-            <SelectValue placeholder="All Types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-type">
+              Type <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setTypeFilter("all"); setCurrentPage(1); }}>All Types</DropdownMenuItem>
             {AUDIT_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+              <DropdownMenuItem key={t} onClick={() => { setTypeFilter(t); setCurrentPage(1); }}>{t}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All Statuses</DropdownMenuItem>
             {AUDIT_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+              <DropdownMenuItem key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}>{s}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button onClick={openCreateDialog} data-testid="button-add-audit">
+            <Plus className="h-4 w-4 mr-1" />
+            Add Audit
+          </Button>
+        </div>
       </div>
 
-      <Card data-testid="audits-table-card">
-        {auditsLoading ? (
-          <div className="p-6 space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead data-testid="th-expand" className="w-10" />
-                <TableHead data-testid="th-title">Title</TableHead>
-                <TableHead data-testid="th-type">Type</TableHead>
-                <TableHead data-testid="th-status">Status</TableHead>
-                <TableHead data-testid="th-lead">Lead Auditor</TableHead>
-                <TableHead data-testid="th-bu">Business Unit</TableHead>
-                <TableHead data-testid="th-scheduled">Scheduled</TableHead>
-                <TableHead data-testid="th-rating">Rating</TableHead>
-                <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground" data-testid="text-no-audits">
-                    No audits found. Click "Add Audit" to create one.
-                  </TableCell>
+      {auditsLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="border rounded-md" data-testid="audits-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-title">Title</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-type">Type</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-status">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-lead">Lead Auditor</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bu">Business Unit</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-scheduled">Scheduled</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rating">Rating</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-10" data-testid="th-actions" />
                 </TableRow>
-              ) : (
-                filtered.map((audit) => {
-                  const isExpanded = expandedId === audit.id;
-                  return (
+              </TableHeader>
+              <TableBody>
+                {paginatedAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-audits">
+                      No audits found. Click "Add Audit" to create one.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedAudits.map((audit) => (
                     <TableRow
                       key={audit.id}
-                      className="cursor-pointer"
+                      className="group"
                       data-testid={`row-audit-${audit.id}`}
-                      onClick={() => setExpandedId(isExpanded ? null : audit.id)}
                     >
-                      <TableCell>
-                        <Button size="icon" variant="ghost" data-testid={`button-expand-${audit.id}`}>
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
                       <TableCell className="font-medium" data-testid={`text-title-${audit.id}`}>
                         {audit.title}
                       </TableCell>
@@ -348,91 +361,89 @@ export default function Audits() {
                         {audit.leadAuditor}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground" data-testid={`text-bu-${audit.id}`}>
-                        {audit.businessUnitId ? buMap.get(audit.businessUnitId) ?? "—" : "Group-wide"}
+                        {audit.businessUnitId ? buMap.get(audit.businessUnitId) ?? "\u2014" : "Group-wide"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground" data-testid={`text-scheduled-${audit.id}`}>
-                        {audit.scheduledDate ? format(new Date(audit.scheduledDate), "dd MMM yyyy") : "—"}
+                        {audit.scheduledDate ? format(new Date(audit.scheduledDate), "dd MMM yyyy") : "\u2014"}
                       </TableCell>
                       <TableCell data-testid={`badge-rating-${audit.id}`}>
                         {audit.overallRating ? (
                           <Badge variant={getRatingVariant(audit.overallRating)} className="no-default-active-elevate">{audit.overallRating}</Badge>
                         ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
+                          <span className="text-sm text-muted-foreground">{"\u2014"}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEditDialog(audit)} data-testid={`button-edit-audit-${audit.id}`}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => { setDeletingAudit(audit); setDeleteConfirmOpen(true); }}
-                            data-testid={`button-delete-audit-${audit.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              data-testid={`button-actions-${audit.id}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(audit)} data-testid={`button-edit-audit-${audit.id}`}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => { setDeletingAudit(audit); setDeleteConfirmOpen(true); }}
+                              className="text-destructive"
+                              data-testid={`button-delete-audit-${audit.id}`}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-      {expandedId && auditsData && (() => {
-        const audit = auditsData.find((a) => a.id === expandedId);
-        if (!audit) return null;
-        return (
-          <Card data-testid={`card-audit-detail-${audit.id}`}>
-            <CardContent className="p-6 space-y-4">
-              <h3 className="font-semibold text-lg" data-testid="text-detail-title">{audit.title}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Audit Firm</span>
-                  <p className="font-medium" data-testid="text-detail-firm">{audit.auditFirm || "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Start Date</span>
-                  <p className="font-medium" data-testid="text-detail-start">{audit.startDate ? format(new Date(audit.startDate), "dd MMM yyyy") : "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">End Date</span>
-                  <p className="font-medium" data-testid="text-detail-end">{audit.endDate ? format(new Date(audit.endDate), "dd MMM yyyy") : "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Report Date</span>
-                  <p className="font-medium" data-testid="text-detail-report">{audit.reportDate ? format(new Date(audit.reportDate), "dd MMM yyyy") : "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Findings Count</span>
-                  <p className="font-medium" data-testid="text-detail-findings-count">{audit.findingsCount ?? 0}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Overall Rating</span>
-                  <p className="font-medium" data-testid="text-detail-rating">{audit.overallRating || "—"}</p>
-                </div>
-              </div>
-              {audit.scope && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Scope</span>
-                  <p className="text-sm mt-1 whitespace-pre-wrap" data-testid="text-detail-scope">{audit.scope}</p>
-                </div>
-              )}
-              {audit.recommendations && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Recommendations</span>
-                  <p className="text-sm mt-1 whitespace-pre-wrap" data-testid="text-detail-recommendations">{audit.recommendations}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-pagination-info">
+              {startItem} to {endItem} of {totalResults} results
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Show per page</span>
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[70px]" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-audit">

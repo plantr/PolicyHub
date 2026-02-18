@@ -248,7 +248,7 @@ export default function Documents() {
     return "Needs attention";
   };
 
-  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all";
+  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || searchQuery.length > 0;
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];

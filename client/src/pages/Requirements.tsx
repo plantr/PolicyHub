@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +12,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, FileText } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
@@ -30,17 +35,6 @@ const reqFormSchema = insertRequirementSchema.extend({
 });
 
 type ReqFormValues = z.infer<typeof reqFormSchema>;
-
-function CoverageBar({ percent, color }: { percent: number; color: string }) {
-  return (
-    <div className="flex flex-wrap items-center gap-3 w-full">
-      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
-      </div>
-      <span className="text-sm font-medium w-10 text-right">{percent}%</span>
-    </div>
-  );
-}
 
 function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, centerSub }: {
   segments: { value: number; className: string }[];
@@ -96,6 +90,8 @@ function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, cente
   );
 }
 
+export { DonutChart };
+
 export default function Requirements() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,6 +102,8 @@ export default function Requirements() {
   const [editingReq, setEditingReq] = useState<Requirement | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingReq, setDeletingReq] = useState<Requirement | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const { toast } = useToast();
 
   const form = useForm<ReqFormValues>({
@@ -158,45 +156,22 @@ export default function Requirements() {
     return lookup;
   }, [allMappings]);
 
-  const metrics = useMemo(() => {
-    const reqs = requirements ?? [];
-    const total = reqs.length;
-    if (total === 0) return { total: 0, covered: 0, partial: 0, notCovered: 0, coveragePercent: 0, mappedDocCount: 0, totalDocCount: 0 };
-
-    const coveredIds = new Set<number>();
-    const partialIds = new Set<number>();
-    const docIds = new Set<number>();
-
-    mappingsByReq.forEach((maps, reqId) => {
-      for (const m of maps) {
-        if (m.documentId != null) docIds.add(m.documentId);
-        if (m.coverageStatus === "Covered") coveredIds.add(reqId);
-        else if (m.coverageStatus === "Partially Covered") partialIds.add(reqId);
-      }
-    });
-
-    const covered = coveredIds.size;
-    const partial = Array.from(partialIds).filter((id) => !coveredIds.has(id)).length;
-    const notCovered = total - covered - partial;
-    const coveragePercent = Math.round(((covered + partial * 0.5) / total) * 100);
-
-    return {
-      total,
-      covered,
-      partial,
-      notCovered,
-      coveragePercent,
-      mappedDocCount: docIds.size,
-      totalDocCount: (allDocuments ?? []).length,
-    };
-  }, [requirements, mappingsByReq, allDocuments]);
-
   function getBestStatus(reqId: number): string {
     const maps = mappingsByReq.get(reqId);
     if (!maps || maps.length === 0) return "Not Covered";
     if (maps.some((m) => m.coverageStatus === "Covered")) return "Covered";
     if (maps.some((m) => m.coverageStatus === "Partially Covered")) return "Partially Covered";
     return "Not Covered";
+  }
+
+  const hasActiveFilters = frameworkFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all" || searchQuery.length > 0;
+
+  function resetFilters() {
+    setFrameworkFilter("all");
+    setCategoryFilter("all");
+    setStatusFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
   }
 
   const filtered = useMemo(() => {
@@ -216,6 +191,12 @@ export default function Requirements() {
       return true;
     });
   }, [requirements, frameworkFilter, categoryFilter, statusFilter, searchQuery, mappingsByReq]);
+
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedControls = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
 
   const createMutation = useMutation({
     mutationFn: async (data: ReqFormValues) => {
@@ -318,233 +299,213 @@ export default function Requirements() {
   }
 
   return (
-    <div className="space-y-6" data-testid="controls-page">
+    <div className="space-y-4" data-testid="controls-page">
       <div className="flex flex-wrap items-center justify-between gap-3" data-testid="controls-header">
         <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search"
-              className="pl-9 w-[180px]"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="input-search-controls-header"
-            />
-          </div>
-          <Button variant="outline" onClick={openCreateDialog} data-testid="button-add-control">
-            Add control
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-control">
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add control
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card data-testid="card-assignment-summary">
-          <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-4">Coverage</h3>
-            <div className="flex flex-wrap items-center gap-6">
-              <DonutChart
-                segments={[
-                  { value: metrics.covered, className: "text-emerald-500 dark:text-emerald-400" },
-                  { value: metrics.partial, className: "text-amber-500 dark:text-amber-400" },
-                  { value: metrics.notCovered, className: "text-muted-foreground/30" },
-                ]}
-                centerLabel={`${metrics.total > 0 ? Math.round((metrics.notCovered / metrics.total) * 100) : 0}%`}
-                centerSub="Unmapped"
-              />
-              <div className="flex flex-col gap-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30 inline-block" />
-                  <span className="text-muted-foreground">Unmapped</span>
-                  <span className="font-medium ml-auto">{metrics.notCovered}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 inline-block" />
-                  <span className="text-muted-foreground">Covered</span>
-                  <span className="font-medium ml-auto">{metrics.covered}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
-                  <span className="text-muted-foreground">Partially covered</span>
-                  <span className="font-medium ml-auto">{metrics.partial}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-controls-summary">
-          <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-2">Controls</h3>
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              <div className="flex-1">
-                <p className="text-3xl font-bold" data-testid="text-controls-coverage">{metrics.coveragePercent}%</p>
-                <p className="text-xs text-muted-foreground mt-1 mb-3">Of controls have passing evidence</p>
-                <CoverageBar
-                  percent={metrics.coveragePercent}
-                  color="bg-emerald-500 dark:bg-emerald-400"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mt-2">
-                  <span>{metrics.covered + metrics.partial} controls</span>
-                  <span>{metrics.total} total</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 lg:w-52 shrink-0">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Mapped controls</span>
-                    <span className="text-xs font-medium">{metrics.covered + metrics.partial}/{metrics.total}</span>
-                  </div>
-                  <CoverageBar
-                    percent={metrics.total > 0 ? Math.round(((metrics.covered + metrics.partial) / metrics.total) * 100) : 0}
-                    color="bg-emerald-500 dark:bg-emerald-400"
-                  />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Documents</span>
-                    <span className="text-xs font-medium">{metrics.mappedDocCount}/{metrics.totalDocCount}</span>
-                  </div>
-                  <CoverageBar
-                    percent={metrics.totalDocCount > 0 ? Math.round((metrics.mappedDocCount / metrics.totalDocCount) * 100) : 0}
-                    color="bg-emerald-500 dark:bg-emerald-400"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3" data-testid="controls-filter-bar">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+      <div className="flex flex-wrap items-center gap-2" data-testid="controls-filter-bar">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search controls"
-            className="pl-9"
+            placeholder="Search"
+            className="pl-9 w-[160px]"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             data-testid="input-search-controls"
           />
         </div>
 
-        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-framework">
-            <SelectValue placeholder="Framework" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-framework-all">All Frameworks</SelectItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-framework">
+              Framework <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setFrameworkFilter("all"); setCurrentPage(1); }}>All Frameworks</DropdownMenuItem>
             {(sources ?? []).map((s) => (
-              <SelectItem key={s.id} value={String(s.id)} data-testid={`select-item-framework-${s.id}`}>{s.shortName}</SelectItem>
+              <DropdownMenuItem key={s.id} onClick={() => { setFrameworkFilter(String(s.id)); setCurrentPage(1); }}>{s.shortName}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-category">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-category-all">All Categories</SelectItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
+              Category <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All Categories</DropdownMenuItem>
             {categories.map((c) => (
-              <SelectItem key={c} value={c} data-testid={`select-item-category-${c}`}>{c}</SelectItem>
+              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setCurrentPage(1); }}>{c}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-trigger-status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
-            <SelectItem value="covered" data-testid="select-item-status-covered">Covered</SelectItem>
-            <SelectItem value="partial" data-testid="select-item-status-partial">Partially Covered</SelectItem>
-            <SelectItem value="not_covered" data-testid="select-item-status-not-covered">Not Covered</SelectItem>
-          </SelectContent>
-        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All Statuses</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("covered"); setCurrentPage(1); }}>Covered</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("partial"); setCurrentPage(1); }}>Partially Covered</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("not_covered"); setCurrentPage(1); }}>Not Covered</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
       ) : (
-        <Table data-testid="controls-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]" data-testid="th-id">ID</TableHead>
-              <TableHead data-testid="th-control">Control</TableHead>
-              <TableHead className="w-[200px]" data-testid="th-owner">Owner</TableHead>
-              <TableHead data-testid="th-frameworks">Frameworks</TableHead>
-              <TableHead className="w-[50px]" data-testid="th-actions"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
-                  No controls found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((req) => {
-                const source = sourceMap.get(req.sourceId);
-                const maps = mappingsByReq.get(req.id) || [];
-                const ownerDoc = maps.length > 0 && maps[0].documentId
-                  ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
-                  : null;
-                const ownerName = ownerDoc?.owner ?? "--";
-                const frameworkLabel = source
-                  ? `${source.shortName} · ${req.code}`
-                  : req.code;
-                const extraFrameworks = maps.length > 1 ? maps.length - 1 : 0;
-                return (
-                  <TableRow
-                    key={req.id}
-                    className="cursor-pointer hover-elevate"
-                    onClick={() => navigate(`/controls/${req.id}`)}
-                    data-testid={`row-control-${req.id}`}
-                  >
-                    <TableCell className="font-mono text-xs text-muted-foreground" data-testid={`text-id-${req.id}`}>
-                      {req.code}
-                    </TableCell>
-                    <TableCell data-testid={`text-control-${req.id}`}>
-                      <span className="text-sm">{req.title}</span>
-                    </TableCell>
-                    <TableCell className="text-sm" data-testid={`text-owner-${req.id}`}>
-                      {ownerName}
-                    </TableCell>
-                    <TableCell data-testid={`text-framework-${req.id}`}>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{frameworkLabel}</span>
-                        {extraFrameworks > 0 && (
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">+{extraFrameworks}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell data-testid={`text-actions-${req.id}`}>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/controls/${req.id}`);
-                        }}
-                        data-testid={`button-open-${req.id}`}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
+        <>
+          <div className="border rounded-md" data-testid="section-controls-table">
+            <Table data-testid="controls-table">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-id">ID</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-control">Control</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[200px]" data-testid="th-owner">Owner</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-frameworks">Frameworks</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="th-actions"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedControls.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                      No controls found.
                     </TableCell>
                   </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                ) : (
+                  paginatedControls.map((req) => {
+                    const source = sourceMap.get(req.sourceId);
+                    const maps = mappingsByReq.get(req.id) || [];
+                    const ownerDoc = maps.length > 0 && maps[0].documentId
+                      ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
+                      : null;
+                    const ownerName = ownerDoc?.owner ?? "--";
+                    const frameworkLabel = source
+                      ? `${source.shortName} · ${req.code}`
+                      : req.code;
+                    const extraFrameworks = maps.length > 1 ? maps.length - 1 : 0;
+                    return (
+                      <TableRow
+                        key={req.id}
+                        className="group cursor-pointer hover-elevate"
+                        onClick={() => navigate(`/controls/${req.id}`)}
+                        data-testid={`row-control-${req.id}`}
+                      >
+                        <TableCell className="font-mono text-xs text-muted-foreground" data-testid={`text-id-${req.id}`}>
+                          {req.code}
+                        </TableCell>
+                        <TableCell data-testid={`text-control-${req.id}`}>
+                          <span className="text-sm">{req.title}</span>
+                        </TableCell>
+                        <TableCell className="text-sm" data-testid={`text-owner-${req.id}`}>
+                          {ownerName}
+                        </TableCell>
+                        <TableCell data-testid={`text-framework-${req.id}`}>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">{frameworkLabel}</span>
+                            {extraFrameworks > 0 && (
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">+{extraFrameworks}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell data-testid={`text-actions-${req.id}`}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`button-actions-${req.id}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/controls/${req.id}`); }}>
+                                View details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(req); }}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={(e) => { e.stopPropagation(); setDeletingReq(req); setDeleteConfirmOpen(true); }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-pagination-info">
+              {startItem} to {endItem} of {totalResults} results
+            </span>
+            <div className="flex items-center gap-2">
+              <span>Show per page</span>
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

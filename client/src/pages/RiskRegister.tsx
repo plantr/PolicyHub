@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Risk, BusinessUnit, RiskCategory } from "@shared/schema";
 import { insertRiskSchema } from "@shared/schema";
 
@@ -69,7 +74,8 @@ export default function RiskRegister() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -226,6 +232,16 @@ export default function RiskRegister() {
 
   const categoryOptions = (riskCategories || []).map(rc => rc.label);
 
+  const hasActiveFilters = statusFilter !== "all" || categoryFilter !== "all" || ratingFilter !== "all" || searchQuery.length > 0;
+
+  function resetFilters() {
+    setStatusFilter("all");
+    setCategoryFilter("all");
+    setRatingFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
   const filtered = (risksList || []).filter(r => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (categoryFilter !== "all" && r.category !== categoryFilter) return false;
@@ -237,164 +253,213 @@ export default function RiskRegister() {
     return true;
   });
 
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedRisks = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
   const buMap = Object.fromEntries((businessUnits || []).map(bu => [bu.id, bu.name]));
 
   if (risksLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Risk Register</h1>
-            <p className="text-muted-foreground mt-1">Identify, assess, and manage organisational risks</p>
-          </div>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Risk Register</h1>
         </div>
-        <Card><CardContent className="pt-6"><Skeleton className="h-64" /></CardContent></Card>
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Risk Register</h1>
-          <p className="text-muted-foreground mt-1">Identify, assess, and manage organisational risks</p>
-        </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-risk">
-          <Plus className="mr-2 h-4 w-4" /> Add Risk
-        </Button>
-      </div>
+    <div className="space-y-4" data-testid="page-risk-register">
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Risk Register</h1>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-category-filter">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categoryOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={ratingFilter} onValueChange={setRatingFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-rating-filter">
-            <SelectValue placeholder="Rating" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Ratings</SelectItem>
-            {RATINGS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search risks..."
+            placeholder="Search"
+            className="pl-9 w-[160px]"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 w-[200px]"
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             data-testid="input-search-risks"
           />
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {STATUSES.map(s => (
+              <DropdownMenuItem key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}>{s}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
+              Category <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {categoryOptions.map(c => (
+              <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setCurrentPage(1); }}>{c}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-rating">
+              Rating <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setRatingFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {RATINGS.map(r => (
+              <DropdownMenuItem key={r} onClick={() => { setRatingFilter(r); setCurrentPage(1); }}>{r}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-risk">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add risk
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
+      <div className="border rounded-md" data-testid="section-risks-table">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-title">Title</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-category">Category</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-status">Status</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-owner">Owner</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-inherent">Inherent</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-residual">Residual</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-response">Response</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-created">Created</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="col-actions"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedRisks.length === 0 && (
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Inherent</TableHead>
-                <TableHead>Residual</TableHead>
-                <TableHead>Response</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  No risks found
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                    No risks found
-                  </TableCell>
-                </TableRow>
-              )}
-              {filtered.map(r => {
-                const expanded = expandedId === r.id;
-                return (
-                  <TableRow
-                    key={r.id}
-                    className="cursor-pointer"
-                    onClick={() => setExpandedId(expanded ? null : r.id)}
-                    data-testid={`row-risk-${r.id}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {expanded ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
-                        <span className="font-medium">{r.title}</span>
-                      </div>
-                      {expanded && (
-                        <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-                          {r.description && <p>{r.description}</p>}
-                          {r.businessUnitId && <p><span className="font-medium">Business Unit:</span> {buMap[r.businessUnitId] || "-"}</p>}
-                          {r.controlDescription && <p><span className="font-medium">Controls:</span> {r.controlDescription}</p>}
-                          {r.reviewDate && <p><span className="font-medium">Review Date:</span> {format(new Date(r.reviewDate), "dd MMM yyyy")}</p>}
-                          {r.riskAppetite && <p><span className="font-medium">Notes:</span> {r.riskAppetite}</p>}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell><Badge variant="outline">{r.category}</Badge></TableCell>
-                    <TableCell><Badge variant="secondary">{r.status}</Badge></TableCell>
-                    <TableCell>{r.owner}</TableCell>
-                    <TableCell>
-                      <Badge variant={getRatingVariant(r.inherentRating)}>
-                        {r.inherentRating} ({r.inherentScore})
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getRatingVariant(r.residualRating)}>
-                        {r.residualRating} ({r.residualScore})
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{r.mitigationStrategy || "-"}</TableCell>
-                    <TableCell>{r.createdAt ? format(new Date(r.createdAt), "dd MMM yyyy") : "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); openEditDialog(r); }}
-                          data-testid={`button-edit-risk-${r.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); setDeletingRisk(r); setDeleteConfirmOpen(true); }}
-                          data-testid={`button-delete-risk-${r.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            )}
+            {paginatedRisks.map(r => (
+              <TableRow
+                key={r.id}
+                className="group"
+                data-testid={`row-risk-${r.id}`}
+              >
+                <TableCell>
+                  <span className="font-medium">{r.title}</span>
+                </TableCell>
+                <TableCell><Badge variant="outline">{r.category}</Badge></TableCell>
+                <TableCell><Badge variant="secondary">{r.status}</Badge></TableCell>
+                <TableCell>{r.owner}</TableCell>
+                <TableCell>
+                  <Badge variant={getRatingVariant(r.inherentRating)}>
+                    {r.inherentRating} ({r.inherentScore})
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getRatingVariant(r.residualRating)}>
+                    {r.residualRating} ({r.residualScore})
+                  </Badge>
+                </TableCell>
+                <TableCell>{r.mitigationStrategy || "-"}</TableCell>
+                <TableCell>{r.createdAt ? format(new Date(r.createdAt), "dd MMM yyyy") : "-"}</TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid={`button-actions-risk-${r.id}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(r)} data-testid={`button-edit-risk-${r.id}`}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setDeletingRisk(r); setDeleteConfirmOpen(true); }} data-testid={`button-delete-risk-${r.id}`}>
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+        <span data-testid="text-pagination-info">
+          {startItem} to {endItem} of {totalResults} results
+        </span>
+        <div className="flex items-center gap-2">
+          <span>Show per page</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            data-testid="button-prev-page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            data-testid="button-next-page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">

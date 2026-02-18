@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
+import { Plus, Search, ChevronDown, ChevronLeft, ChevronRight, ListChecks, MoreHorizontal } from "lucide-react";
 import type { RiskAction, Risk } from "@shared/schema";
 import { insertRiskActionSchema } from "@shared/schema";
 
@@ -63,10 +68,12 @@ function formatDateForInput(date: string | Date | null | undefined): string {
 }
 
 export default function RiskActions() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAction, setEditingAction] = useState<RiskAction | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -184,11 +191,22 @@ export default function RiskActions() {
     }
   }
 
+  const hasActiveFilters = statusFilter !== "all" || priorityFilter !== "all" || riskFilter !== "all" || searchQuery.length > 0;
+
+  function resetFilters() {
+    setStatusFilter("all");
+    setPriorityFilter("all");
+    setRiskFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
   const filtered = (actions || []).filter(a => {
     if (statusFilter !== "all" && a.status !== statusFilter) return false;
+    if (priorityFilter !== "all" && a.priority !== priorityFilter) return false;
     if (riskFilter !== "all" && String(a.riskId) !== riskFilter) return false;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (searchQuery) {
+      const term = searchQuery.toLowerCase();
       if (
         !a.title.toLowerCase().includes(term) &&
         !a.assignee.toLowerCase().includes(term) &&
@@ -198,147 +216,203 @@ export default function RiskActions() {
     return true;
   });
 
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedActions = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Action Tracker</h1>
-            <p className="text-muted-foreground mt-1">Track risk mitigation actions</p>
-          </div>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Action Tracker</h1>
         </div>
-        <Card><CardContent className="pt-6"><Skeleton className="h-64" /></CardContent></Card>
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Action Tracker</h1>
-          <p className="text-muted-foreground mt-1">Track and manage risk mitigation actions</p>
-        </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-action">
-          <Plus className="mr-2 h-4 w-4" /> Add Action
-        </Button>
-      </div>
+    <div className="space-y-4" data-testid="page-risk-actions">
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Action Tracker</h1>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={riskFilter} onValueChange={setRiskFilter}>
-          <SelectTrigger className="w-[200px]" data-testid="select-risk-filter">
-            <SelectValue placeholder="Risk" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Risks</SelectItem>
-            {(risks || []).map(r => <SelectItem key={r.id} value={String(r.id)}>{r.title}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search actions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             data-testid="input-search-actions"
           />
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All Statuses</DropdownMenuItem>
+            {STATUSES.map(s => (
+              <DropdownMenuItem key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}>{s}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-priority">
+              Priority <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setPriorityFilter("all"); setCurrentPage(1); }}>All Priorities</DropdownMenuItem>
+            {PRIORITIES.map(p => (
+              <DropdownMenuItem key={p} onClick={() => { setPriorityFilter(p); setCurrentPage(1); }}>{p}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-risk">
+              Risk <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setRiskFilter("all"); setCurrentPage(1); }}>All Risks</DropdownMenuItem>
+            {(risks || []).map(r => (
+              <DropdownMenuItem key={r.id} onClick={() => { setRiskFilter(String(r.id)); setCurrentPage(1); }}>{r.title}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-action">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Action
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
+      <div className="border rounded-md" data-testid="section-actions-table">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-title">Title</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-risk">Risk</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-assignee">Assignee</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-status">Status</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-priority">Priority</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-due-date">Due Date</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="col-actions"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedActions.length === 0 && (
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Risk</TableHead>
-                <TableHead>Assignee</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <ListChecks className="h-8 w-8" />
+                    <span>No actions found</span>
+                  </div>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    <div className="flex flex-col items-center gap-2">
-                      <ListChecks className="h-8 w-8" />
-                      <span>No actions found</span>
-                    </div>
+            )}
+            {paginatedActions.map(action => {
+              const isOverdue = action.dueDate && new Date(action.dueDate) < new Date() && action.status !== "Completed" && action.status !== "Closed";
+              return (
+                <TableRow
+                  key={action.id}
+                  className={`group ${isOverdue ? "text-red-500 dark:text-red-400" : ""}`}
+                  data-testid={`row-action-${action.id}`}
+                >
+                  <TableCell>
+                    <span className="font-medium">{action.title}</span>
                   </TableCell>
-                </TableRow>
-              )}
-              {filtered.map(action => {
-                const isOverdue = action.dueDate && new Date(action.dueDate) < new Date() && action.status !== "Completed" && action.status !== "Closed";
-                const expanded = expandedId === action.id;
-                return (
-                  <TableRow
-                    key={action.id}
-                    className={`cursor-pointer ${isOverdue ? "text-red-500 dark:text-red-400" : ""}`}
-                    onClick={() => setExpandedId(expanded ? null : action.id)}
-                    data-testid={`row-action-${action.id}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {expanded ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
-                        <span className="font-medium">{action.title}</span>
-                      </div>
-                      {expanded && (
-                        <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-                          {action.description && <p>{action.description}</p>}
-                          {action.completedDate && <p><span className="font-medium">Completed:</span> {format(new Date(action.completedDate), "dd MMM yyyy")}</p>}
-                          {action.notes && <p><span className="font-medium">Notes:</span> {action.notes}</p>}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>{riskMap[action.riskId] || `Risk #${action.riskId}`}</TableCell>
-                    <TableCell>{action.assignee}</TableCell>
-                    <TableCell>
-                      <Badge variant={isOverdue ? "destructive" : getStatusVariant(action.status)}>
-                        {isOverdue ? "Overdue" : action.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell><Badge variant={getPriorityVariant(action.priority)}>{action.priority}</Badge></TableCell>
-                    <TableCell>{action.dueDate ? format(new Date(action.dueDate), "dd MMM yyyy") : "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
+                  <TableCell>{riskMap[action.riskId] || `Risk #${action.riskId}`}</TableCell>
+                  <TableCell>{action.assignee}</TableCell>
+                  <TableCell>
+                    <Badge variant={isOverdue ? "destructive" : getStatusVariant(action.status)}>
+                      {isOverdue ? "Overdue" : action.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell><Badge variant={getPriorityVariant(action.priority)}>{action.priority}</Badge></TableCell>
+                  <TableCell>{action.dueDate ? format(new Date(action.dueDate), "dd MMM yyyy") : "-"}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); openEditDialog(action); }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`button-row-actions-${action.id}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => openEditDialog(action)}
                           data-testid={`button-edit-action-${action.id}`}
                         >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); setDeletingAction(action); setDeleteConfirmOpen(true); }}
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => { setDeletingAction(action); setDeleteConfirmOpen(true); }}
+                          className="text-destructive"
                           data-testid={`button-delete-action-${action.id}`}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+        <span data-testid="text-pagination-info">
+          {startItem} to {endItem} of {totalResults} results
+        </span>
+        <div className="flex items-center gap-2">
+          <span>Show per page</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} data-testid="button-prev-page">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} data-testid="button-next-page">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">

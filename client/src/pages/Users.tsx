@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, UserX, Mail, Phone } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Mail, Phone } from "lucide-react";
 import type { User, BusinessUnit, AdminRecord } from "@shared/schema";
 import { insertUserSchema } from "@shared/schema";
 
@@ -48,9 +53,12 @@ function getStatusVariant(status: string) {
 }
 
 export default function Users() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
@@ -193,95 +201,146 @@ export default function Users() {
     return bu ? bu.name : "-";
   };
 
-  const filteredUsers = allUsers.filter((u) => {
-    if (roleFilter !== "all" && u.role !== roleFilter) return false;
-    if (statusFilter !== "all" && u.status !== statusFilter) return false;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
-      return (
-        fullName.includes(term) ||
-        u.email.toLowerCase().includes(term) ||
-        (u.department && u.department.toLowerCase().includes(term)) ||
-        (u.jobTitle && u.jobTitle.toLowerCase().includes(term))
-      );
-    }
-    return true;
-  });
+  const uniqueDepartments = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach((u) => { if (u.department) set.add(u.department); });
+    return Array.from(set).sort();
+  }, [allUsers]);
+
+  const hasActiveFilters = roleFilter !== "all" || statusFilter !== "all" || departmentFilter !== "all" || searchQuery.length > 0;
+
+  const filteredUsers = useMemo(() => {
+    return allUsers.filter((u) => {
+      if (roleFilter !== "all" && u.role !== roleFilter) return false;
+      if (statusFilter !== "all" && u.status !== statusFilter) return false;
+      if (departmentFilter !== "all" && u.department !== departmentFilter) return false;
+      if (searchQuery) {
+        const term = searchQuery.toLowerCase();
+        const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+        return (
+          fullName.includes(term) ||
+          u.email.toLowerCase().includes(term) ||
+          (u.department && u.department.toLowerCase().includes(term))
+        );
+      }
+      return true;
+    });
+  }, [allUsers, roleFilter, statusFilter, departmentFilter, searchQuery]);
+
+  const totalResults = filteredUsers.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
+  function resetFilters() {
+    setRoleFilter("all");
+    setStatusFilter("all");
+    setDepartmentFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Users</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">Manage system users and role assignments</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Users</h1>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-users"
+          />
         </div>
-        <Button onClick={openCreate} data-testid="button-create-user">
-          <Plus className="mr-1 h-4 w-4" />
-          Add User
-        </Button>
-      </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <Input
-          placeholder="Search by name, email, department..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-xs"
-          data-testid="input-search-users"
-        />
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[180px]" data-testid="select-role-filter">
-            <SelectValue placeholder="Filter by role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-role">
+              Role <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setRoleFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
             {roleOptions.map((r) => (
-              <SelectItem key={r} value={r}>{r}</SelectItem>
+              <DropdownMenuItem key={r} onClick={() => { setRoleFilter(r); setCurrentPage(1); }}>{r}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
             {USER_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+              <DropdownMenuItem key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}>{s}</DropdownMenuItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-department">
+              Department <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setDepartmentFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {uniqueDepartments.map((d) => (
+              <DropdownMenuItem key={d} onClick={() => { setDepartmentFilter(d); setCurrentPage(1); }}>{d}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreate} data-testid="button-create-user">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add User
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground" data-testid="text-empty-state">
-              {allUsers.length === 0 ? "No users yet. Add your first user." : "No users match your filters."}
-            </div>
-          ) : (
+      {isLoading ? (
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="border rounded-md p-6 text-center text-muted-foreground" data-testid="text-empty-state">
+          {allUsers.length === 0 ? "No users yet. Add your first user." : "No users match your filters."}
+        </div>
+      ) : (
+        <>
+          <div className="border rounded-md" data-testid="section-users-table">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Business Unit</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground">Name</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Email</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Role</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Department</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Business Unit</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                {paginatedUsers.map((user) => (
+                  <TableRow key={user.id} className="group" data-testid={`row-user-${user.id}`}>
                     <TableCell>
                       <div>
                         <span className="font-medium" data-testid={`text-user-name-${user.id}`}>
@@ -314,35 +373,75 @@ export default function Users() {
                         {user.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEdit(user)}
-                          data-testid={`button-edit-user-${user.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {user.status === "Active" && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => { setDeactivatingUser(user); setDeactivateConfirmOpen(true); }}
-                            data-testid={`button-deactivate-user-${user.id}`}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            data-testid={`button-actions-user-${user.id}`}
                           >
-                            <UserX className="h-4 w-4" />
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEdit(user)} data-testid={`button-edit-user-${user.id}`}>
+                            Edit
+                          </DropdownMenuItem>
+                          {user.status === "Active" && (
+                            <DropdownMenuItem
+                              onClick={() => { setDeactivatingUser(user); setDeactivateConfirmOpen(true); }}
+                              data-testid={`button-deactivate-user-${user.id}`}
+                            >
+                              Deactivate
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-pagination-info">{startItem} to {endItem} of {totalResults} results</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Show per page</span>
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
