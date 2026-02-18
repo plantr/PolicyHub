@@ -18,14 +18,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
-const testFormSchema = z.object({
-  description: z.string().min(1, "Description is required"),
-  coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
-  documentId: z.coerce.number().min(1, "Document is required"),
-});
-
-type TestFormValues = z.infer<typeof testFormSchema>;
-
 const linkDocFormSchema = z.object({
   documentId: z.coerce.number().min(1, "Document is required"),
   coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
@@ -39,13 +31,7 @@ export default function ControlDetail() {
   const [, navigate] = useLocation();
   const controlId = Number(params?.id);
   const { toast } = useToast();
-  const [addTestOpen, setAddTestOpen] = useState(false);
   const [linkDocOpen, setLinkDocOpen] = useState(false);
-
-  const testForm = useForm<TestFormValues>({
-    resolver: zodResolver(testFormSchema),
-    defaultValues: { description: "", coverageStatus: "Covered", documentId: 0 },
-  });
 
   const linkDocForm = useForm<LinkDocFormValues>({
     resolver: zodResolver(linkDocFormSchema),
@@ -140,19 +126,6 @@ export default function ControlDetail() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
-
-  function onAddTest(values: TestFormValues) {
-    createMappingMutation.mutate(
-      { documentId: values.documentId, coverageStatus: values.coverageStatus, rationale: values.description },
-      {
-        onSuccess: () => {
-          toast({ title: "Test added" });
-          setAddTestOpen(false);
-          testForm.reset({ description: "", coverageStatus: "Covered", documentId: 0 });
-        },
-      }
-    );
-  }
 
   function onLinkDoc(values: LinkDocFormValues) {
     createMappingMutation.mutate(
@@ -259,7 +232,7 @@ export default function ControlDetail() {
                 <Button
                   size="icon"
                   variant="outline"
-                  onClick={() => setAddTestOpen(true)}
+                  onClick={() => navigate(`/tests/new?controlId=${controlId}`)}
                   data-testid="button-add-test"
                 >
                   <Plus className="h-4 w-4" />
@@ -392,85 +365,6 @@ export default function ControlDetail() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <Dialog open={addTestOpen} onOpenChange={setAddTestOpen}>
-        <DialogContent className="sm:max-w-[480px]" data-testid="dialog-add-test">
-          <DialogHeader>
-            <DialogTitle>Add Test</DialogTitle>
-          </DialogHeader>
-          <Form {...testForm}>
-            <form onSubmit={testForm.handleSubmit(onAddTest)} className="space-y-4">
-              <FormField
-                control={testForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Company has an approved policy" {...field} data-testid="input-test-description" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={testForm.control}
-                name="documentId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Document</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-test-document">
-                          <SelectValue placeholder="Select a document" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {(allDocuments ?? []).map((d) => (
-                          <SelectItem key={d.id} value={String(d.id)} data-testid={`select-item-test-doc-${d.id}`}>
-                            {d.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={testForm.control}
-                name="coverageStatus"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-test-status">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Covered" data-testid="select-item-test-covered">Covered</SelectItem>
-                        <SelectItem value="Partially Covered" data-testid="select-item-test-partial">Partially Covered</SelectItem>
-                        <SelectItem value="Not Covered" data-testid="select-item-test-not-covered">Not Covered</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setAddTestOpen(false)} data-testid="button-cancel-test">
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createMappingMutation.isPending} data-testid="button-submit-test">
-                  {createMappingMutation.isPending ? "Adding..." : "Add test"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={linkDocOpen} onOpenChange={setLinkDocOpen}>
         <DialogContent className="sm:max-w-[480px]" data-testid="dialog-link-document">

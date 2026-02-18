@@ -1,18 +1,45 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CheckCircle2, XCircle, Clock, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ArrowLeft, CheckCircle2, XCircle, Clock, FileText, Save } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
+
+const createTestSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  documentId: z.coerce.number().min(1, "Document is required"),
+  coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
+});
+
+type CreateTestValues = z.infer<typeof createTestSchema>;
 
 export default function TestDetail() {
   const [, params] = useRoute("/tests/:id");
   const [, navigate] = useLocation();
-  const mappingId = Number(params?.id);
+  const rawId = params?.id;
+  const isCreateMode = rawId === "new";
+  const mappingId = isCreateMode ? null : Number(rawId);
+  const { toast } = useToast();
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const controlIdParam = Number(searchParams.get("controlId")) || 0;
+
+  const form = useForm<CreateTestValues>({
+    resolver: zodResolver(createTestSchema),
+    defaultValues: { description: "", documentId: 0, coverageStatus: "Covered" },
+  });
 
   const { data: allMappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
     queryKey: ["/api/requirement-mappings"],
@@ -31,8 +58,9 @@ export default function TestDetail() {
   });
 
   const mapping = useMemo(() => {
-    return (allMappings ?? []).find((m) => m.id === mappingId);
-  }, [allMappings, mappingId]);
+    if (isCreateMode || !allMappings) return null;
+    return allMappings.find((m) => m.id === mappingId) ?? null;
+  }, [allMappings, mappingId, isCreateMode]);
 
   const document = useMemo(() => {
     if (!mapping || !allDocuments) return null;
@@ -40,9 +68,12 @@ export default function TestDetail() {
   }, [mapping, allDocuments]);
 
   const requirement = useMemo(() => {
+    if (isCreateMode) {
+      return (allRequirements ?? []).find((r) => r.id === controlIdParam) ?? null;
+    }
     if (!mapping || !allRequirements) return null;
     return allRequirements.find((r) => r.id === mapping.requirementId) ?? null;
-  }, [mapping, allRequirements]);
+  }, [mapping, allRequirements, isCreateMode, controlIdParam]);
 
   const source = useMemo(() => {
     if (!requirement || !sources) return null;
@@ -50,12 +81,38 @@ export default function TestDetail() {
   }, [requirement, sources]);
 
   const linkedControls = useMemo(() => {
-    if (!mapping || !allMappings || !allRequirements) return [];
-    const reqMap = new Map((allRequirements ?? []).map((r) => [r.id, r]));
-    return [reqMap.get(mapping.requirementId)].filter(Boolean) as Requirement[];
-  }, [mapping, allMappings, allRequirements]);
+    if (isCreateMode) return requirement ? [requirement] : [];
+    if (!mapping || !allRequirements) return [];
+    const req = allRequirements.find((r) => r.id === mapping.requirementId);
+    return req ? [req] : [];
+  }, [mapping, allRequirements, isCreateMode, requirement]);
 
   const isPassing = mapping?.coverageStatus === "Covered" || mapping?.coverageStatus === "Partially Covered";
+
+  const createMutation = useMutation({
+    mutationFn: async (data: CreateTestValues) => {
+      const res = await apiRequest("POST", "/api/requirement-mappings", {
+        requirementId: controlIdParam,
+        documentId: data.documentId,
+        coverageStatus: data.coverageStatus,
+        rationale: data.description,
+      });
+      return res.json();
+    },
+    onSuccess: (created: RequirementMapping) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Test created" });
+      navigate(`/tests/${created.id}`, { replace: true });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function onSubmit(values: CreateTestValues) {
+    createMutation.mutate(values);
+  }
 
   if (mappingsLoading) {
     return (
@@ -67,7 +124,7 @@ export default function TestDetail() {
     );
   }
 
-  if (!mapping) {
+  if (!isCreateMode && !mapping) {
     return (
       <div className="space-y-4" data-testid="test-detail-not-found">
         <Button variant="ghost" onClick={() => window.history.back()} data-testid="button-back">
@@ -79,7 +136,151 @@ export default function TestDetail() {
     );
   }
 
-  const testTitle = mapping.rationale || (document ? `${document.title} is mapped` : `Test #${mapping.id}`);
+  if (isCreateMode) {
+    return (
+      <div className="space-y-6" data-testid="test-create-page">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => window.history.back()} data-testid="button-back">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground mb-1" data-testid="text-breadcrumb">Tests</p>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-create-title">
+            New Test
+          </h1>
+          {requirement && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Creating a test for control: <span className="font-medium">{requirement.title}</span>
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground" data-testid="test-metadata-row">
+          {source && <span data-testid="text-meta-source">{source.shortName}</span>}
+          <span data-testid="text-meta-type">Policy</span>
+        </div>
+
+        <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
+          <TabsList data-testid="test-tabs-list">
+            <TabsTrigger value="results" data-testid="tab-results">Results</TabsTrigger>
+            <TabsTrigger value="controls" data-testid="tab-controls">
+              Controls <Badge variant="outline" className="ml-1 text-xs">{linkedControls.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="results" className="mt-6">
+            <h3 className="text-base font-semibold mb-4" data-testid="text-results-heading">Test configuration</h3>
+            <Card data-testid="card-test-form">
+              <CardContent className="pt-6">
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Company has an approved Code of Conduct" {...field} data-testid="input-test-description" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="documentId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Document</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-test-document">
+                                <SelectValue placeholder="Select a document" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {(allDocuments ?? []).map((d) => (
+                                <SelectItem key={d.id} value={String(d.id)} data-testid={`select-item-doc-${d.id}`}>
+                                  {d.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="coverageStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-test-status">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Covered" data-testid="select-item-covered">Covered</SelectItem>
+                              <SelectItem value="Partially Covered" data-testid="select-item-partial">Partially Covered</SelectItem>
+                              <SelectItem value="Not Covered" data-testid="select-item-not-covered">Not Covered</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="pt-2">
+                      <Button type="submit" disabled={createMutation.isPending} data-testid="button-save-test">
+                        <Save className="h-4 w-4 mr-2" />
+                        {createMutation.isPending ? "Saving..." : "Save test"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="controls" className="mt-6">
+            <Card data-testid="card-controls-section">
+              <CardContent className="pt-6">
+                {linkedControls.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4" data-testid="text-no-controls">
+                    No controls linked.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {linkedControls.map((ctrl) => (
+                      <div
+                        key={ctrl.id}
+                        className="flex flex-wrap items-center gap-3 py-3 cursor-pointer hover-elevate"
+                        onClick={() => navigate(`/controls/${ctrl.id}`)}
+                        data-testid={`row-control-${ctrl.id}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">{ctrl.title}</span>
+                          <p className="text-xs text-muted-foreground mt-0.5">{ctrl.code} - {ctrl.category}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  }
+
+  const testTitle = mapping!.rationale || (document ? `${document.title} is mapped` : `Test #${mapping!.id}`);
   const testDescription = document
     ? `This test verifies that your company has an approved ${document.title}.`
     : "This test verifies compliance with the mapped control.";
@@ -118,10 +319,10 @@ export default function TestDetail() {
             {document.owner}
           </span>
         )}
-        {mapping.confirmedAt && (
+        {mapping!.confirmedAt && (
           <span className="flex items-center gap-1" data-testid="text-meta-ran">
             <Clock className="h-3.5 w-3.5" />
-            Confirmed {new Date(mapping.confirmedAt).toLocaleDateString()}
+            Confirmed {new Date(mapping!.confirmedAt).toLocaleDateString()}
           </span>
         )}
         {source && (
@@ -183,7 +384,7 @@ export default function TestDetail() {
                     <p className="text-xs text-muted-foreground">{document.docType} - {document.owner}</p>
                   </div>
                   <Badge variant={isPassing ? "default" : "destructive"} className="text-xs" data-testid="badge-evidence-status">
-                    {mapping.coverageStatus}
+                    {mapping!.coverageStatus}
                   </Badge>
                 </div>
               ) : (
@@ -191,9 +392,9 @@ export default function TestDetail() {
                   No evidence linked to this test.
                 </p>
               )}
-              {mapping.evidencePointers && (
+              {mapping!.evidencePointers && (
                 <p className="text-sm text-muted-foreground mt-3 border-t pt-3" data-testid="text-evidence-pointers">
-                  {mapping.evidencePointers}
+                  {mapping!.evidencePointers}
                 </p>
               )}
             </CardContent>
