@@ -160,7 +160,6 @@ export default function Dashboard() {
                   innerRadius={60}
                   outerRadius={100}
                   dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
                 >
                   {coverageData.map((_, idx) => (
                     <Cell key={idx} fill={COVERAGE_COLORS[idx]} />

@@ -266,7 +266,6 @@ export default function RiskOverview() {
                     innerRadius={60}
                     outerRadius={100}
                     dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
                   >
                     {statusData.map((entry) => (
                       <Cell
