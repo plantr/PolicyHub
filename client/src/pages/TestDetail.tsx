@@ -162,7 +162,6 @@ export default function TestDetail() {
         </div>
 
         <div>
-          <p className="text-xs text-muted-foreground mb-1" data-testid="text-breadcrumb">Tests</p>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-create-title">
             New Test
           </h1>
@@ -171,11 +170,6 @@ export default function TestDetail() {
               Creating a test for control: <span className="font-medium">{requirement.title}</span>
             </p>
           )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground" data-testid="test-metadata-row">
-          {source && <span data-testid="text-meta-source">{source.shortName}</span>}
-          <span data-testid="text-meta-type">Policy</span>
         </div>
 
         <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
@@ -311,7 +305,6 @@ export default function TestDetail() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground mb-1" data-testid="text-breadcrumb">Tests</p>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-test-title">
             {testTitle}
           </h1>
@@ -370,10 +363,6 @@ export default function TestDetail() {
             {source.shortName}
           </span>
         )}
-        <span className="flex items-center gap-1" data-testid="text-meta-type">
-          <FileText className="h-3.5 w-3.5" />
-          Policy
-        </span>
       </div>
 
       <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
