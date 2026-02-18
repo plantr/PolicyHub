@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
 const linkDocFormSchema = z.object({
@@ -153,10 +153,11 @@ export default function ControlDetail() {
   if (!control) {
     return (
       <div className="space-y-4" data-testid="control-detail-not-found">
-        <Button variant="ghost" onClick={() => navigate("/requirements")} data-testid="button-back">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Controls
-        </Button>
+        <div className="flex justify-end">
+          <Button size="icon" variant="ghost" onClick={() => window.history.back()} data-testid="button-close">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
         <p className="text-muted-foreground">Control not found.</p>
       </div>
     );
@@ -168,22 +169,20 @@ export default function ControlDetail() {
 
   return (
     <div className="space-y-6" data-testid="control-detail-page">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" onClick={() => navigate("/requirements")} data-testid="button-back">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-control-title">
+            {control.title}
+          </h1>
+          {control.description && (
+            <p className="text-muted-foreground mt-2 max-w-2xl" data-testid="text-control-description">
+              {control.description}
+            </p>
+          )}
+        </div>
+        <Button size="icon" variant="ghost" onClick={() => window.history.back()} data-testid="button-close">
+          <X className="h-4 w-4" />
         </Button>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-control-title">
-          {control.title}
-        </h1>
-        {control.description && (
-          <p className="text-muted-foreground mt-2 max-w-2xl" data-testid="text-control-description">
-            {control.description}
-          </p>
-        )}
       </div>
 
       <div className="grid grid-cols-[auto_1fr] gap-x-8 gap-y-3 text-sm max-w-lg" data-testid="control-metadata">
