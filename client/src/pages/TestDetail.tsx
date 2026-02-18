@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2, ChevronDown, ChevronUp, Send } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
 
 function formatTimeAgo(date: Date): string {
@@ -622,13 +622,52 @@ export default function TestDetail() {
         </TabsContent>
 
         <TabsContent value="comments" className="mt-6">
-          <Card data-testid="card-comments-section">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground py-4" data-testid="text-no-comments">
-                No comments yet.
-              </p>
-            </CardContent>
-          </Card>
+          <div data-testid="card-comments-section">
+            <div className="flex flex-col items-center py-10">
+              <div className="flex flex-col items-center gap-3 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-500 dark:bg-purple-400 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="h-2 w-24 rounded-full bg-muted" />
+                    <div className="h-2 w-16 rounded-full bg-muted" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500 dark:bg-amber-400 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    MH
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="h-2 w-24 rounded-full bg-muted" />
+                    <div className="h-2 w-16 rounded-full bg-muted" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="text-sm font-semibold" data-testid="text-no-comments">No comments yet</h3>
+              <p className="text-xs text-muted-foreground mt-1">Share your thoughts to start a discussion.</p>
+            </div>
+
+            <div className="border-t">
+              <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b text-xs text-amber-700 dark:text-amber-400">
+                <span>You do not have permission to comment on this thread.</span>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0" data-testid="avatar-comment-user">
+                  RP
+                </div>
+                <Input
+                  placeholder="Comment or add others with @..."
+                  className="flex-1"
+                  disabled
+                  data-testid="input-comment"
+                />
+                <Button size="icon" variant="ghost" disabled data-testid="button-send-comment">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
