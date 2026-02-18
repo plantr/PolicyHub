@@ -329,14 +329,15 @@ export default function GapAnalysis() {
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-req-title">Requirement Title</TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-document">Document</TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bu">Business Unit</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-coverage">Coverage Status</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-coverage">Coverage</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-match-pct">Match %</TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rationale">Rationale</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedMappings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-mappings">
+                        <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-mappings">
                           No mappings found.
                         </TableCell>
                       </TableRow>
@@ -345,6 +346,8 @@ export default function GapAnalysis() {
                         const req = reqMap.get(m.requirementId);
                         const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
                         const bu = m.businessUnitId ? buMap.get(m.businessUnitId) : null;
+                        const pctMatch = m.rationale?.match(/\((\d+)%\)/);
+                        const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
                         return (
                           <TableRow key={m.id} data-testid={`row-mapping-${m.id}`}>
                             <TableCell className="font-mono text-sm font-medium" data-testid={`text-req-code-${m.id}`}>
@@ -363,6 +366,21 @@ export default function GapAnalysis() {
                               <Badge variant="secondary" className={`border-0 ${getCoverageBadgeClass(m.coverageStatus)}`}>
                                 {m.coverageStatus}
                               </Badge>
+                            </TableCell>
+                            <TableCell data-testid={`text-match-pct-${m.id}`}>
+                              {pct !== null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-14 h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${pct >= 45 ? "bg-green-500 dark:bg-green-400" : pct >= 30 ? "bg-amber-500 dark:bg-amber-400" : "bg-red-500 dark:bg-red-400"}`}
+                                      style={{ width: `${Math.min(pct, 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-medium">{pct}%</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[250px] truncate" data-testid={`text-rationale-${m.id}`}>
                               {m.rationale ?? "--"}

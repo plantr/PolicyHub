@@ -668,7 +668,7 @@ export async function registerRoutes(
             requirementId: req.id,
             documentId: bestDoc.docId,
             coverageStatus,
-            rationale: `Auto-mapped: ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`,
+            rationale: `Auto-mapped (${Math.round(bestDoc.score * 100)}%): ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`,
           });
           created++;
           existingMappingKeys.add(key);
