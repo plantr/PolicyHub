@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Info, ChevronsRight } from "lucide-react";
+import { Plus, Search, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
@@ -336,23 +338,148 @@ export default function Requirements() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card data-testid="card-assignment-summary">
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-semibold mb-4">Coverage</h3>
+            <div className="flex flex-wrap items-center gap-6">
+              <DonutChart
+                segments={[
+                  { value: metrics.covered, className: "text-emerald-500 dark:text-emerald-400" },
+                  { value: metrics.partial, className: "text-amber-500 dark:text-amber-400" },
+                  { value: metrics.notCovered, className: "text-muted-foreground/30" },
+                ]}
+                centerLabel={`${metrics.total > 0 ? Math.round((metrics.notCovered / metrics.total) * 100) : 0}%`}
+                centerSub="Unmapped"
+              />
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30 inline-block" />
+                  <span className="text-muted-foreground">Unmapped</span>
+                  <span className="font-medium ml-auto">{metrics.notCovered}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 inline-block" />
+                  <span className="text-muted-foreground">Covered</span>
+                  <span className="font-medium ml-auto">{metrics.covered}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
+                  <span className="text-muted-foreground">Partially covered</span>
+                  <span className="font-medium ml-auto">{metrics.partial}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-controls-summary">
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-semibold mb-2">Controls</h3>
+            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+              <div className="flex-1">
+                <p className="text-3xl font-bold" data-testid="text-controls-coverage">{metrics.coveragePercent}%</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">Of controls have passing evidence</p>
+                <CoverageBar
+                  percent={metrics.coveragePercent}
+                  color="bg-emerald-500 dark:bg-emerald-400"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mt-2">
+                  <span>{metrics.covered + metrics.partial} controls</span>
+                  <span>{metrics.total} total</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 lg:w-52 shrink-0">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                    <span className="text-xs text-muted-foreground">Mapped controls</span>
+                    <span className="text-xs font-medium">{metrics.covered + metrics.partial}/{metrics.total}</span>
+                  </div>
+                  <CoverageBar
+                    percent={metrics.total > 0 ? Math.round(((metrics.covered + metrics.partial) / metrics.total) * 100) : 0}
+                    color="bg-emerald-500 dark:bg-emerald-400"
+                  />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                    <span className="text-xs text-muted-foreground">Documents</span>
+                    <span className="text-xs font-medium">{metrics.mappedDocCount}/{metrics.totalDocCount}</span>
+                  </div>
+                  <CoverageBar
+                    percent={metrics.totalDocCount > 0 ? Math.round((metrics.mappedDocCount / metrics.totalDocCount) * 100) : 0}
+                    color="bg-emerald-500 dark:bg-emerald-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3" data-testid="controls-filter-bar">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search controls"
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search-controls"
+          />
+        </div>
+
+        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-trigger-framework">
+            <SelectValue placeholder="Framework" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="select-item-framework-all">All Frameworks</SelectItem>
+            {(sources ?? []).map((s) => (
+              <SelectItem key={s.id} value={String(s.id)} data-testid={`select-item-framework-${s.id}`}>{s.shortName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-trigger-category">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="select-item-category-all">All Categories</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c} value={c} data-testid={`select-item-category-${c}`}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-trigger-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="select-item-status-all">All Statuses</SelectItem>
+            <SelectItem value="covered" data-testid="select-item-status-covered">Covered</SelectItem>
+            <SelectItem value="partial" data-testid="select-item-status-partial">Partially Covered</SelectItem>
+            <SelectItem value="not_covered" data-testid="select-item-status-not-covered">Not Covered</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-14 w-full" />
+            <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
       ) : (
         <Table data-testid="controls-table">
           <TableHeader>
-            <TableRow className="border-b">
-              <TableHead className="w-[120px] text-xs font-normal text-muted-foreground" data-testid="th-id">
-                <span className="flex flex-wrap items-center gap-1">ID <Info className="h-3 w-3" /></span>
-              </TableHead>
-              <TableHead className="text-xs font-normal text-muted-foreground" data-testid="th-control">Control</TableHead>
-              <TableHead className="w-[200px] text-xs font-normal text-muted-foreground" data-testid="th-owner">Owner</TableHead>
-              <TableHead className="text-xs font-normal text-muted-foreground" data-testid="th-frameworks">Frameworks</TableHead>
-              <TableHead className="w-[40px]" data-testid="th-actions"></TableHead>
+            <TableRow>
+              <TableHead className="w-[120px]" data-testid="th-id">ID</TableHead>
+              <TableHead data-testid="th-control">Control</TableHead>
+              <TableHead className="w-[200px]" data-testid="th-owner">Owner</TableHead>
+              <TableHead data-testid="th-frameworks">Frameworks</TableHead>
+              <TableHead className="w-[50px]" data-testid="th-actions"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -369,57 +496,48 @@ export default function Requirements() {
                 const ownerDoc = maps.length > 0 && maps[0].documentId
                   ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
                   : null;
-                const ownerName = ownerDoc?.owner ?? "";
-
-                const frameworkTags: string[] = [];
-                if (source) {
-                  frameworkTags.push(`${source.shortName} · ${req.code}`);
-                } else {
-                  frameworkTags.push(req.code);
-                }
-                for (const m of maps) {
-                  if (m.documentId) {
-                    const doc = (allDocuments ?? []).find((d) => d.id === m.documentId);
-                    if (doc) {
-                      const docSource = sourceMap.get(req.sourceId);
-                      const tag = docSource ? `${docSource.shortName} · ${req.code}` : req.code;
-                      if (!frameworkTags.includes(tag)) {
-                        frameworkTags.push(tag);
-                      }
-                    }
-                  }
-                }
-                const visibleTags = frameworkTags.slice(0, 2);
-                const extraCount = frameworkTags.length - 2;
-
+                const ownerName = ownerDoc?.owner ?? "--";
+                const frameworkLabel = source
+                  ? `${source.shortName} · ${req.code}`
+                  : req.code;
+                const extraFrameworks = maps.length > 1 ? maps.length - 1 : 0;
                 return (
                   <TableRow
                     key={req.id}
-                    className="cursor-pointer border-b"
+                    className="cursor-pointer hover-elevate"
                     onClick={() => navigate(`/controls/${req.id}`)}
                     data-testid={`row-control-${req.id}`}
                   >
-                    <TableCell className="font-mono text-sm text-muted-foreground py-4" data-testid={`text-id-${req.id}`}>
+                    <TableCell className="font-mono text-xs text-muted-foreground" data-testid={`text-id-${req.id}`}>
                       {req.code}
                     </TableCell>
-                    <TableCell className="py-4" data-testid={`text-control-${req.id}`}>
+                    <TableCell data-testid={`text-control-${req.id}`}>
                       <span className="text-sm">{req.title}</span>
                     </TableCell>
-                    <TableCell className="text-sm py-4" data-testid={`text-owner-${req.id}`}>
+                    <TableCell className="text-sm" data-testid={`text-owner-${req.id}`}>
                       {ownerName}
                     </TableCell>
-                    <TableCell className="py-4" data-testid={`text-framework-${req.id}`}>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {visibleTags.map((tag, i) => (
-                          <span key={i} className="text-sm text-muted-foreground whitespace-nowrap">{tag}</span>
-                        ))}
-                        {extraCount > 0 && (
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">+{extraCount}</span>
+                    <TableCell data-testid={`text-framework-${req.id}`}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{frameworkLabel}</span>
+                        {extraFrameworks > 0 && (
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">+{extraFrameworks}</span>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="py-4 text-right" data-testid={`text-actions-${req.id}`}>
-                      <ChevronsRight className="h-4 w-4 text-muted-foreground/50 inline-block" />
+                    <TableCell data-testid={`text-actions-${req.id}`}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/controls/${req.id}`);
+                        }}
+                        data-testid={`button-open-${req.id}`}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
