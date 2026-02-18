@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2 } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
 
 function formatTimeAgo(date: Date): string {
@@ -142,10 +142,11 @@ export default function TestDetail() {
   if (!isCreateMode && !mapping) {
     return (
       <div className="space-y-4" data-testid="test-detail-not-found">
-        <Button variant="ghost" onClick={() => window.history.back()} data-testid="button-back">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <div className="flex justify-end">
+          <Button size="icon" variant="ghost" onClick={() => window.history.back()} data-testid="button-close">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
         <p className="text-muted-foreground">Test not found.</p>
       </div>
     );
@@ -154,22 +155,20 @@ export default function TestDetail() {
   if (isCreateMode) {
     return (
       <div className="space-y-6" data-testid="test-create-page">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" onClick={() => window.history.back()} data-testid="button-back">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-create-title">
+              New Test
+            </h1>
+            {requirement && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Creating a test for control: <span className="font-medium">{requirement.title}</span>
+              </p>
+            )}
+          </div>
+          <Button size="icon" variant="ghost" onClick={() => window.history.back()} data-testid="button-close">
+            <X className="h-4 w-4" />
           </Button>
-        </div>
-
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-create-title">
-            New Test
-          </h1>
-          {requirement && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Creating a test for control: <span className="font-medium">{requirement.title}</span>
-            </p>
-          )}
         </div>
 
         <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
@@ -295,13 +294,6 @@ export default function TestDetail() {
 
   return (
     <div className="space-y-6" data-testid="test-detail-page">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" onClick={() => window.history.back()} data-testid="button-back">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-      </div>
-
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-test-title">
@@ -339,6 +331,9 @@ export default function TestDetail() {
           </DropdownMenu>
           <Button size="icon" variant="outline" data-testid="button-test-share">
             <Share2 className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => window.history.back()} data-testid="button-close">
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
