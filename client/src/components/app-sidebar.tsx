@@ -55,7 +55,7 @@ const navGroups = [
     items: [
       { title: "Documents", icon: FileText, path: "/documents" },
       { title: "Requirements", icon: BookOpen, path: "/requirements" },
-      { title: "Regulatory Sources", icon: Scale, path: "/sources" },
+      { title: "Frameworks", icon: Scale, path: "/sources" },
     ],
   },
   {
