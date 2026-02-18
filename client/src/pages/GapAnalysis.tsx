@@ -369,13 +369,25 @@ export default function GapAnalysis() {
                             </TableCell>
                             <TableCell data-testid={`text-match-pct-${m.id}`}>
                               {pct !== null ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-14 h-2 rounded-full bg-muted overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${pct >= 45 ? "bg-green-500 dark:bg-green-400" : pct >= 30 ? "bg-amber-500 dark:bg-amber-400" : "bg-red-500 dark:bg-red-400"}`}
-                                      style={{ width: `${Math.min(pct, 100)}%` }}
+                                <div className="flex items-center gap-1.5">
+                                  <svg width="24" height="24" viewBox="0 0 36 36">
+                                    <circle
+                                      cx="18" cy="18" r="14"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                      className="text-muted"
                                     />
-                                  </div>
+                                    <circle
+                                      cx="18" cy="18" r="14"
+                                      fill="none"
+                                      strokeWidth="4"
+                                      strokeLinecap="round"
+                                      strokeDasharray={`${(pct / 100) * 87.96} ${87.96}`}
+                                      transform="rotate(-90 18 18)"
+                                      className={pct >= 45 ? "stroke-green-500 dark:stroke-green-400" : pct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                    />
+                                  </svg>
                                   <span className="text-xs font-medium">{pct}%</span>
                                 </div>
                               ) : (
