@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { RequirementMapping, Requirement, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
-import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2 } from "lucide-react";
+import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -98,6 +98,8 @@ export default function GapAnalysis() {
   const [analysisResult, setAnalysisResult] = useState<GapAnalysisResult | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const { toast } = useToast();
 
   const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
@@ -189,9 +191,75 @@ export default function GapAnalysis() {
     });
   }, [allMappings, statusFilter, buFilter, searchQuery, reqMap, docMap]);
 
-  const totalResults = filtered.length;
+  function toggleSort(col: string) {
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortColumn !== col) return <ArrowUpDown className="inline ml-1 h-3 w-3 text-muted-foreground/50" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="inline ml-1 h-3 w-3" />
+      : <ArrowDown className="inline ml-1 h-3 w-3" />;
+  }
+
+  const sorted = useMemo(() => {
+    if (!sortColumn) return filtered;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let va: string | number = "";
+      let vb: string | number = "";
+      switch (sortColumn) {
+        case "code": {
+          va = (reqMap.get(a.requirementId)?.code ?? "").toLowerCase();
+          vb = (reqMap.get(b.requirementId)?.code ?? "").toLowerCase();
+          break;
+        }
+        case "title": {
+          va = (reqMap.get(a.requirementId)?.title ?? "").toLowerCase();
+          vb = (reqMap.get(b.requirementId)?.title ?? "").toLowerCase();
+          break;
+        }
+        case "document": {
+          va = (a.documentId != null ? docMap.get(a.documentId)?.title ?? "" : "").toLowerCase();
+          vb = (b.documentId != null ? docMap.get(b.documentId)?.title ?? "" : "").toLowerCase();
+          break;
+        }
+        case "bu": {
+          va = (a.businessUnitId ? buMap.get(a.businessUnitId)?.name ?? "" : "Group").toLowerCase();
+          vb = (b.businessUnitId ? buMap.get(b.businessUnitId)?.name ?? "" : "Group").toLowerCase();
+          break;
+        }
+        case "coverage": {
+          const order: Record<string, number> = { "Covered": 0, "Partially Covered": 1, "Not Covered": 2 };
+          va = order[a.coverageStatus] ?? 3;
+          vb = order[b.coverageStatus] ?? 3;
+          break;
+        }
+        case "matchPct": {
+          const extractPct = (r: string | null) => {
+            const m = r?.match(/\((\d+)%\)/);
+            return m ? parseInt(m[1], 10) : -1;
+          };
+          va = extractPct(a.rationale);
+          vb = extractPct(b.rationale);
+          break;
+        }
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }, [filtered, sortColumn, sortDir, reqMap, docMap, buMap]);
+
+  const totalResults = sorted.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
-  const paginatedMappings = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedMappings = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalResults);
 
@@ -325,12 +393,12 @@ export default function GapAnalysis() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-req-code">Requirement Code</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-req-title">Requirement Title</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-document">Document</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bu">Business Unit</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-coverage">Coverage</TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-match-pct">Match %</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("code")} data-testid="th-req-code">Requirement Code<SortIcon col="code" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("title")} data-testid="th-req-title">Requirement Title<SortIcon col="title" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("document")} data-testid="th-document">Document<SortIcon col="document" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("bu")} data-testid="th-bu">Business Unit<SortIcon col="bu" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("coverage")} data-testid="th-coverage">Coverage<SortIcon col="coverage" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("matchPct")} data-testid="th-match-pct">Match %<SortIcon col="matchPct" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rationale">Rationale</TableHead>
                     </TableRow>
                   </TableHeader>
