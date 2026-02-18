@@ -16,22 +16,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, CheckCircle2, XCircle, FileText, Save, MoreHorizontal, Share2, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
-
-function formatTimeAgo(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  if (diffMinutes < 1) return "just now";
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) return `${diffDays}d ago`;
-  const diffMonths = Math.floor(diffDays / 30);
-  return `${diffMonths}mo ago`;
-}
 
 const createTestSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -465,31 +451,29 @@ export default function TestDetail() {
     );
   }
 
-  const testTitle = mapping!.rationale || (document ? `${document.title} is mapped` : `Test #${mapping!.id}`);
-  const testDescription = document
-    ? `This test verifies that your company has an approved ${document.title}.`
-    : "This test verifies compliance with the mapped control.";
+  const testTitle = document
+    ? `This test verifies that your company has an approved ${document.title}`
+    : (mapping!.rationale || `Test #${mapping!.id}`);
+  const testDescription = mapping!.rationale || "This test verifies compliance with the mapped control.";
 
   return (
-    <div className="space-y-6" data-testid="test-detail-page">
+    <div className="space-y-5" data-testid="test-detail-page">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-test-title">
+        <div className="flex-1 min-w-0 space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight leading-snug max-w-2xl" data-testid="text-test-title">
             {testTitle}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl" data-testid="text-test-description">
+          <p className="text-sm text-muted-foreground max-w-2xl" data-testid="text-test-description">
             {testDescription}
-            {document && (
-              <>
-                {" "}
-                <Link href={`/documents/${document.id}`} className="underline hover:text-foreground" data-testid="link-test-document">
-                  {document.title}
-                </Link>
-              </>
-            )}
           </p>
+          {source && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground pt-1" data-testid="text-meta-source">
+              <FileText className="h-3.5 w-3.5" />
+              <span>{source.shortName}</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-1 shrink-0 pt-4">
+        <div className="flex items-center gap-1 shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="icon" variant="outline" data-testid="button-test-more">
@@ -516,37 +500,16 @@ export default function TestDetail() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground" data-testid="test-metadata-row">
-        {document && (
-          <span className="flex items-center gap-1" data-testid="text-meta-owner">
-            <User className="h-3.5 w-3.5" />
-            {document.owner}
-          </span>
-        )}
-        {mapping!.confirmedAt && (
-          <span className="flex items-center gap-1" data-testid="text-meta-ran">
-            <Clock className="h-3.5 w-3.5" />
-            Ran {formatTimeAgo(new Date(mapping!.confirmedAt))}
-          </span>
-        )}
-        {source && (
-          <span className="flex items-center gap-1" data-testid="text-meta-source">
-            <FileText className="h-3.5 w-3.5" />
-            {source.shortName}
-          </span>
-        )}
-      </div>
-
       <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
-        <TabsList data-testid="test-tabs-list">
-          <TabsTrigger value="results" data-testid="tab-results">Results</TabsTrigger>
-          <TabsTrigger value="evidence" data-testid="tab-evidence">Evidence</TabsTrigger>
-          <TabsTrigger value="history" data-testid="tab-history">History</TabsTrigger>
-          <TabsTrigger value="controls" data-testid="tab-controls">
-            Controls <Badge variant="outline" className="ml-1 text-xs">{linkedControls.length}</Badge>
+        <TabsList className="bg-transparent border-b rounded-none h-auto p-0 gap-0" data-testid="test-tabs-list">
+          <TabsTrigger value="results" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2 text-sm" data-testid="tab-results">Results</TabsTrigger>
+          <TabsTrigger value="evidence" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2 text-sm" data-testid="tab-evidence">Evidence</TabsTrigger>
+          <TabsTrigger value="history" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2 text-sm" data-testid="tab-history">History</TabsTrigger>
+          <TabsTrigger value="controls" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2 text-sm" data-testid="tab-controls">
+            Controls <span className="ml-1.5 text-muted-foreground">{linkedControls.length}</span>
           </TabsTrigger>
-          <TabsTrigger value="comments" data-testid="tab-comments">
-            Comments <Badge variant="outline" className="ml-1 text-xs">0</Badge>
+          <TabsTrigger value="comments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2 text-sm" data-testid="tab-comments">
+            Comments <span className="ml-1.5 text-muted-foreground">0</span>
           </TabsTrigger>
         </TabsList>
 
@@ -594,31 +557,26 @@ export default function TestDetail() {
         </TabsContent>
 
         <TabsContent value="controls" className="mt-6">
-          <Card data-testid="card-controls-section">
-            <CardContent className="pt-6">
-              {linkedControls.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4" data-testid="text-no-controls">
-                  No controls linked to this test.
-                </p>
-              ) : (
-                <div className="divide-y">
-                  {linkedControls.map((ctrl) => (
-                    <div
-                      key={ctrl.id}
-                      className="flex flex-wrap items-center gap-3 py-3 cursor-pointer hover-elevate"
-                      onClick={() => navigate(`/controls/${ctrl.id}`)}
-                      data-testid={`row-control-${ctrl.id}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium">{ctrl.title}</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">{ctrl.code} - {ctrl.category}</p>
-                      </div>
-                    </div>
-                  ))}
+          {linkedControls.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4" data-testid="text-no-controls">
+              No controls linked to this test.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {linkedControls.map((ctrl) => (
+                <div
+                  key={ctrl.id}
+                  className="border rounded-md pl-4 pr-4 py-3 cursor-pointer hover-elevate"
+                  style={{ borderLeftWidth: "3px", borderLeftColor: "hsl(var(--primary) / 0.35)" }}
+                  onClick={() => navigate(`/controls/${ctrl.id}`)}
+                  data-testid={`row-control-${ctrl.id}`}
+                >
+                  <span className="text-sm font-medium" data-testid={`text-control-title-${ctrl.id}`}>{ctrl.title}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5" data-testid={`text-control-code-${ctrl.id}`}>{ctrl.code} - {ctrl.category}</p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="comments" className="mt-6">
