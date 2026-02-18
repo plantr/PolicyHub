@@ -669,13 +669,6 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                             {req.description && (
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.description}</p>
                             )}
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-                              {req.evidence && (
-                                <span data-testid={`text-evidence-${req.id}`}>
-                                  <span className="font-medium text-foreground">Evidence:</span> {req.evidence}
-                                </span>
-                              )}
-                            </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
                               {req.owner && (
                                 <span data-testid={`text-owner-${req.id}`}>
@@ -694,9 +687,16 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                               )}
                             </div>
                             {reqMaps.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <span className="text-xs text-muted-foreground">Mapped documents:</span>
-                                <span className="text-xs">{reqMaps.length}</span>
+                              <div className="mt-2" data-testid={`tests-list-${req.id}`}>
+                                <span className="text-xs font-medium">Tests ({reqMaps.length})</span>
+                                <div className="mt-1 space-y-0.5">
+                                  {reqMaps.map((m) => (
+                                    <div key={m.id} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                      <Badge variant={getCoverageVariant(m.coverageStatus)} className="text-[10px] px-1.5 py-0 shrink-0">{m.coverageStatus}</Badge>
+                                      <span>{m.rationale}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
