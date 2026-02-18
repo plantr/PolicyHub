@@ -7,8 +7,6 @@ import { db } from "./db";
 import { createHash } from "crypto";
 import multer from "multer";
 import { generateS3Key, uploadToS3, getLocalFilePath, deleteFromS3 } from "./s3";
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -411,12 +409,18 @@ export async function registerRoutes(
       const filePath = getLocalFilePath(version.pdfS3Key);
       const fs = await import("fs/promises");
       const buffer = await fs.readFile(filePath);
-      const { PDFParse } = _require("pdf-parse");
-      const pdfData = await PDFParse(buffer);
-      const text = pdfData.text || "";
-
-      const lines = text.split("\n").map((l: string) => l.trimEnd());
-      const markdown = lines.join("\n");
+      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+      const textParts: string[] = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item: any) => item.str)
+          .join("");
+        textParts.push(pageText);
+      }
+      const markdown = textParts.join("\n\n");
 
       res.json({ markdown });
     } catch (err: any) {
