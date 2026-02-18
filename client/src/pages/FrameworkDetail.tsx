@@ -659,6 +659,9 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                             <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-mono text-xs text-muted-foreground">{req.code}</span>
+                                {req.article && (
+                                  <Badge variant="outline" className="text-xs shrink-0">{req.article}</Badge>
+                                )}
                                 <span className="text-sm font-medium">{req.title}</span>
                               </div>
                               <Badge variant={getCoverageVariant(bestStatus)} className="text-xs shrink-0">{bestStatus}</Badge>
@@ -666,6 +669,30 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                             {req.description && (
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.description}</p>
                             )}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                              {req.evidence && (
+                                <span data-testid={`text-evidence-${req.id}`}>
+                                  <span className="font-medium text-foreground">Evidence:</span> {req.evidence}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
+                              {req.owner && (
+                                <span data-testid={`text-owner-${req.id}`}>
+                                  <span className="font-medium text-foreground">Owner:</span> {req.owner}
+                                </span>
+                              )}
+                              {req.status && (
+                                <span data-testid={`text-status-${req.id}`}>
+                                  <span className="font-medium text-foreground">Status:</span> {req.status}
+                                </span>
+                              )}
+                              {req.notes && (
+                                <span data-testid={`text-notes-${req.id}`}>
+                                  <span className="font-medium text-foreground">Notes:</span> {req.notes}
+                                </span>
+                              )}
+                            </div>
                             {reqMaps.length > 0 && (
                               <div className="flex flex-wrap items-center gap-2 mt-2">
                                 <span className="text-xs text-muted-foreground">Mapped documents:</span>

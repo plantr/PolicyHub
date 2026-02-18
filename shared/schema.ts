@@ -50,6 +50,10 @@ export const requirements = pgTable("requirements", {
   description: text("description").notNull(),
   category: text("category").notNull(),
   article: text("article"),
+  evidence: text("evidence"),
+  owner: text("owner"),
+  status: text("status"),
+  notes: text("notes"),
 });
 
 // =============================================
