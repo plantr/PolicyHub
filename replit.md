@@ -13,6 +13,9 @@ Key capabilities include:
 - Audit tracking (internal, external, regulatory, thematic, follow-up) with status lifecycle
 - Immutable audit trail for all governance actions
 - Dashboard with analytics charts and compliance metrics
+- Trust Center: Vanta-inspired compliance posture overview with risk indicators
+- Commitments tracking: regulatory conditions, undertakings, and remediation actions
+- Knowledge Base: internal compliance guidance library with categories, tags, and search
 
 ## User Preferences
 
@@ -69,6 +72,8 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `policy_links` - Relationships between policy documents
 - `audits` - Internal/external compliance audit records with type, status, dates, and ratings
 - `users` - System users with roles, departments, business unit assignments, and status
+- `commitments` - Regulatory conditions, undertakings, and remediation actions with source, category, status, owner, due dates
+- `knowledge_base_articles` - Internal compliance guidance articles with categories, tags, markdown content, and jurisdiction
 - `entity_types`, `roles`, `jurisdictions`, `document_categories`, `finding_severities` - Administration reference tables
 
 ### Shared Code
