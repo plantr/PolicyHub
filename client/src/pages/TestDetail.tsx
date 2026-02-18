@@ -199,7 +199,7 @@ export default function TestDetail() {
                 </Card>
                 <Button type="submit" disabled={createMutation.isPending} data-testid="button-save-test">
                   <Save className="h-4 w-4 mr-2" />
-                  {createMutation.isPending ? "Saving..." : "Save test"}
+                  {createMutation.isPending ? "Saving..." : "Save"}
                 </Button>
               </form>
             </Form>
