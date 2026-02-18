@@ -323,25 +323,25 @@ export default function TestDetail() {
         </TabsList>
 
         <TabsContent value="results" className="mt-6">
-          <h3 className="text-base font-semibold mb-4" data-testid="text-results-heading">Test results</h3>
+          <h3 className="text-sm font-semibold mb-3" data-testid="text-results-heading">Test results</h3>
           <Card data-testid="card-test-result">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2 mb-2">
-                {isPassing ? (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-destructive" />
-                )}
-                <span className="font-medium text-sm" data-testid="text-result-status">
-                  {isPassing ? "Passing" : "Failing"}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground ml-7" data-testid="text-result-description">
+            <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/40">
+              {isPassing ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              ) : (
+                <XCircle className="h-4 w-4 text-destructive" />
+              )}
+              <span className="font-medium text-sm" data-testid="text-result-status">
+                {isPassing ? "Passing" : "Failing"}
+              </span>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-sm text-muted-foreground" data-testid="text-result-description">
                 {isPassing
                   ? "This test is passing."
                   : "This test is currently not passing. Map a document or update coverage to resolve."}
               </p>
-            </CardContent>
+            </div>
           </Card>
         </TabsContent>
 
