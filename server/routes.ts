@@ -4,9 +4,11 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { createHash } from "crypto";
 import multer from "multer";
 import { generateS3Key, uploadToS3, getLocalFilePath, deleteFromS3 } from "./s3";
+import * as schema from "@shared/schema";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -537,6 +539,19 @@ export async function registerRoutes(
     const allBusinessUnits = await storage.getBusinessUnits();
     const allProfiles = await storage.getRegulatoryProfiles();
 
+    const allVersions = await db.select().from(schema.documentVersions);
+
+    const latestVersionMarkdown = new Map<number, string>();
+    for (const v of allVersions) {
+      if (!v.markDown) continue;
+      const existing = latestVersionMarkdown.get(v.documentId);
+      if (!existing) {
+        latestVersionMarkdown.set(v.documentId, v.markDown);
+      } else {
+        latestVersionMarkdown.set(v.documentId, v.markDown);
+      }
+    }
+
     const sourceMap = new Map(allSources.map((s) => [s.id, s]));
     const docMap = new Map(allDocuments.map((d) => [d.id, d]));
     const reqMap = new Map(allRequirements.map((r) => [r.id, r]));
@@ -659,19 +674,123 @@ export async function registerRoutes(
       }
     }
 
+    function extractKeyPhrases(text: string): string[] {
+      const stopWords = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "shall", "should", "may", "might", "can", "could", "would", "must", "that", "this", "these", "those", "it", "its", "with", "by", "from", "as", "at", "on", "not", "no", "but", "if", "all", "any", "each", "every", "such", "than", "too", "very", "so", "up", "out", "about", "into", "through", "during", "before", "after", "above", "below", "between", "under", "over", "other", "which", "who", "whom", "where", "when", "how", "what", "why", "their", "there", "they", "them", "we", "our", "you", "your"]);
+      const words = text.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !stopWords.has(w));
+      const phrases: string[] = [];
+      const seen = new Set<string>();
+      for (const w of words) {
+        if (!seen.has(w)) { seen.add(w); phrases.push(w); }
+      }
+      return phrases;
+    }
+
+    function scoreContentMatch(docMarkdown: string, requirement: { title: string; description: string; evidence?: string | null }): { score: number; matchedTerms: string[]; totalTerms: number } {
+      const md = docMarkdown.toLowerCase();
+      const allText = [requirement.title, requirement.description, requirement.evidence || ""].join(" ");
+      const phrases = extractKeyPhrases(allText);
+      if (phrases.length === 0) return { score: 0, matchedTerms: [], totalTerms: 0 };
+      const matched = phrases.filter((p) => md.includes(p));
+      return { score: matched.length / phrases.length, matchedTerms: matched, totalTerms: phrases.length };
+    }
+
+    const contentAnalysis: Array<{
+      mappingId: number;
+      requirementId: number;
+      requirementCode: string;
+      requirementTitle: string;
+      documentId: number;
+      documentTitle: string;
+      previousStatus: string;
+      newStatus: string;
+      matchScore: number;
+      matchedTerms: string[];
+      totalTerms: number;
+      hasMarkdown: boolean;
+    }> = [];
+
+    const mappingsToUpdate: Array<{ id: number; coverageStatus: string }> = [];
+
+    for (const mapping of allMappings) {
+      const req = reqMap.get(mapping.requirementId);
+      if (!req) continue;
+      const doc = docMap.get(mapping.documentId);
+      if (!doc) continue;
+
+      const docMarkdown = latestVersionMarkdown.get(mapping.documentId);
+      if (!docMarkdown) {
+        contentAnalysis.push({
+          mappingId: mapping.id,
+          requirementId: req.id,
+          requirementCode: req.code,
+          requirementTitle: req.title,
+          documentId: doc.id,
+          documentTitle: doc.title,
+          previousStatus: mapping.coverageStatus,
+          newStatus: mapping.coverageStatus,
+          matchScore: 0,
+          matchedTerms: [],
+          totalTerms: 0,
+          hasMarkdown: false,
+        });
+        continue;
+      }
+
+      const result = scoreContentMatch(docMarkdown, req);
+      let newStatus = mapping.coverageStatus;
+      if (result.score >= 0.6) {
+        newStatus = "Covered";
+      } else if (result.score >= 0.3) {
+        newStatus = "Partially Covered";
+      } else {
+        newStatus = "Not Covered";
+      }
+
+      contentAnalysis.push({
+        mappingId: mapping.id,
+        requirementId: req.id,
+        requirementCode: req.code,
+        requirementTitle: req.title,
+        documentId: doc.id,
+        documentTitle: doc.title,
+        previousStatus: mapping.coverageStatus,
+        newStatus,
+        matchScore: Math.round(result.score * 100),
+        matchedTerms: result.matchedTerms.slice(0, 20),
+        totalTerms: result.totalTerms,
+        hasMarkdown: true,
+      });
+
+      if (newStatus !== mapping.coverageStatus) {
+        mappingsToUpdate.push({ id: mapping.id, coverageStatus: newStatus });
+      }
+    }
+
+    for (const upd of mappingsToUpdate) {
+      await db.update(schema.requirementMappings)
+        .set({ coverageStatus: upd.coverageStatus })
+        .where(eq(schema.requirementMappings.id, upd.id));
+    }
+
+    const updatedMappings = mappingsToUpdate.length > 0
+      ? await storage.getRequirementMappings()
+      : allMappings;
+
     const summary = {
       totalRequirements: allRequirements.length,
       applicableRequirements: applicableRequirements.length,
-      totalMapped: allMappings.length,
+      totalMapped: updatedMappings.length,
       unmappedCount: unmappedRequirements.length,
       perBuGapCount: perBuGaps.length,
       overStrictCount: overStrictItems.length,
-      coveredCount: allMappings.filter((m) => m.coverageStatus === "Covered").length,
-      partiallyCoveredCount: allMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
-      notCoveredCount: allMappings.filter((m) => m.coverageStatus === "Not Covered").length,
+      coveredCount: updatedMappings.filter((m) => m.coverageStatus === "Covered").length,
+      partiallyCoveredCount: updatedMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
+      notCoveredCount: updatedMappings.filter((m) => m.coverageStatus === "Not Covered").length,
+      contentAnalysisCount: contentAnalysis.length,
+      contentUpdatedCount: mappingsToUpdate.length,
     };
 
-    res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems });
+    res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems, contentAnalysis });
   });
 
   // === FINDINGS ===

@@ -16,6 +16,7 @@ import {
 import type { RequirementMapping, Requirement, Document, BusinessUnit } from "@shared/schema";
 import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 function getCoverageBadgeClass(status: string) {
   switch (status) {
@@ -30,6 +31,21 @@ function getCoverageBadgeClass(status: string) {
   }
 }
 
+interface ContentAnalysisItem {
+  mappingId: number;
+  requirementId: number;
+  requirementCode: string;
+  requirementTitle: string;
+  documentId: number;
+  documentTitle: string;
+  previousStatus: string;
+  newStatus: string;
+  matchScore: number;
+  matchedTerms: string[];
+  totalTerms: number;
+  hasMarkdown: boolean;
+}
+
 interface GapAnalysisResult {
   summary: {
     totalRequirements: number;
@@ -41,6 +57,8 @@ interface GapAnalysisResult {
     coveredCount: number;
     partiallyCoveredCount: number;
     notCoveredCount: number;
+    contentAnalysisCount?: number;
+    contentUpdatedCount?: number;
   };
   unmappedRequirements: Array<{
     requirementId: number;
@@ -70,6 +88,7 @@ interface GapAnalysisResult {
     businessUnitName: string;
     reason: string;
   }>;
+  contentAnalysis?: ContentAnalysisItem[];
 }
 
 export default function GapAnalysis() {
@@ -102,10 +121,12 @@ export default function GapAnalysis() {
     },
     onSuccess: (data) => {
       setAnalysisResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
       const parts: string[] = [];
       if (data.summary.unmappedCount > 0) parts.push(`${data.summary.unmappedCount} unmapped`);
       if (data.summary.perBuGapCount > 0) parts.push(`${data.summary.perBuGapCount} per-entity gaps`);
       if (data.summary.overStrictCount > 0) parts.push(`${data.summary.overStrictCount} over-strict`);
+      if (data.summary.contentUpdatedCount && data.summary.contentUpdatedCount > 0) parts.push(`${data.summary.contentUpdatedCount} statuses updated from content`);
       toast({
         title: "Gap analysis complete",
         description: parts.length > 0 ? `Found ${parts.join(", ")}.` : "No gaps or over-strict items detected.",
@@ -242,6 +263,11 @@ export default function GapAnalysis() {
                   <TabsTrigger value="over-strict" data-testid="tab-over-strict">
                     Over-Strict ({analysisResult.summary.overStrictCount})
                   </TabsTrigger>
+                  {analysisResult.contentAnalysis && (
+                    <TabsTrigger value="content-match" data-testid="tab-content-match">
+                      Content Match ({analysisResult.contentAnalysis.length})
+                    </TabsTrigger>
+                  )}
                 </>
               )}
             </TabsList>
@@ -475,6 +501,79 @@ export default function GapAnalysis() {
                     </Table>
                   </div>
                 </TabsContent>
+
+                {analysisResult.contentAnalysis && (
+                  <TabsContent value="content-match" className="space-y-4">
+                    <p className="text-sm text-muted-foreground" data-testid="text-content-match-info">
+                      Document markdown content was analysed against requirement keywords. Mappings with a score {"\u2265"}60% are marked Covered, {"\u2265"}30% Partially Covered, below 30% Not Covered.
+                      {analysisResult.summary.contentUpdatedCount ? ` ${analysisResult.summary.contentUpdatedCount} mapping status(es) were updated.` : ""}
+                    </p>
+                    <div className="border rounded-md" data-testid="content-match-table">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-code">Requirement</TableHead>
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-document">Document</TableHead>
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-score">Score</TableHead>
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-prev">Previous</TableHead>
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-new">New Status</TableHead>
+                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-terms">Matched Terms</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {analysisResult.contentAnalysis.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-content-match">
+                                No mappings to analyse.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            analysisResult.contentAnalysis.map((item, idx) => (
+                              <TableRow key={`${item.mappingId}-${idx}`} data-testid={`row-cm-${idx}`}>
+                                <TableCell data-testid={`text-cm-code-${idx}`}>
+                                  <div className="font-mono text-sm font-medium">{item.requirementCode}</div>
+                                  <div className="text-xs text-muted-foreground truncate max-w-[200px]">{item.requirementTitle}</div>
+                                </TableCell>
+                                <TableCell className="text-sm" data-testid={`text-cm-doc-${idx}`}>
+                                  {item.hasMarkdown ? item.documentTitle : (
+                                    <span className="text-muted-foreground italic">{item.documentTitle} (no markdown)</span>
+                                  )}
+                                </TableCell>
+                                <TableCell data-testid={`text-cm-score-${idx}`}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${item.matchScore >= 60 ? "bg-green-500 dark:bg-green-400" : item.matchScore >= 30 ? "bg-amber-500 dark:bg-amber-400" : "bg-red-500 dark:bg-red-400"}`}
+                                        style={{ width: `${item.matchScore}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium">{item.matchScore}%</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell data-testid={`text-cm-prev-${idx}`}>
+                                  <Badge className={`${getCoverageBadgeClass(item.previousStatus)} no-default-hover-elevate no-default-active-elevate`}>
+                                    {item.previousStatus}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell data-testid={`text-cm-new-${idx}`}>
+                                  <Badge className={`${getCoverageBadgeClass(item.newStatus)} no-default-hover-elevate no-default-active-elevate`}>
+                                    {item.newStatus}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground max-w-[250px]" data-testid={`text-cm-terms-${idx}`}>
+                                  {item.matchedTerms.length > 0
+                                    ? item.matchedTerms.slice(0, 10).join(", ") + (item.matchedTerms.length > 10 ? ` +${item.matchedTerms.length - 10} more` : "")
+                                    : "—"
+                                  }
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
+                )}
               </>
             )}
           </Tabs>
