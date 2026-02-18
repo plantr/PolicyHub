@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -30,9 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp } from "lucide-react";
-import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -107,43 +106,21 @@ export default function VersionDetail() {
     },
   });
 
-  const mdFileInputRef = useRef<HTMLInputElement>(null);
-  const handleMdFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const lines: string[] = [];
-        workbook.SheetNames.forEach((sheetName) => {
-          const sheet = workbook.Sheets[sheetName];
-          const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-          if (rows.length === 0) return;
-          if (workbook.SheetNames.length > 1) lines.push(`## ${sheetName}\n`);
-          const header = rows[0] as string[];
-          lines.push("| " + header.map((h) => String(h ?? "")).join(" | ") + " |");
-          lines.push("| " + header.map(() => "---").join(" | ") + " |");
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i] as unknown[];
-            const cells = header.map((_, ci) => {
-              const val = row[ci];
-              return val != null ? String(val).replace(/\|/g, "\\|").replace(/\n/g, " ") : "";
-            });
-            lines.push("| " + cells.join(" | ") + " |");
-          }
-          lines.push("");
-        });
-        form.setValue("markDown", lines.join("\n"), { shouldDirty: true });
-        toast({ title: "File imported", description: `Converted "${file.name}" to markdown` });
-      } catch {
-        toast({ title: "Import failed", description: "Could not parse the file", variant: "destructive" });
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    if (mdFileInputRef.current) mdFileInputRef.current.value = "";
-  }, [form, toast]);
+  const pdfToMarkdownMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/document-versions/${verId}/pdf/to-markdown`);
+      return res.json() as Promise<{ markdown: string }>;
+    },
+    onSuccess: (data) => {
+      form.setValue("markDown", data.markdown, { shouldDirty: true });
+      toast({ title: "PDF converted", description: "Markdown content populated from attached PDF" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Conversion failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const hasPdf = !!version?.pdfS3Key;
 
   const [formLoaded, setFormLoaded] = useState(false);
   if (version && !formLoaded) {
@@ -425,26 +402,17 @@ export default function VersionDetail() {
       <Card className="p-6" data-testid="section-markdown">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h2 className="text-lg font-semibold" data-testid="text-markdown-heading">Markdown Content</h2>
-          <div>
-            <input
-              ref={mdFileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleMdFileImport}
-              data-testid="input-md-file-import"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => mdFileInputRef.current?.click()}
-              data-testid="button-markdown-document"
-            >
-              <FileUp className="h-4 w-4 mr-1" />
-              Markdown Document
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasPdf || pdfToMarkdownMutation.isPending}
+            onClick={() => pdfToMarkdownMutation.mutate()}
+            data-testid="button-markdown-document"
+          >
+            <FileUp className="h-4 w-4 mr-1" />
+            {pdfToMarkdownMutation.isPending ? "Converting..." : "Markdown Document"}
+          </Button>
         </div>
         <Tabs defaultValue="edit">
           <TabsList data-testid="tabs-markdown">

@@ -400,6 +400,28 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/document-versions/:id/pdf/to-markdown", async (req, res) => {
+    try {
+      const version = await storage.getDocumentVersion(Number(req.params.id));
+      if (!version) return res.status(404).json({ message: "Version not found" });
+      if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
+
+      const filePath = getLocalFilePath(version.pdfS3Key);
+      const fs = await import("fs/promises");
+      const pdfParse = (await import("pdf-parse")).default;
+      const buffer = await fs.readFile(filePath);
+      const pdfData = await pdfParse(buffer);
+      const text = pdfData.text || "";
+
+      const lines = text.split("\n").map((l: string) => l.trimEnd());
+      const markdown = lines.join("\n");
+
+      res.json({ markdown });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "PDF conversion failed" });
+    }
+  });
+
   // === ADDENDA ===
   app.get(api.addenda.list.path, async (req, res) => {
     res.json(await storage.getAddenda(Number(req.params.documentId)));
