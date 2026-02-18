@@ -8,17 +8,16 @@ import { format } from "date-fns";
 import type {
   Document,
   DocumentVersion,
-  Addendum,
-  ReviewHistoryEntry,
-  PolicyLink,
   BusinessUnit,
   User,
+  RequirementMapping,
+  Requirement,
+  RegulatorySource,
+  Audit,
 } from "@shared/schema";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -50,7 +49,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Plus, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ArrowLeft,
+  Upload,
+  Download,
+  FileText,
+  Trash2,
+  Loader2,
+  Plus,
+  X,
+  CheckCircle2,
+  Calendar,
+  List,
+  MoreHorizontal,
+  Pencil,
+  UserCircle,
+  Search,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -70,28 +95,15 @@ function getVersionStatusClass(status: string): string {
     case "Draft":
       return "bg-muted text-muted-foreground";
     case "In Review":
-      return "bg-amber-100 text-amber-800";
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
     case "Approved":
-      return "bg-green-100 text-green-800";
+      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
     case "Published":
-      return "bg-blue-100 text-blue-800";
+      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
     case "Superseded":
-      return "bg-gray-100 text-gray-600";
+      return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
     default:
       return "bg-muted text-muted-foreground";
-  }
-}
-
-function getDocTypeBadgeVariant(docType: string): "default" | "secondary" | "outline" {
-  switch (docType) {
-    case "Policy":
-      return "default";
-    case "Standard":
-      return "secondary";
-    case "Procedure":
-      return "outline";
-    default:
-      return "default";
   }
 }
 
@@ -110,23 +122,6 @@ export default function DocumentDetail() {
     enabled: !!id,
   });
 
-  const { data: addendaList, isLoading: addendaLoading } = useQuery<Addendum[]>({
-    queryKey: ["/api/documents", id, "addenda"],
-    enabled: !!id,
-  });
-
-  const { data: reviews, isLoading: reviewsLoading } = useQuery<ReviewHistoryEntry[]>({
-    queryKey: ["/api/documents", id, "reviews"],
-    enabled: !!id,
-  });
-
-  const { data: policyLinks } = useQuery<PolicyLink[]>({
-    queryKey: ["/api/policy-links"],
-  });
-
-  const { data: allDocuments } = useQuery<Document[]>({
-    queryKey: ["/api/documents"],
-  });
 
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
     queryKey: ["/api/business-units"],
@@ -134,6 +129,22 @@ export default function DocumentDetail() {
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/users"],
+  });
+
+  const { data: allMappings } = useQuery<RequirementMapping[]>({
+    queryKey: ["/api/requirement-mappings"],
+  });
+
+  const { data: allRequirements } = useQuery<Requirement[]>({
+    queryKey: ["/api/requirements"],
+  });
+
+  const { data: allSources } = useQuery<RegulatorySource[]>({
+    queryKey: ["/api/regulatory-sources"],
+  });
+
+  const { data: allAudits } = useQuery<Audit[]>({
+    queryKey: ["/api/audits"],
   });
 
   const activeUsers = useMemo(
@@ -147,30 +158,119 @@ export default function DocumentDetail() {
     return map;
   }, [businessUnits]);
 
-  const docMap = useMemo(() => {
-    const map = new Map<number, string>();
-    allDocuments?.forEach((d) => map.set(d.id, d.title));
+  const reqMap = useMemo(() => {
+    const map = new Map<number, Requirement>();
+    allRequirements?.forEach((r) => map.set(r.id, r));
     return map;
-  }, [allDocuments]);
+  }, [allRequirements]);
 
-  const relatedLinks = useMemo(() => {
-    if (!policyLinks || !id) return [];
+  const sourceMap = useMemo(() => {
+    const map = new Map<number, RegulatorySource>();
+    allSources?.forEach((s) => map.set(s.id, s));
+    return map;
+  }, [allSources]);
+
+  const docMappings = useMemo(() => {
+    if (!allMappings || !id) return [];
     const docId = Number(id);
-    return policyLinks.filter(
-      (link) => link.fromDocumentId === docId || link.toDocumentId === docId
-    );
-  }, [policyLinks, id]);
+    return allMappings.filter((m) => m.documentId === docId);
+  }, [allMappings, id]);
 
-  const latestContent = useMemo(() => {
+  const linkedFrameworks = useMemo(() => {
+    const frameworkIds = new Set<number>();
+    docMappings.forEach((m) => {
+      const req = reqMap.get(m.requirementId);
+      if (req) frameworkIds.add(req.sourceId);
+    });
+    return Array.from(frameworkIds)
+      .map((sid) => sourceMap.get(sid))
+      .filter(Boolean) as RegulatorySource[];
+  }, [docMappings, reqMap, sourceMap]);
+
+  const latestVersion = useMemo(() => {
     if (!versions || versions.length === 0) return null;
     const published = versions.find((v) => v.status === "Published");
     const approved = versions.find((v) => v.status === "Approved");
     return published || approved || versions[0];
   }, [versions]);
 
+  const docStatus = useMemo(() => {
+    if (!latestVersion) return "No versions";
+    if (latestVersion.status === "Published" || latestVersion.status === "Approved") return "OK";
+    if (latestVersion.status === "In Review") return "In Review";
+    return "Draft";
+  }, [latestVersion]);
+
+  const docAudits = useMemo(() => {
+    if (!allAudits || !document) return [];
+    return allAudits.filter((a) => a.businessUnitId === document.businessUnitId);
+  }, [allAudits, document]);
+
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("versions");
+
+  const [mappedSearch, setMappedSearch] = useState("");
+  const [mappedFrameworkFilter, setMappedFrameworkFilter] = useState("all");
+  const [mappedCodeFilter, setMappedCodeFilter] = useState("all");
+  const [mappedPage, setMappedPage] = useState(1);
+  const [mappedPageSize, setMappedPageSize] = useState(5);
+
+  const mappedHasActiveFilters = mappedSearch.length > 0 || mappedFrameworkFilter !== "all" || mappedCodeFilter !== "all";
+
+  const filteredMappings = useMemo(() => {
+    return docMappings.filter((m) => {
+      const req = reqMap.get(m.requirementId);
+      if (!req) return false;
+      const source = sourceMap.get(req.sourceId);
+      if (mappedFrameworkFilter !== "all" && source?.shortName !== mappedFrameworkFilter) return false;
+      if (mappedCodeFilter !== "all" && req.code !== mappedCodeFilter) return false;
+      if (mappedSearch) {
+        const q = mappedSearch.toLowerCase();
+        const titleMatch = req.title.toLowerCase().includes(q);
+        const descMatch = (req.description ?? "").toLowerCase().includes(q);
+        const codeMatch = req.code.toLowerCase().includes(q);
+        const rationaleMatch = (m.rationale ?? "").toLowerCase().includes(q);
+        if (!titleMatch && !descMatch && !codeMatch && !rationaleMatch) return false;
+      }
+      return true;
+    });
+  }, [docMappings, reqMap, sourceMap, mappedFrameworkFilter, mappedCodeFilter, mappedSearch]);
+
+  const mappedTotal = filteredMappings.length;
+  const mappedTotalPages = Math.max(1, Math.ceil(mappedTotal / mappedPageSize));
+  const mappedPaginated = filteredMappings.slice((mappedPage - 1) * mappedPageSize, mappedPage * mappedPageSize);
+  const mappedStart = mappedTotal === 0 ? 0 : (mappedPage - 1) * mappedPageSize + 1;
+  const mappedEnd = Math.min(mappedPage * mappedPageSize, mappedTotal);
+
+  const frameworkOptions = useMemo(() => {
+    const set = new Set<string>();
+    docMappings.forEach((m) => {
+      const req = reqMap.get(m.requirementId);
+      if (req) {
+        const src = sourceMap.get(req.sourceId);
+        if (src) set.add(src.shortName);
+      }
+    });
+    return Array.from(set).sort();
+  }, [docMappings, reqMap, sourceMap]);
+
+  const codeOptions = useMemo(() => {
+    const codes = new Set<string>();
+    docMappings.forEach((m) => {
+      const req = reqMap.get(m.requirementId);
+      if (req) codes.add(req.code);
+    });
+    return Array.from(codes).sort();
+  }, [docMappings, reqMap]);
+
+  function resetMappedFilters() {
+    setMappedSearch("");
+    setMappedFrameworkFilter("all");
+    setMappedCodeFilter("all");
+    setMappedPage(1);
+  }
 
   const uploadMutation = useMutation({
     mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
@@ -334,9 +434,10 @@ export default function DocumentDetail() {
   if (docLoading) {
     return (
       <div className="space-y-6" data-testid="loading-document-detail">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-10 w-full max-w-2xl" />
+        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-4 w-64" />
         <Skeleton className="h-60 w-full" />
       </div>
     );
@@ -349,121 +450,121 @@ export default function DocumentDetail() {
         <Link href="/documents">
           <Button variant="outline" data-testid="link-back-to-documents">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Documents
+            Back to Policies
           </Button>
         </Link>
       </div>
     );
   }
 
+  const titleDisplay = document.documentReference
+    ? `${document.title} (${document.documentReference}${document.taxonomy ? " - " + document.taxonomy : ""})`
+    : document.title;
+
+  const tabs = [
+    { key: "versions", label: "Policy versions" },
+    { key: "mapped", label: "Mapped elements" },
+    { key: "audits", label: "Audits" },
+    { key: "comments", label: "Comments" },
+  ];
+
   return (
-    <div className="space-y-6" data-testid="page-document-detail">
-      <div className="flex items-center gap-2" data-testid="section-breadcrumb">
-        <Link href="/documents">
-          <Button variant="ghost" size="icon" data-testid="link-back">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <span className="text-sm text-muted-foreground" data-testid="text-breadcrumb-label">Documents</span>
-      </div>
+    <div className="space-y-5" data-testid="page-document-detail">
+      <Link href="/documents">
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors" data-testid="link-back">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Policies
+        </span>
+      </Link>
 
-      <div className="space-y-2" data-testid="section-header">
-        <div className="flex flex-wrap items-center gap-3">
-          {document.documentReference && (
-            <span className="text-sm text-muted-foreground font-mono" data-testid="text-document-ref">{document.documentReference}</span>
-          )}
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-document-title">
-            {document.title}
+      <div className="flex flex-wrap items-start justify-between gap-4" data-testid="section-header">
+        <div className="space-y-2 flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight leading-tight" data-testid="text-document-title">
+            {titleDisplay}
           </h1>
-          <Badge variant={getDocTypeBadgeVariant(document.docType)} data-testid="badge-doc-type">
-            {document.docType}
-          </Badge>
-          <Badge variant="outline" data-testid="badge-taxonomy">
-            {document.taxonomy}
-          </Badge>
+
+          <p className="text-sm text-muted-foreground max-w-2xl" data-testid="text-document-description">
+            {document.docType} document owned by {document.owner}
+            {document.businessUnitId ? ` for ${buMap.get(document.businessUnitId) ?? "Unknown"}` : ""}.
+            {document.tags?.length ? ` Tags: ${document.tags.join(", ")}.` : ""}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4 pt-1" data-testid="section-status-indicators">
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <CheckCircle2 className={`h-4 w-4 ${docStatus === "OK" ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground"}`} />
+              <span className={docStatus === "OK" ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"} data-testid="text-doc-status">
+                {docStatus}
+              </span>
+            </span>
+
+            {document.reviewFrequency && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="text-review-frequency">
+                <Calendar className="h-4 w-4" />
+                Renew {document.reviewFrequency.toLowerCase()}
+              </span>
+            )}
+
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="text-framework-count">
+              <List className="h-4 w-4" />
+              Frameworks ({linkedFrameworks.length})
+            </span>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground" data-testid="text-owner-label">
-          Owned by {document.owner}
-        </p>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" data-testid="button-more-actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem data-testid="menu-item-duplicate">Duplicate</DropdownMenuItem>
+              <DropdownMenuItem data-testid="menu-item-archive">Archive</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" data-testid="menu-item-delete">Delete</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="icon" data-testid="button-owner-info">
+            <UserCircle className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" data-testid="button-edit-details">
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit details
+          </Button>
+        </div>
       </div>
 
-      <Card className="p-4" data-testid="section-metadata">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div data-testid="metadata-owner">
-            <span className="text-xs text-muted-foreground">Owner</span>
-            <p className="text-sm font-medium">{document.owner}</p>
-          </div>
-          <div data-testid="metadata-delegates">
-            <span className="text-xs text-muted-foreground">Delegates</span>
-            <p className="text-sm font-medium">
-              {document.delegates?.length ? document.delegates.join(", ") : "-"}
-            </p>
-          </div>
-          <div data-testid="metadata-reviewers">
-            <span className="text-xs text-muted-foreground">Reviewers</span>
-            <p className="text-sm font-medium">
-              {document.reviewers?.length ? document.reviewers.join(", ") : "-"}
-            </p>
-          </div>
-          <div data-testid="metadata-approvers">
-            <span className="text-xs text-muted-foreground">Approvers</span>
-            <p className="text-sm font-medium">
-              {document.approvers?.length ? document.approvers.join(", ") : "-"}
-            </p>
-          </div>
-          <div data-testid="metadata-tags">
-            <span className="text-xs text-muted-foreground">Tags</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {document.tags?.length ? (
-                document.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-xs" data-testid={`badge-tag-${tag}`}>
-                    {tag}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
+      <div className="border-b" data-testid="section-tabs">
+        <div className="flex gap-6" role="tablist">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab.key
+                  ? "border-emerald-500 text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setActiveTab(tab.key)}
+              data-testid={`tab-${tab.key}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "versions" && (
+        <div className="space-y-4" data-testid="tabcontent-versions">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" onClick={() => setAddVersionOpen(true)} data-testid="button-add-version">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Version
+              </Button>
             </div>
           </div>
-          <div data-testid="metadata-review-frequency">
-            <span className="text-xs text-muted-foreground">Review Frequency</span>
-            <p className="text-sm font-medium">{document.reviewFrequency || "-"}</p>
-          </div>
-          <div data-testid="metadata-next-review">
-            <span className="text-xs text-muted-foreground">Next Review Date</span>
-            <p className="text-sm font-medium">
-              {document.nextReviewDate
-                ? format(new Date(document.nextReviewDate), "dd MMM yyyy")
-                : "-"}
-            </p>
-          </div>
-          <div data-testid="metadata-bu">
-            <span className="text-xs text-muted-foreground">Business Unit</span>
-            <p className="text-sm font-medium">
-              {document.businessUnitId
-                ? buMap.get(document.businessUnitId) || "Unknown"
-                : "Group"}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      <Tabs defaultValue="versions" data-testid="section-tabs">
-        <div className="flex items-center justify-between gap-4 mb-1">
-          <TabsList data-testid="tabs-list">
-            <TabsTrigger value="versions" data-testid="tab-versions">Versions</TabsTrigger>
-            <TabsTrigger value="content" data-testid="tab-content">Content</TabsTrigger>
-            <TabsTrigger value="addenda" data-testid="tab-addenda">Addenda</TabsTrigger>
-            <TabsTrigger value="reviews" data-testid="tab-reviews">Reviews</TabsTrigger>
-            <TabsTrigger value="links" data-testid="tab-links">Links</TabsTrigger>
-          </TabsList>
-          <Button onClick={() => setAddVersionOpen(true)} data-testid="button-add-version">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Version
-          </Button>
-        </div>
-
-        <TabsContent value="versions" data-testid="tabcontent-versions">
           <input
             ref={fileInputRef}
             type="file"
@@ -472,7 +573,7 @@ export default function DocumentDetail() {
             onChange={handleFileChange}
             data-testid="input-pdf-file"
           />
-          <Card>
+          <div className="border rounded-md" data-testid="versions-table">
             {versionsLoading ? (
               <div className="p-4 space-y-3" data-testid="loading-versions">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -482,28 +583,31 @@ export default function DocumentDetail() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead data-testid="col-version">Version</TableHead>
-                    <TableHead data-testid="col-status">Status</TableHead>
-                    <TableHead data-testid="col-content-hash">Content Hash</TableHead>
-                    <TableHead data-testid="col-change-reason">Change Reason</TableHead>
-                    <TableHead data-testid="col-created-by">Created By</TableHead>
-                    <TableHead data-testid="col-date">Issued Date</TableHead>
-                    <TableHead data-testid="col-pdf">PDF Attachment</TableHead>
-                    <TableHead data-testid="col-markdown">Markdown</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-version">Version</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-status">Status</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-change-reason">Change Reason</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-created-by">Created By</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-date">Issued Date</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-pdf">PDF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!versions?.length ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8" data-testid="text-no-versions">
                         No versions found
                       </TableCell>
                     </TableRow>
                   ) : (
                     versions.map((ver) => (
-                      <TableRow key={ver.id} className="cursor-pointer" onClick={() => navigate(`/documents/${id}/versions/${ver.id}`)} data-testid={`row-version-${ver.id}`}>
-                        <TableCell data-testid={`text-version-number-${ver.id}`}>
+                      <TableRow
+                        key={ver.id}
+                        className="group cursor-pointer"
+                        onClick={() => navigate(`/documents/${id}/versions/${ver.id}`)}
+                        data-testid={`row-version-${ver.id}`}
+                      >
+                        <TableCell className="font-medium" data-testid={`text-version-number-${ver.id}`}>
                           {ver.version}
                         </TableCell>
                         <TableCell>
@@ -514,29 +618,23 @@ export default function DocumentDetail() {
                             {ver.status}
                           </span>
                         </TableCell>
-                        <TableCell
-                          className="font-mono text-xs"
-                          data-testid={`text-content-hash-${ver.id}`}
-                        >
-                          {ver.contentHash ? ver.contentHash.substring(0, 12) + "..." : "-"}
-                        </TableCell>
-                        <TableCell data-testid={`text-change-reason-${ver.id}`}>
+                        <TableCell className="text-sm" data-testid={`text-change-reason-${ver.id}`}>
                           {ver.changeReason || "-"}
                         </TableCell>
-                        <TableCell data-testid={`text-created-by-${ver.id}`}>
+                        <TableCell className="text-sm" data-testid={`text-created-by-${ver.id}`}>
                           {ver.createdBy}
                         </TableCell>
-                        <TableCell data-testid={`text-version-date-${ver.id}`}>
+                        <TableCell className="text-sm" data-testid={`text-version-date-${ver.id}`}>
                           {ver.createdAt
                             ? format(new Date(ver.createdAt), "dd MMM yyyy")
                             : "-"}
                         </TableCell>
-                        <TableCell data-testid={`cell-pdf-${ver.id}`}>
+                        <TableCell data-testid={`cell-pdf-${ver.id}`} onClick={(e) => e.stopPropagation()}>
                           {ver.pdfS3Key ? (
                             <div className="flex items-center gap-1">
                               <div className="flex items-center gap-1 text-xs text-muted-foreground mr-1">
                                 <FileText className="h-3.5 w-3.5" />
-                                <span className="max-w-[120px] truncate" data-testid={`text-pdf-name-${ver.id}`}>
+                                <span className="max-w-[100px] truncate" data-testid={`text-pdf-name-${ver.id}`}>
                                   {ver.pdfFileName}
                                 </span>
                               </div>
@@ -576,220 +674,215 @@ export default function DocumentDetail() {
                             </Button>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-markdown-${ver.id}`}>
-                          {ver.markDown ? ver.markDown.substring(0, 50) + (ver.markDown.length > 50 ? "..." : "") : "--"}
-                        </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
             )}
-          </Card>
-        </TabsContent>
+          </div>
+        </div>
+      )}
 
-        <TabsContent value="content" data-testid="tabcontent-content">
-          <Card className="p-4">
-            {versionsLoading ? (
-              <div className="space-y-3" data-testid="loading-content">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-            ) : latestContent ? (
-              <div data-testid="section-latest-content">
-                <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <span className="text-sm text-muted-foreground" data-testid="text-content-version-label">
-                    Version {latestContent.version}
-                  </span>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${getVersionStatusClass(latestContent.status)}`}
-                    data-testid="badge-content-status"
-                  >
-                    {latestContent.status}
-                  </span>
-                </div>
-                <pre
-                  className="whitespace-pre-wrap text-sm font-sans leading-relaxed"
-                  data-testid="text-document-content"
-                >
-                  {latestContent.content}
-                </pre>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm" data-testid="text-no-content">
-                No content available
-              </p>
-            )}
-          </Card>
-        </TabsContent>
+      {activeTab === "mapped" && (
+        <div className="space-y-4" data-testid="tabcontent-mapped">
+          <h2 className="text-lg font-semibold tracking-tight" data-testid="text-controls-heading">Controls</h2>
 
-        <TabsContent value="addenda" data-testid="tabcontent-addenda">
-          <Card>
-            {addendaLoading ? (
-              <div className="p-4 space-y-3" data-testid="loading-addenda">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+          <div className="flex flex-wrap items-center gap-2" data-testid="section-mapped-filters">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search controls"
+                className="pl-9 w-[160px]"
+                value={mappedSearch}
+                onChange={(e) => { setMappedSearch(e.target.value); setMappedPage(1); }}
+                data-testid="input-search-controls"
+              />
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-framework">
+                  Framework <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => { setMappedFrameworkFilter("all"); setMappedPage(1); }} data-testid="filter-framework-all">All Frameworks</DropdownMenuItem>
+                {frameworkOptions.map((f) => (
+                  <DropdownMenuItem key={f} onClick={() => { setMappedFrameworkFilter(f); setMappedPage(1); }} data-testid={`filter-framework-${f}`}>{f}</DropdownMenuItem>
                 ))}
-              </div>
-            ) : !addendaList?.length ? (
-              <div className="p-4">
-                <p className="text-muted-foreground text-sm text-center py-4" data-testid="text-no-addenda">
-                  No addenda found
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead data-testid="col-addendum-bu">Business Unit</TableHead>
-                    <TableHead data-testid="col-addendum-status">Status</TableHead>
-                    <TableHead data-testid="col-addendum-content">Content</TableHead>
-                    <TableHead data-testid="col-addendum-approved-by">Approved By</TableHead>
-                    <TableHead data-testid="col-addendum-approved-at">Approved At</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {addendaList.map((addendum) => (
-                    <TableRow key={addendum.id} data-testid={`row-addendum-${addendum.id}`}>
-                      <TableCell data-testid={`text-addendum-bu-${addendum.id}`}>
-                        {buMap.get(addendum.businessUnitId) || "Unknown"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" data-testid={`badge-addendum-status-${addendum.id}`}>
-                          {addendum.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell
-                        className="max-w-md truncate"
-                        data-testid={`text-addendum-content-${addendum.id}`}
-                      >
-                        {addendum.content}
-                      </TableCell>
-                      <TableCell data-testid={`text-addendum-approved-by-${addendum.id}`}>
-                        {addendum.approvedBy || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`text-addendum-approved-at-${addendum.id}`}>
-                        {addendum.approvedAt
-                          ? format(new Date(addendum.approvedAt), "dd MMM yyyy")
-                          : "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-        </TabsContent>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <TabsContent value="reviews" data-testid="tabcontent-reviews">
-          <Card>
-            {reviewsLoading ? (
-              <div className="p-4 space-y-3" data-testid="loading-reviews">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-code">
+                  Framework code <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => { setMappedCodeFilter("all"); setMappedPage(1); }} data-testid="filter-code-all">All Codes</DropdownMenuItem>
+                {codeOptions.map((c) => (
+                  <DropdownMenuItem key={c} onClick={() => { setMappedCodeFilter(c); setMappedPage(1); }} data-testid={`filter-code-${c}`}>{c}</DropdownMenuItem>
                 ))}
-              </div>
-            ) : !reviews?.length ? (
-              <div className="p-4">
-                <p className="text-muted-foreground text-sm text-center py-4" data-testid="text-no-reviews">
-                  No review history found
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead data-testid="col-reviewer">Reviewer</TableHead>
-                    <TableHead data-testid="col-outcome">Outcome</TableHead>
-                    <TableHead data-testid="col-comments">Comments</TableHead>
-                    <TableHead data-testid="col-actions-raised">Actions Raised</TableHead>
-                    <TableHead data-testid="col-reviewed-at">Reviewed At</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reviews.map((review) => (
-                    <TableRow key={review.id} data-testid={`row-review-${review.id}`}>
-                      <TableCell data-testid={`text-reviewer-${review.id}`}>
-                        {review.reviewer}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" data-testid={`badge-outcome-${review.id}`}>
-                          {review.outcome}
-                        </Badge>
-                      </TableCell>
-                      <TableCell data-testid={`text-review-comments-${review.id}`}>
-                        {review.comments || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`text-actions-raised-${review.id}`}>
-                        {review.actionsRaised || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`text-reviewed-at-${review.id}`}>
-                        {review.reviewedAt
-                          ? format(new Date(review.reviewedAt), "dd MMM yyyy")
-                          : "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {mappedHasActiveFilters && (
+              <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetMappedFilters} data-testid="button-reset-mapped-filters">
+                Reset view
+              </Button>
             )}
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="links" data-testid="tabcontent-links">
-          <Card>
-            {!relatedLinks.length ? (
-              <div className="p-4">
-                <p className="text-muted-foreground text-sm text-center py-4" data-testid="text-no-links">
-                  No related documents found
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="icon" data-testid="button-settings">
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" data-testid="button-map-control">
+                Map control
+              </Button>
+            </div>
+          </div>
+
+          <div className="border rounded-md" data-testid="mapped-controls-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-control">Control</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-frameworks">Frameworks</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-rationale">Rationale</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-coverage">Coverage</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mappedPaginated.length === 0 ? (
                   <TableRow>
-                    <TableHead data-testid="col-link-type">Link Type</TableHead>
-                    <TableHead data-testid="col-linked-document">Linked Document</TableHead>
-                    <TableHead data-testid="col-direction">Direction</TableHead>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      No mapped controls found
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {relatedLinks.map((link) => {
-                    const docId = Number(id);
-                    const isFrom = link.fromDocumentId === docId;
-                    const linkedDocId = isFrom ? link.toDocumentId : link.fromDocumentId;
-                    const linkedDocName = docMap.get(linkedDocId) || `Document #${linkedDocId}`;
-
+                ) : (
+                  mappedPaginated.map((mapping) => {
+                    const req = reqMap.get(mapping.requirementId);
+                    const source = req ? sourceMap.get(req.sourceId) : null;
                     return (
-                      <TableRow key={link.id} data-testid={`row-link-${link.id}`}>
-                        <TableCell>
-                          <Badge variant="secondary" data-testid={`badge-link-type-${link.id}`}>
-                            {link.linkType}
+                      <TableRow key={mapping.id} className="group" data-testid={`row-mapping-${mapping.id}`}>
+                        <TableCell className="max-w-[280px]">
+                          <div>
+                            <span className="font-medium text-sm" data-testid={`text-control-title-${mapping.id}`}>
+                              {req?.title ?? `Control #${mapping.requirementId}`}
+                            </span>
+                            {req?.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2" data-testid={`text-control-desc-${mapping.id}`}>
+                                {req.description}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm" data-testid={`text-framework-${mapping.id}`}>
+                          {source?.shortName ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-sm max-w-[250px]" data-testid={`text-rationale-${mapping.id}`}>
+                          {mapping.rationale ?? "-"}
+                        </TableCell>
+                        <TableCell data-testid={`text-coverage-${mapping.id}`}>
+                          <Badge variant={mapping.coverageStatus === "Covered" ? "default" : "secondary"}>
+                            {mapping.coverageStatus}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Link href={`/documents/${linkedDocId}`}>
-                            <span
-                              className="text-foreground hover:underline cursor-pointer"
-                              data-testid={`link-linked-doc-${link.id}`}
-                            >
-                              {linkedDocName}
-                            </span>
-                          </Link>
-                        </TableCell>
-                        <TableCell data-testid={`text-link-direction-${link.id}`}>
-                          {isFrom ? "Outgoing" : "Incoming"}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            data-testid={`button-unmap-${mapping.id}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-mapped-pagination">
+            <span data-testid="text-mapped-pagination-info">
+              {mappedStart} to {mappedEnd} of {mappedTotal} results
+            </span>
+            <div className="flex items-center gap-2">
+              <span>Show per page</span>
+              <Select value={String(mappedPageSize)} onValueChange={(v) => { setMappedPageSize(Number(v)); setMappedPage(1); }}>
+                <SelectTrigger className="w-[65px] h-8" data-testid="select-mapped-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" disabled={mappedPage <= 1} onClick={() => setMappedPage((p) => p - 1)} data-testid="button-mapped-prev">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" disabled={mappedPage >= mappedTotalPages} onClick={() => setMappedPage((p) => p + 1)} data-testid="button-mapped-next">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "audits" && (
+        <div className="space-y-4" data-testid="tabcontent-audits">
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground">Title</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Type</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Lead Auditor</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {docAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      No audits found for this document
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  docAudits.map((audit) => (
+                    <TableRow key={audit.id} data-testid={`row-audit-${audit.id}`}>
+                      <TableCell className="font-medium text-sm">{audit.title}</TableCell>
+                      <TableCell><Badge variant="outline">{audit.auditType}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary">{audit.status}</Badge></TableCell>
+                      <TableCell className="text-sm">{audit.leadAuditor ?? "-"}</TableCell>
+                      <TableCell className="text-sm">
+                        {audit.startDate ? format(new Date(audit.startDate), "dd MMM yyyy") : "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "comments" && (
+        <div className="space-y-4" data-testid="tabcontent-comments">
+          <div className="text-center py-12 text-muted-foreground">
+            <p className="text-sm">No comments yet</p>
+          </div>
+        </div>
+      )}
 
       <Dialog open={addVersionOpen} onOpenChange={(open) => {
         setAddVersionOpen(open);
@@ -960,7 +1053,6 @@ export default function DocumentDetail() {
           </Form>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
