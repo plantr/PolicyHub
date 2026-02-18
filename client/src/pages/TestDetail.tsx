@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
 
 function formatTimeAgo(date: Date): string {
@@ -37,6 +37,162 @@ const createTestSchema = z.object({
 });
 
 type CreateTestValues = z.infer<typeof createTestSchema>;
+
+function EvidenceTestCriteria({
+  mapping,
+  document,
+  requirement,
+  source,
+  isPassing,
+}: {
+  mapping: RequirementMapping;
+  document: PolicyDocument | null;
+  requirement: Requirement | null;
+  source: RegulatorySource | null;
+  isPassing: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<"about" | "logic">("about");
+
+  const testDescription = mapping.rationale || "This test verifies compliance with the mapped control.";
+  const docTitle = document?.title ?? "the linked document";
+
+  return (
+    <div data-testid="card-evidence-section">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 cursor-pointer py-1"
+        onClick={() => setExpanded(!expanded)}
+        data-testid="button-toggle-criteria"
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+          <h3 className="text-sm font-semibold">Test criteria</h3>
+        </div>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant={activeTab === "about" ? "outline" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("about")}
+            data-testid="button-tab-about"
+            className={activeTab === "about" ? "toggle-elevate toggle-elevated" : ""}
+          >
+            About
+          </Button>
+          <Button
+            variant={activeTab === "logic" ? "outline" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("logic")}
+            data-testid="button-tab-logic"
+            className={activeTab === "logic" ? "toggle-elevate toggle-elevated" : ""}
+          >
+            Logic
+          </Button>
+        </div>
+      </div>
+
+      {expanded && (
+        <Card className="mt-3" data-testid="card-criteria-content">
+          <CardContent className="pt-5 space-y-5">
+            {activeTab === "about" ? (
+              <div className="space-y-4 text-sm" data-testid="criteria-about">
+                <div>
+                  <h4 className="font-semibold mb-1">What is the test?</h4>
+                  <p className="text-muted-foreground">
+                    {document ? (
+                      <>This test verifies that your company has an approved <Link href={`/documents/${document.id}`} className="underline hover:text-foreground" data-testid="link-criteria-doc">{docTitle}</Link>.</>
+                    ) : (
+                      <>{testDescription}</>
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-1">What are the inputs to the test?</h4>
+                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                    {document ? (
+                      <>
+                        <li>A policy document with the ID: <span className="font-mono text-xs">{document.docType?.toLowerCase().replace(/\s+/g, "-")}-{document.id}</span></li>
+                        <li>The policy must be both <strong className="text-foreground">created</strong> and <strong className="text-foreground">approved</strong></li>
+                      </>
+                    ) : (
+                      <li>A document must be mapped to this test with coverage status set</li>
+                    )}
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-1">What is pass and what is fail?</h4>
+                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                    <li><strong className="text-foreground">Pass:</strong> The policy exists and has been approved</li>
+                    <li><strong className="text-foreground">Fail:</strong> The policy does not exist, or hasn't been approved</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-1">Key terms</h4>
+                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                    {document && (
+                      <li><strong className="text-foreground">{docTitle}:</strong> {document.description || `A ${document.docType} document owned by ${document.owner}.`}</li>
+                    )}
+                    {source && (
+                      <li><strong className="text-foreground">{source.name}:</strong> {source.description || `Regulatory source from ${source.jurisdiction}.`}</li>
+                    )}
+                  </ul>
+                </div>
+
+                {document && (
+                  <div>
+                    <h4 className="font-semibold mb-1">Relevant documentation</h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>
+                        <Link href={`/documents/${document.id}`} className="text-sm text-purple-600 dark:text-purple-400 hover:underline" data-testid="link-relevant-doc">
+                          {docTitle}
+                        </Link>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4 text-sm" data-testid="criteria-logic">
+                <div>
+                  <h4 className="font-semibold mb-1">Test logic</h4>
+                  <p className="text-muted-foreground mb-3">This test evaluates the following conditions:</p>
+                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                    <li>Document exists and is mapped to this requirement</li>
+                    <li>Coverage status is set to "Covered"</li>
+                    {document && <li>Document status is "Approved" or "Published"</li>}
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-1">Current status</h4>
+                  <div className="flex items-center gap-2">
+                    {isPassing ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
+                    <span className="text-muted-foreground">
+                      Coverage: <strong className="text-foreground">{mapping.coverageStatus}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {mapping.evidencePointers && (
+                  <div>
+                    <h4 className="font-semibold mb-1">Evidence pointers</h4>
+                    <p className="text-muted-foreground">{mapping.evidencePointers}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
 
 export default function TestDetail() {
   const [, params] = useRoute("/tests/:id");
@@ -346,37 +502,13 @@ export default function TestDetail() {
         </TabsContent>
 
         <TabsContent value="evidence" className="mt-6">
-          <Card data-testid="card-evidence-section">
-            <CardContent className="pt-6">
-              {document ? (
-                <div className="flex flex-wrap items-center gap-3 py-2" data-testid="row-evidence-doc">
-                  <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      href={`/documents/${document.id}`}
-                      className="text-sm font-medium hover:underline"
-                      data-testid="link-evidence-doc"
-                    >
-                      {document.title}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{document.docType} - {document.owner}</p>
-                  </div>
-                  <Badge variant={isPassing ? "default" : "destructive"} className="text-xs" data-testid="badge-evidence-status">
-                    {mapping!.coverageStatus}
-                  </Badge>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground py-4" data-testid="text-no-evidence">
-                  No evidence linked to this test.
-                </p>
-              )}
-              {mapping!.evidencePointers && (
-                <p className="text-sm text-muted-foreground mt-3 border-t pt-3" data-testid="text-evidence-pointers">
-                  {mapping!.evidencePointers}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <EvidenceTestCriteria
+            mapping={mapping!}
+            document={document}
+            requirement={requirement}
+            source={source}
+            isPassing={isPassing}
+          />
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
