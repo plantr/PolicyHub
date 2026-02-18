@@ -663,18 +663,31 @@ export async function registerRoutes(
         if (bestDoc.score >= 0.45) coverageStatus = "Covered";
         else if (bestDoc.score >= 0.30) coverageStatus = "Partially Covered";
 
+        const newRationale = `Auto-mapped (${Math.round(bestDoc.score * 100)}%): ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`;
+
         if (!alreadyExists && !dryRun) {
           await storage.createRequirementMapping({
             requirementId: req.id,
             documentId: bestDoc.docId,
             coverageStatus,
-            rationale: `Auto-mapped (${Math.round(bestDoc.score * 100)}%): ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`,
+            rationale: newRationale,
           });
           created++;
           existingMappingKeys.add(key);
         }
 
-        if (alreadyExists) skippedExisting++;
+        if (alreadyExists && !dryRun) {
+          const existing = allMappings.find(
+            (em) => em.requirementId === req.id && em.documentId === bestDoc!.docId
+          );
+          if (existing && existing.rationale && !existing.rationale.includes("%)")) {
+            await storage.updateRequirementMapping(existing.id, {
+              rationale: newRationale,
+              coverageStatus,
+            });
+          }
+          skippedExisting++;
+        }
 
         results.push({
           requirementId: req.id,
