@@ -15,8 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2, Search, CheckCircle2 } from "lucide-react";
-import { Link } from "wouter";
+import { Plus, Search } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
 
@@ -468,13 +467,12 @@ export default function Requirements() {
               <TableHead className="w-[160px]" data-testid="th-frameworks">Frameworks</TableHead>
               <TableHead className="w-[120px]" data-testid="th-status">Status</TableHead>
               <TableHead className="w-[100px]" data-testid="th-mappings">Mappings</TableHead>
-              <TableHead className="w-[60px]" data-testid="th-actions"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
                   No controls found.
                 </TableCell>
               </TableRow>
@@ -487,7 +485,12 @@ export default function Requirements() {
                   : bestStatus === "Partially Covered" ? "secondary" as const
                   : "destructive" as const;
                 return (
-                  <TableRow key={req.id} data-testid={`row-control-${req.id}`}>
+                  <TableRow
+                    key={req.id}
+                    className="cursor-pointer hover-elevate"
+                    onClick={() => openEditDialog(req)}
+                    data-testid={`row-control-${req.id}`}
+                  >
                     <TableCell className="font-mono text-xs text-muted-foreground align-top" data-testid={`text-id-${req.id}`}>
                       {req.code}
                     </TableCell>
@@ -499,46 +502,14 @@ export default function Requirements() {
                     </TableCell>
                     <TableCell className="align-top" data-testid={`text-framework-${req.id}`}>
                       {source && (
-                        <Link href={`/sources/${source.id}`} className="text-sm hover:underline">
-                          {source.shortName}
-                        </Link>
+                        <span className="text-sm">{source.shortName}</span>
                       )}
                     </TableCell>
                     <TableCell className="align-top" data-testid={`badge-status-${req.id}`}>
                       <Badge variant={statusVariant} className="text-xs">{bestStatus}</Badge>
                     </TableCell>
                     <TableCell className="align-top" data-testid={`text-mappings-${req.id}`}>
-                      {maps.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                          <span className="text-sm">{maps.length}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">--</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditDialog(req)}
-                          data-testid={`button-edit-control-${req.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            setDeletingReq(req);
-                            setDeleteConfirmOpen(true);
-                          }}
-                          data-testid={`button-delete-control-${req.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <span className="text-sm">{maps.length > 0 ? maps.length : "--"}</span>
                     </TableCell>
                   </TableRow>
                 );
