@@ -1126,7 +1126,7 @@ Respond in exactly this JSON format:
 {"score": <number>, "rationale": "<string>"}`;
 
       const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5",
         max_tokens: 300,
         messages: [{ role: "user", content: prompt }],
       });
