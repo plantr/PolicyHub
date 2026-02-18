@@ -74,6 +74,13 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `users` - System users with roles, departments, business unit assignments, and status
 - `commitments` - Regulatory conditions, undertakings, and remediation actions with source, category, status, owner, due dates
 - `knowledge_base_articles` - Internal compliance guidance articles with categories, tags, markdown content, and jurisdiction
+- `risks` - Risk register entries with inherent/residual scoring (likelihood x impact), status lifecycle, owner, controls, and business unit linkage
+- `risk_library` - Risk templates with suggested controls and default scoring for cloning into the register
+- `risk_actions` - Mitigation actions linked to risks with assignee, priority, due dates, and completion tracking
+- `risk_snapshots` - Point-in-time snapshots of risk posture with aggregate metrics (counts by severity, heatmap data) stored as JSONB
+- `risk_categories` - Configurable risk category reference table
+- `impact_levels` - Configurable impact level definitions (1-5 scale)
+- `likelihood_levels` - Configurable likelihood level definitions (1-5 scale)
 - `entity_types`, `roles`, `jurisdictions`, `document_categories`, `finding_severities` - Administration reference tables
 
 ### Shared Code

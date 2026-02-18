@@ -20,6 +20,11 @@ import {
   Shield,
   Target,
   Library,
+  ShieldAlert,
+  ListChecks,
+  BookMarked,
+  Camera,
+  Settings2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +65,17 @@ const navGroups = [
       { title: "Findings", icon: AlertTriangle, path: "/findings" },
       { title: "Audits", icon: ClipboardCheck, path: "/audits" },
       { title: "Commitments", icon: Target, path: "/commitments" },
+    ],
+  },
+  {
+    label: "Risk Management",
+    items: [
+      { title: "Overview", icon: ShieldAlert, path: "/risk-management" },
+      { title: "Risk Register", icon: AlertTriangle, path: "/risk-management/register" },
+      { title: "Risk Library", icon: BookMarked, path: "/risk-management/library" },
+      { title: "Action Tracker", icon: ListChecks, path: "/risk-management/actions" },
+      { title: "Snapshots", icon: Camera, path: "/risk-management/snapshots" },
+      { title: "Risk Settings", icon: Settings2, path: "/risk-management/settings" },
     ],
   },
   {
@@ -132,7 +148,9 @@ export function AppSidebar() {
                       const isActive =
                         item.path === "/"
                           ? location === "/"
-                          : location.startsWith(item.path);
+                          : item.path === "/risk-management"
+                            ? location === "/risk-management"
+                            : location.startsWith(item.path);
                       return (
                         <SidebarMenuItem key={item.path}>
                           <SidebarMenuButton

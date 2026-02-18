@@ -23,6 +23,12 @@ import UsersPage from "@/pages/Users";
 import TrustCenter from "@/pages/TrustCenter";
 import CommitmentsPage from "@/pages/Commitments";
 import KnowledgeBasePage from "@/pages/KnowledgeBase";
+import RiskOverview from "@/pages/RiskOverview";
+import RiskRegister from "@/pages/RiskRegister";
+import RiskLibrary from "@/pages/RiskLibrary";
+import RiskActions from "@/pages/RiskActions";
+import RiskSnapshots from "@/pages/RiskSnapshots";
+import RiskSettings from "@/pages/RiskSettings";
 import LookupAdmin from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
@@ -42,6 +48,12 @@ function Router() {
       <Route path="/trust-center" component={TrustCenter} />
       <Route path="/commitments" component={CommitmentsPage} />
       <Route path="/knowledge-base" component={KnowledgeBasePage} />
+      <Route path="/risk-management" component={RiskOverview} />
+      <Route path="/risk-management/register" component={RiskRegister} />
+      <Route path="/risk-management/library" component={RiskLibrary} />
+      <Route path="/risk-management/actions" component={RiskActions} />
+      <Route path="/risk-management/snapshots" component={RiskSnapshots} />
+      <Route path="/risk-management/settings" component={RiskSettings} />
       <Route path="/business-units" component={BusinessUnits} />
       <Route path="/users" component={UsersPage} />
       <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" />}</Route>
