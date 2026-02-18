@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, ExternalLink, LayoutGrid, List, Search, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 import type { RegulatorySource, Requirement, RequirementMapping } from "@shared/schema";
 import { insertRegulatorySourceSchema } from "@shared/schema";
 
@@ -407,12 +408,12 @@ export default function RegulatorySources() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                              <span className="text-xs font-bold text-primary">
+                              <span className="text-xs font-bold">
                                 {source.shortName.substring(0, 3)}
                               </span>
                             </div>
                             <div>
-                              <div className="font-medium" data-testid={`text-framework-name-${source.id}`}>{source.name}</div>
+                              <Link href={`/sources/${source.id}`} className="font-medium hover:underline text-foreground" data-testid={`text-framework-name-${source.id}`}>{source.name}</Link>
                               <div className="text-xs text-muted-foreground">{source.shortName}</div>
                             </div>
                           </div>
@@ -516,9 +517,11 @@ export default function RegulatorySources() {
                     <Card key={source.id} data-testid={`card-framework-${source.id}`}>
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <CardTitle className="text-base" data-testid={`text-framework-name-${source.id}`}>
-                            {source.name}
-                          </CardTitle>
+                          <Link href={`/sources/${source.id}`} className="hover:underline">
+                            <CardTitle className="text-base" data-testid={`text-framework-name-${source.id}`}>
+                              {source.name}
+                            </CardTitle>
+                          </Link>
                           <div className="flex items-center gap-1 flex-wrap">
                             <Badge variant="secondary" data-testid={`badge-short-name-${source.id}`}>{source.shortName}</Badge>
                             <Badge variant="outline" data-testid={`badge-category-${source.id}`}>{source.category}</Badge>
@@ -568,7 +571,7 @@ export default function RegulatorySources() {
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-sm text-primary"
+                            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                             data-testid={`link-framework-url-${source.id}`}
                           >
                             <ExternalLink className="w-3 h-3" />
