@@ -568,6 +568,17 @@ export async function registerRoutes(
 
     const stopWords = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "shall", "should", "may", "might", "can", "could", "would", "must", "that", "this", "these", "those", "it", "its", "with", "by", "from", "as", "at", "on", "not", "no", "but", "if", "all", "any", "each", "every", "such", "than", "too", "very", "so", "up", "out", "about", "into", "through", "during", "before", "after", "above", "below", "between", "under", "over", "other", "which", "who", "whom", "where", "when", "how", "what", "why", "their", "there", "they", "them", "we", "our", "you", "your", "company", "also", "based", "ensure", "required", "includes", "including", "use", "used", "using", "within", "upon", "per", "least", "place"]);
 
+    const lowValueTerms = new Set([
+      "risk", "risks", "control", "controls", "policy", "policies", "procedure", "procedures",
+      "management", "process", "processes", "assessment", "assessments", "review", "reviews",
+      "performed", "established", "documented", "defined", "approved", "maintained",
+      "implemented", "identified", "evaluated", "monitored", "reported", "communicated",
+      "annually", "periodic", "regular", "appropriate", "relevant", "applicable",
+      "organization", "personnel", "employees", "objectives", "activities",
+      "information", "system", "systems", "service", "services", "changes",
+      "security", "requirements", "standards", "compliance", "internal", "external",
+    ]);
+
     function extractMeaningfulTerms(text: string): string[] {
       return tokenize(text).filter((w) => !stopWords.has(w));
     }
@@ -580,13 +591,22 @@ export async function registerRoutes(
       return grams;
     }
 
-    const docTokenSets = new Map<number, { tokens: Set<string>; text: string }>();
+    const docTokenSets = new Map<number, { tokens: Set<string>; text: string; titleTokens: Set<string> }>();
     for (const doc of docsWithContent) {
       const md = latestVersionMarkdown.get(doc.id)!;
       const lowerMd = md.toLowerCase();
       const tokens = new Set(extractMeaningfulTerms(md));
-      docTokenSets.set(doc.id, { tokens, text: lowerMd });
+      const titleTokens = new Set(extractMeaningfulTerms(doc.title));
+      docTokenSets.set(doc.id, { tokens, text: lowerMd, titleTokens });
     }
+
+    const termDocFreq = new Map<string, number>();
+    for (const [, data] of docTokenSets) {
+      for (const t of data.tokens) {
+        termDocFreq.set(t, (termDocFreq.get(t) ?? 0) + 1);
+      }
+    }
+    const totalDocs = docsWithContent.length;
 
     function scoreMatch(req: typeof targetReqs[0], docId: number): { score: number; matchedTerms: string[] } {
       const docData = docTokenSets.get(docId);
@@ -597,35 +617,79 @@ export async function registerRoutes(
       const allUniqueTerms = Array.from(new Set([...titleTerms, ...descTerms]));
       if (allUniqueTerms.length === 0) return { score: 0, matchedTerms: [] };
 
-      const matchedTitle: string[] = [];
-      for (const t of titleTerms) {
-        if (docData.tokens.has(t)) matchedTitle.push(t);
+      function termWeight(term: string): number {
+        if (lowValueTerms.has(term)) return 0.3;
+        const df = termDocFreq.get(term) ?? 0;
+        if (totalDocs > 1 && df >= totalDocs) return 0.3;
+        if (totalDocs > 2 && df >= totalDocs - 1) return 0.5;
+        return 1.0;
       }
 
+      let titleWeightedMatch = 0;
+      let titleTotalWeight = 0;
+      const matchedTitle: string[] = [];
+      for (const t of titleTerms) {
+        const w = termWeight(t);
+        titleTotalWeight += w;
+        if (docData.tokens.has(t)) {
+          titleWeightedMatch += w;
+          matchedTitle.push(t);
+        }
+      }
+
+      let descWeightedMatch = 0;
+      let descTotalWeight = 0;
       const matchedDesc: string[] = [];
       for (const t of descTerms) {
-        if (docData.tokens.has(t) && !matchedTitle.includes(t)) matchedDesc.push(t);
+        const w = termWeight(t);
+        descTotalWeight += w;
+        if (docData.tokens.has(t) && !matchedTitle.includes(t)) {
+          descWeightedMatch += w;
+          matchedDesc.push(t);
+        }
       }
 
       const titleBigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.title), 2)));
       const descBigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.description), 2)));
+      const titleTrigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.title), 3)));
+      const descTrigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.description), 3)));
       const matchedBigrams: string[] = [];
       for (const bg of [...titleBigrams, ...descBigrams]) {
         if (docData.text.includes(bg) && !matchedBigrams.includes(bg)) {
           matchedBigrams.push(bg);
         }
       }
+      const matchedTrigrams: string[] = [];
+      for (const tg of [...titleTrigrams, ...descTrigrams]) {
+        if (docData.text.includes(tg) && !matchedTrigrams.includes(tg)) {
+          matchedTrigrams.push(tg);
+        }
+      }
 
-      const titleScore = titleTerms.length > 0 ? matchedTitle.length / titleTerms.length : 0;
-      const descScore = descTerms.length > 0 ? matchedDesc.length / descTerms.length : 0;
+      const titleScore = titleTotalWeight > 0 ? titleWeightedMatch / titleTotalWeight : 0;
+      const descScore = descTotalWeight > 0 ? descWeightedMatch / descTotalWeight : 0;
       const bigramCount = titleBigrams.length + descBigrams.length;
       const bigramScore = bigramCount > 0 ? matchedBigrams.length / bigramCount : 0;
+      const trigramCount = titleTrigrams.length + descTrigrams.length;
+      const trigramScore = trigramCount > 0 ? matchedTrigrams.length / trigramCount : 0;
 
-      const combinedScore = (titleScore * 0.45) + (descScore * 0.25) + (bigramScore * 0.30);
+      let docTitleBonus = 0;
+      const reqTitleHighValue = titleTerms.filter((t) => !lowValueTerms.has(t));
+      if (reqTitleHighValue.length > 0) {
+        const titleMatches = reqTitleHighValue.filter((t) => docData.titleTokens.has(t));
+        docTitleBonus = titleMatches.length / reqTitleHighValue.length;
+      }
+
+      const combinedScore =
+        (titleScore * 0.30) +
+        (descScore * 0.15) +
+        (bigramScore * 0.20) +
+        (trigramScore * 0.20) +
+        (docTitleBonus * 0.15);
 
       return {
         score: combinedScore,
-        matchedTerms: [...matchedBigrams, ...matchedTitle, ...matchedDesc].filter((t, i, a) => a.indexOf(t) === i),
+        matchedTerms: [...matchedTrigrams, ...matchedBigrams, ...matchedTitle, ...matchedDesc].filter((t, i, a) => a.indexOf(t) === i),
       };
     }
 
@@ -680,7 +744,7 @@ export async function registerRoutes(
           const existing = allMappings.find(
             (em) => em.requirementId === req.id && em.documentId === bestDoc!.docId
           );
-          if (existing && existing.rationale && !existing.rationale.includes("%)")) {
+          if (existing && existing.rationale?.startsWith("Auto-mapped")) {
             await storage.updateRequirementMapping(existing.id, {
               rationale: newRationale,
               coverageStatus,
@@ -700,6 +764,30 @@ export async function registerRoutes(
           matchedTerms: bestDoc.matchedTerms.slice(0, 10),
           created: !alreadyExists && !dryRun,
         });
+      }
+    }
+
+    if (!dryRun) {
+      let recalculated = 0;
+      for (const mapping of allMappings) {
+        if (!mapping.rationale?.startsWith("Auto-mapped")) continue;
+        if (!mapping.documentId) continue;
+        const reqForMapping = targetReqs.find((r) => r.id === mapping.requirementId);
+        if (!reqForMapping) continue;
+        const alreadyHandled = results.some(
+          (r) => r.requirementId === mapping.requirementId && r.documentId === mapping.documentId
+        );
+        if (alreadyHandled) continue;
+        const { score, matchedTerms } = scoreMatch(reqForMapping, mapping.documentId);
+        let newStatus = "Not Covered";
+        if (score >= 0.45) newStatus = "Covered";
+        else if (score >= 0.30) newStatus = "Partially Covered";
+        const updatedRationale = `Auto-mapped (${Math.round(score * 100)}%): ${matchedTerms.slice(0, 8).join(", ")}`;
+        await storage.updateRequirementMapping(mapping.id, {
+          rationale: updatedRationale,
+          coverageStatus: newStatus,
+        });
+        recalculated++;
       }
     }
 
