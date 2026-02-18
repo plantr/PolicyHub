@@ -34,8 +34,6 @@ function formatTimeAgo(date: Date): string {
 
 const createTestSchema = z.object({
   description: z.string().min(1, "Description is required"),
-  documentId: z.coerce.number().min(1, "Document is required"),
-  coverageStatus: z.enum(["Covered", "Partially Covered", "Not Covered"]),
 });
 
 type CreateTestValues = z.infer<typeof createTestSchema>;
@@ -53,7 +51,7 @@ export default function TestDetail() {
 
   const form = useForm<CreateTestValues>({
     resolver: zodResolver(createTestSchema),
-    defaultValues: { description: "", documentId: 0, coverageStatus: "Covered" },
+    defaultValues: { description: "" },
   });
 
   const { data: allMappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
@@ -108,8 +106,8 @@ export default function TestDetail() {
     mutationFn: async (data: CreateTestValues) => {
       const res = await apiRequest("POST", "/api/requirement-mappings", {
         requirementId: controlIdParam,
-        documentId: data.documentId,
-        coverageStatus: data.coverageStatus,
+        documentId: null,
+        coverageStatus: "Not Covered",
         rationale: data.description,
       });
       return res.json();
@@ -180,10 +178,10 @@ export default function TestDetail() {
           </TabsList>
 
           <TabsContent value="results" className="mt-6">
-            <Card data-testid="card-test-form">
-              <CardContent className="pt-6">
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <Card data-testid="card-test-form">
+                  <CardContent className="pt-6">
                     <FormField
                       control={form.control}
                       name="description"
@@ -197,62 +195,14 @@ export default function TestDetail() {
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="documentId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Document</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value ? String(field.value) : ""}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-test-document">
-                                <SelectValue placeholder="Select a document" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {(allDocuments ?? []).map((d) => (
-                                <SelectItem key={d.id} value={String(d.id)} data-testid={`select-item-doc-${d.id}`}>
-                                  {d.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="coverageStatus"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-test-status">
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Covered" data-testid="select-item-covered">Covered</SelectItem>
-                              <SelectItem value="Partially Covered" data-testid="select-item-partial">Partially Covered</SelectItem>
-                              <SelectItem value="Not Covered" data-testid="select-item-not-covered">Not Covered</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="pt-2">
-                      <Button type="submit" disabled={createMutation.isPending} data-testid="button-save-test">
-                        <Save className="h-4 w-4 mr-2" />
-                        {createMutation.isPending ? "Saving..." : "Save test"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+                <Button type="submit" disabled={createMutation.isPending} data-testid="button-save-test">
+                  <Save className="h-4 w-4 mr-2" />
+                  {createMutation.isPending ? "Saving..." : "Save test"}
+                </Button>
+              </form>
+            </Form>
           </TabsContent>
 
           <TabsContent value="controls" className="mt-6">
