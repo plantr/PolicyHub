@@ -17,6 +17,9 @@ import {
   Gauge,
   Blocks,
   ChevronDown,
+  Shield,
+  Target,
+  Library,
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,11 +59,14 @@ const navGroups = [
       { title: "Gap Analysis", icon: GitCompare, path: "/gap-analysis" },
       { title: "Findings", icon: AlertTriangle, path: "/findings" },
       { title: "Audits", icon: ClipboardCheck, path: "/audits" },
+      { title: "Commitments", icon: Target, path: "/commitments" },
     ],
   },
   {
-    label: "Governance",
+    label: "Trust & Governance",
     items: [
+      { title: "Trust Center", icon: Shield, path: "/trust-center" },
+      { title: "Knowledge Base", icon: Library, path: "/knowledge-base" },
       { title: "Audit Trail", icon: History, path: "/audit-trail" },
     ],
   },

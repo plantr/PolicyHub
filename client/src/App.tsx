@@ -20,6 +20,9 @@ import AuditTrail from "@/pages/AuditTrail";
 import BusinessUnits from "@/pages/BusinessUnits";
 import Audits from "@/pages/Audits";
 import UsersPage from "@/pages/Users";
+import TrustCenter from "@/pages/TrustCenter";
+import CommitmentsPage from "@/pages/Commitments";
+import KnowledgeBasePage from "@/pages/KnowledgeBase";
 import LookupAdmin from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
@@ -36,6 +39,9 @@ function Router() {
       <Route path="/findings" component={Findings} />
       <Route path="/audit-trail" component={AuditTrail} />
       <Route path="/audits" component={Audits} />
+      <Route path="/trust-center" component={TrustCenter} />
+      <Route path="/commitments" component={CommitmentsPage} />
+      <Route path="/knowledge-base" component={KnowledgeBasePage} />
       <Route path="/business-units" component={BusinessUnits} />
       <Route path="/users" component={UsersPage} />
       <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" />}</Route>
