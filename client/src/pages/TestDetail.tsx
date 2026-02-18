@@ -141,7 +141,7 @@ export default function TestDetail() {
     return (
       <div className="space-y-4" data-testid="test-detail-not-found">
         <div className="flex justify-end">
-          <Button size="icon" variant="ghost" onClick={() => navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -164,7 +164,7 @@ export default function TestDetail() {
               </p>
             )}
           </div>
-          <Button size="icon" variant="ghost" onClick={() => controlIdParam ? navigate(`/controls/${controlIdParam}`) : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -282,7 +282,7 @@ export default function TestDetail() {
           <Button size="icon" variant="outline" data-testid="button-test-share">
             <Share2 className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => requirement ? navigate(`/controls/${requirement.id}`) : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
