@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,7 @@ export default function GapAnalysis() {
   const [pageSize, setPageSize] = useState(20);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
@@ -417,7 +419,7 @@ export default function GapAnalysis() {
                         const pctMatch = m.rationale?.match(/\((\d+)%\)/);
                         const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
                         return (
-                          <TableRow key={m.id} data-testid={`row-mapping-${m.id}`}>
+                          <TableRow key={m.id} className="cursor-pointer" onClick={() => navigate(`/controls/${m.requirementId}`)} data-testid={`row-mapping-${m.id}`}>
                             <TableCell className="font-mono text-sm font-medium" data-testid={`text-req-code-${m.id}`}>
                               {req?.code ?? `REQ-${m.requirementId}`}
                             </TableCell>
