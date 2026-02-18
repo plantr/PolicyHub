@@ -16,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Search } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
 
@@ -96,6 +97,7 @@ function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, cente
 }
 
 export default function Requirements() {
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -488,7 +490,7 @@ export default function Requirements() {
                   <TableRow
                     key={req.id}
                     className="cursor-pointer hover-elevate"
-                    onClick={() => openEditDialog(req)}
+                    onClick={() => navigate(`/controls/${req.id}`)}
                     data-testid={`row-control-${req.id}`}
                   >
                     <TableCell className="font-mono text-xs text-muted-foreground align-top" data-testid={`text-id-${req.id}`}>
