@@ -8,8 +8,7 @@ import { createHash } from "crypto";
 import multer from "multer";
 import { generateS3Key, uploadToS3, getLocalFilePath, deleteFromS3 } from "./s3";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+const _require = createRequire(import.meta.url);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -412,7 +411,8 @@ export async function registerRoutes(
       const filePath = getLocalFilePath(version.pdfS3Key);
       const fs = await import("fs/promises");
       const buffer = await fs.readFile(filePath);
-      const pdfData = await pdfParse(buffer);
+      const parsePdf = _require("pdf-parse");
+      const pdfData = await parsePdf(buffer);
       const text = pdfData.text || "";
 
       const lines = text.split("\n").map((l: string) => l.trimEnd());
