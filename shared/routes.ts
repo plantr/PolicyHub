@@ -5,11 +5,13 @@ import {
   insertRequirementMappingSchema, insertReviewHistorySchema,
   insertRegulatorySourceSchema, insertRequirementSchema, insertAuditSchema,
   insertUserSchema, insertCommitmentSchema, insertKnowledgeBaseArticleSchema,
+  insertRiskSchema, insertRiskLibrarySchema, insertRiskActionSchema, insertRiskSnapshotSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
   audits, users, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   commitments, knowledgeBaseArticles,
+  risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
 } from './schema';
 
 export const errorSchemas = {
@@ -633,6 +635,245 @@ export const api = {
         204: z.object({}),
         404: errorSchemas.notFound,
       },
+    },
+  },
+
+  // =============================================
+  // RISKS
+  // =============================================
+  risks: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/risks' as const,
+      responses: { 200: z.array(z.custom<typeof risks.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/risks/:id' as const,
+      responses: {
+        200: z.custom<typeof risks.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/risks' as const,
+      input: insertRiskSchema,
+      responses: {
+        201: z.custom<typeof risks.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/risks/:id' as const,
+      input: insertRiskSchema.partial(),
+      responses: {
+        200: z.custom<typeof risks.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/risks/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // RISK LIBRARY
+  // =============================================
+  riskLibrary: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/risk-library' as const,
+      responses: { 200: z.array(z.custom<typeof riskLibrary.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/risk-library/:id' as const,
+      responses: {
+        200: z.custom<typeof riskLibrary.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/risk-library' as const,
+      input: insertRiskLibrarySchema,
+      responses: {
+        201: z.custom<typeof riskLibrary.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/risk-library/:id' as const,
+      input: insertRiskLibrarySchema.partial(),
+      responses: {
+        200: z.custom<typeof riskLibrary.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/risk-library/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // RISK ACTIONS
+  // =============================================
+  riskActions: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/risk-actions' as const,
+      responses: { 200: z.array(z.custom<typeof riskActions.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/risk-actions/:id' as const,
+      responses: {
+        200: z.custom<typeof riskActions.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/risk-actions' as const,
+      input: insertRiskActionSchema,
+      responses: {
+        201: z.custom<typeof riskActions.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/risk-actions/:id' as const,
+      input: insertRiskActionSchema.partial(),
+      responses: {
+        200: z.custom<typeof riskActions.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/risk-actions/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // RISK SNAPSHOTS
+  // =============================================
+  riskSnapshots: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/risk-snapshots' as const,
+      responses: { 200: z.array(z.custom<typeof riskSnapshots.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/risk-snapshots' as const,
+      input: insertRiskSnapshotSchema,
+      responses: {
+        201: z.custom<typeof riskSnapshots.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/risk-snapshots/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // RISK SETTINGS (Categories, Impact, Likelihood)
+  // =============================================
+  riskCategories: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/risk-categories' as const,
+      responses: { 200: z.array(z.custom<typeof riskCategories.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/risk-categories' as const,
+      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
+      responses: { 201: z.custom<typeof riskCategories.$inferSelect>() },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/risk-categories/:id' as const,
+      input: z.object({ value: z.string(), label: z.string(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
+      responses: { 200: z.custom<typeof riskCategories.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/risk-categories/:id' as const,
+      responses: { 204: z.object({}) },
+    },
+  },
+  impactLevels: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/impact-levels' as const,
+      responses: { 200: z.array(z.custom<typeof impactLevels.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/impact-levels' as const,
+      input: z.object({ value: z.number().int(), label: z.string(), description: z.string().nullable().default(null), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
+      responses: { 201: z.custom<typeof impactLevels.$inferSelect>() },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/impact-levels/:id' as const,
+      input: z.object({ value: z.number().int(), label: z.string(), description: z.string().nullable(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
+      responses: { 200: z.custom<typeof impactLevels.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/impact-levels/:id' as const,
+      responses: { 204: z.object({}) },
+    },
+  },
+  likelihoodLevels: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/likelihood-levels' as const,
+      responses: { 200: z.array(z.custom<typeof likelihoodLevels.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/likelihood-levels' as const,
+      input: z.object({ value: z.number().int(), label: z.string(), description: z.string().nullable().default(null), sortOrder: z.number().int().default(0), active: z.boolean().default(true) }),
+      responses: { 201: z.custom<typeof likelihoodLevels.$inferSelect>() },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/likelihood-levels/:id' as const,
+      input: z.object({ value: z.number().int(), label: z.string(), description: z.string().nullable(), sortOrder: z.number().int(), active: z.boolean() }).partial(),
+      responses: { 200: z.custom<typeof likelihoodLevels.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/likelihood-levels/:id' as const,
+      responses: { 204: z.object({}) },
     },
   },
 

@@ -6,6 +6,7 @@ import {
   findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities, documentStatuses,
   commitments, knowledgeBaseArticles,
+  risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
@@ -22,6 +23,11 @@ import {
   type CreateRequirementRequest, type UpdateRequirementRequest,
   type Commitment, type CreateCommitmentRequest, type UpdateCommitmentRequest,
   type KnowledgeBaseArticle, type CreateKnowledgeBaseArticleRequest, type UpdateKnowledgeBaseArticleRequest,
+  type Risk, type CreateRiskRequest, type UpdateRiskRequest,
+  type RiskLibraryItem, type CreateRiskLibraryRequest, type UpdateRiskLibraryRequest,
+  type RiskAction, type CreateRiskActionRequest, type UpdateRiskActionRequest,
+  type RiskSnapshot, type CreateRiskSnapshotRequest,
+  type RiskCategory, type ImpactLevel, type LikelihoodLevel,
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -111,6 +117,43 @@ export interface IStorage {
   createKnowledgeBaseArticle(article: CreateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle>;
   updateKnowledgeBaseArticle(id: number, article: UpdateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle | undefined>;
   deleteKnowledgeBaseArticle(id: number): Promise<void>;
+
+  getRisks(): Promise<Risk[]>;
+  getRisk(id: number): Promise<Risk | undefined>;
+  createRisk(data: CreateRiskRequest): Promise<Risk>;
+  updateRisk(id: number, data: UpdateRiskRequest): Promise<Risk | undefined>;
+  deleteRisk(id: number): Promise<void>;
+
+  getRiskLibraryItems(): Promise<RiskLibraryItem[]>;
+  getRiskLibraryItem(id: number): Promise<RiskLibraryItem | undefined>;
+  createRiskLibraryItem(data: CreateRiskLibraryRequest): Promise<RiskLibraryItem>;
+  updateRiskLibraryItem(id: number, data: UpdateRiskLibraryRequest): Promise<RiskLibraryItem | undefined>;
+  deleteRiskLibraryItem(id: number): Promise<void>;
+
+  getRiskActions(): Promise<RiskAction[]>;
+  getRiskAction(id: number): Promise<RiskAction | undefined>;
+  createRiskAction(data: CreateRiskActionRequest): Promise<RiskAction>;
+  updateRiskAction(id: number, data: UpdateRiskActionRequest): Promise<RiskAction | undefined>;
+  deleteRiskAction(id: number): Promise<void>;
+
+  getRiskSnapshots(): Promise<RiskSnapshot[]>;
+  createRiskSnapshot(data: CreateRiskSnapshotRequest): Promise<RiskSnapshot>;
+  deleteRiskSnapshot(id: number): Promise<void>;
+
+  getRiskCategories(): Promise<RiskCategory[]>;
+  createRiskCategory(data: any): Promise<RiskCategory>;
+  updateRiskCategory(id: number, data: any): Promise<RiskCategory | undefined>;
+  deleteRiskCategory(id: number): Promise<void>;
+
+  getImpactLevels(): Promise<ImpactLevel[]>;
+  createImpactLevel(data: any): Promise<ImpactLevel>;
+  updateImpactLevel(id: number, data: any): Promise<ImpactLevel | undefined>;
+  deleteImpactLevel(id: number): Promise<void>;
+
+  getLikelihoodLevels(): Promise<LikelihoodLevel[]>;
+  createLikelihoodLevel(data: any): Promise<LikelihoodLevel>;
+  updateLikelihoodLevel(id: number, data: any): Promise<LikelihoodLevel | undefined>;
+  deleteLikelihoodLevel(id: number): Promise<void>;
 
   getAdminRecords(table: string): Promise<AdminRecord[]>;
   getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined>;
@@ -382,6 +425,120 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteKnowledgeBaseArticle(id: number): Promise<void> {
     await db.delete(knowledgeBaseArticles).where(eq(knowledgeBaseArticles.id, id));
+  }
+
+  async getRisks(): Promise<Risk[]> {
+    return await db.select().from(risks);
+  }
+  async getRisk(id: number): Promise<Risk | undefined> {
+    const [r] = await db.select().from(risks).where(eq(risks.id, id));
+    return r;
+  }
+  async createRisk(data: CreateRiskRequest): Promise<Risk> {
+    const [created] = await db.insert(risks).values(data).returning();
+    return created;
+  }
+  async updateRisk(id: number, data: UpdateRiskRequest): Promise<Risk | undefined> {
+    const [updated] = await db.update(risks).set({ ...data, updatedAt: new Date() }).where(eq(risks.id, id)).returning();
+    return updated;
+  }
+  async deleteRisk(id: number): Promise<void> {
+    await db.delete(riskActions).where(eq(riskActions.riskId, id));
+    await db.delete(risks).where(eq(risks.id, id));
+  }
+
+  async getRiskLibraryItems(): Promise<RiskLibraryItem[]> {
+    return await db.select().from(riskLibrary);
+  }
+  async getRiskLibraryItem(id: number): Promise<RiskLibraryItem | undefined> {
+    const [r] = await db.select().from(riskLibrary).where(eq(riskLibrary.id, id));
+    return r;
+  }
+  async createRiskLibraryItem(data: CreateRiskLibraryRequest): Promise<RiskLibraryItem> {
+    const [created] = await db.insert(riskLibrary).values(data).returning();
+    return created;
+  }
+  async updateRiskLibraryItem(id: number, data: UpdateRiskLibraryRequest): Promise<RiskLibraryItem | undefined> {
+    const [updated] = await db.update(riskLibrary).set(data).where(eq(riskLibrary.id, id)).returning();
+    return updated;
+  }
+  async deleteRiskLibraryItem(id: number): Promise<void> {
+    await db.delete(riskLibrary).where(eq(riskLibrary.id, id));
+  }
+
+  async getRiskActions(): Promise<RiskAction[]> {
+    return await db.select().from(riskActions);
+  }
+  async getRiskAction(id: number): Promise<RiskAction | undefined> {
+    const [r] = await db.select().from(riskActions).where(eq(riskActions.id, id));
+    return r;
+  }
+  async createRiskAction(data: CreateRiskActionRequest): Promise<RiskAction> {
+    const [created] = await db.insert(riskActions).values(data).returning();
+    return created;
+  }
+  async updateRiskAction(id: number, data: UpdateRiskActionRequest): Promise<RiskAction | undefined> {
+    const [updated] = await db.update(riskActions).set(data).where(eq(riskActions.id, id)).returning();
+    return updated;
+  }
+  async deleteRiskAction(id: number): Promise<void> {
+    await db.delete(riskActions).where(eq(riskActions.id, id));
+  }
+
+  async getRiskSnapshots(): Promise<RiskSnapshot[]> {
+    return await db.select().from(riskSnapshots);
+  }
+  async createRiskSnapshot(data: CreateRiskSnapshotRequest): Promise<RiskSnapshot> {
+    const [created] = await db.insert(riskSnapshots).values(data).returning();
+    return created;
+  }
+  async deleteRiskSnapshot(id: number): Promise<void> {
+    await db.delete(riskSnapshots).where(eq(riskSnapshots.id, id));
+  }
+
+  async getRiskCategories(): Promise<RiskCategory[]> {
+    return await db.select().from(riskCategories);
+  }
+  async createRiskCategory(data: any): Promise<RiskCategory> {
+    const [created] = await db.insert(riskCategories).values(data).returning();
+    return created;
+  }
+  async updateRiskCategory(id: number, data: any): Promise<RiskCategory | undefined> {
+    const [updated] = await db.update(riskCategories).set(data).where(eq(riskCategories.id, id)).returning();
+    return updated;
+  }
+  async deleteRiskCategory(id: number): Promise<void> {
+    await db.delete(riskCategories).where(eq(riskCategories.id, id));
+  }
+
+  async getImpactLevels(): Promise<ImpactLevel[]> {
+    return await db.select().from(impactLevels);
+  }
+  async createImpactLevel(data: any): Promise<ImpactLevel> {
+    const [created] = await db.insert(impactLevels).values(data).returning();
+    return created;
+  }
+  async updateImpactLevel(id: number, data: any): Promise<ImpactLevel | undefined> {
+    const [updated] = await db.update(impactLevels).set(data).where(eq(impactLevels.id, id)).returning();
+    return updated;
+  }
+  async deleteImpactLevel(id: number): Promise<void> {
+    await db.delete(impactLevels).where(eq(impactLevels.id, id));
+  }
+
+  async getLikelihoodLevels(): Promise<LikelihoodLevel[]> {
+    return await db.select().from(likelihoodLevels);
+  }
+  async createLikelihoodLevel(data: any): Promise<LikelihoodLevel> {
+    const [created] = await db.insert(likelihoodLevels).values(data).returning();
+    return created;
+  }
+  async updateLikelihoodLevel(id: number, data: any): Promise<LikelihoodLevel | undefined> {
+    const [updated] = await db.update(likelihoodLevels).set(data).where(eq(likelihoodLevels.id, id)).returning();
+    return updated;
+  }
+  async deleteLikelihoodLevel(id: number): Promise<void> {
+    await db.delete(likelihoodLevels).where(eq(likelihoodLevels.id, id));
   }
 
   private getAdminTable(table: string) {

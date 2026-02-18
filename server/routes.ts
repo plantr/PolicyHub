@@ -954,6 +954,279 @@ export async function registerRoutes(
     res.json(records);
   });
 
+  // === RISKS ===
+  app.get(api.risks.list.path, async (_req, res) => {
+    res.json(await storage.getRisks());
+  });
+  app.get(api.risks.get.path, async (req, res) => {
+    const r = await storage.getRisk(Number(req.params.id));
+    if (!r) return res.status(404).json({ message: "Risk not found" });
+    res.json(r);
+  });
+  app.post(api.risks.create.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.reviewDate && typeof body.reviewDate === "string") body.reviewDate = new Date(body.reviewDate);
+      if (typeof body.businessUnitId === "string") body.businessUnitId = body.businessUnitId === "" || body.businessUnitId === "null" ? null : Number(body.businessUnitId);
+      if (typeof body.requirementId === "string") body.requirementId = body.requirementId === "" || body.requirementId === "null" ? null : Number(body.requirementId);
+      const score = (body.inherentLikelihood || 3) * (body.inherentImpact || 3);
+      body.inherentScore = score;
+      body.inherentRating = score >= 20 ? "Critical" : score >= 12 ? "High" : score >= 6 ? "Medium" : "Low";
+      const resScore = (body.residualLikelihood || 3) * (body.residualImpact || 3);
+      body.residualScore = resScore;
+      body.residualRating = resScore >= 20 ? "Critical" : resScore >= 12 ? "High" : resScore >= 6 ? "Medium" : "Low";
+      const input = api.risks.create.input.parse(body);
+      const r = await storage.createRisk(input);
+      await storage.createAuditLogEntry({
+        entityType: "risk", entityId: r.id,
+        action: "created", actor: input.owner, details: `Risk "${r.title}" created`
+      });
+      res.status(201).json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.risks.update.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.reviewDate && typeof body.reviewDate === "string") body.reviewDate = new Date(body.reviewDate);
+      if (typeof body.businessUnitId === "string") body.businessUnitId = body.businessUnitId === "" || body.businessUnitId === "null" ? null : Number(body.businessUnitId);
+      if (typeof body.requirementId === "string") body.requirementId = body.requirementId === "" || body.requirementId === "null" ? null : Number(body.requirementId);
+      if (body.inherentLikelihood !== undefined && body.inherentImpact !== undefined) {
+        const score = body.inherentLikelihood * body.inherentImpact;
+        body.inherentScore = score;
+        body.inherentRating = score >= 20 ? "Critical" : score >= 12 ? "High" : score >= 6 ? "Medium" : "Low";
+      }
+      if (body.residualLikelihood !== undefined && body.residualImpact !== undefined) {
+        const resScore = body.residualLikelihood * body.residualImpact;
+        body.residualScore = resScore;
+        body.residualRating = resScore >= 20 ? "Critical" : resScore >= 12 ? "High" : resScore >= 6 ? "Medium" : "Low";
+      }
+      const input = api.risks.update.input.parse(body);
+      const r = await storage.updateRisk(Number(req.params.id), input);
+      if (!r) return res.status(404).json({ message: "Risk not found" });
+      res.json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.risks.delete.path, async (req, res) => {
+    const existing = await storage.getRisk(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Risk not found" });
+    await storage.deleteRisk(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "risk", entityId: existing.id,
+      action: "deleted", actor: "System", details: `Risk "${existing.title}" deleted`
+    });
+    res.status(204).send();
+  });
+
+  // === RISK LIBRARY ===
+  app.get(api.riskLibrary.list.path, async (_req, res) => {
+    res.json(await storage.getRiskLibraryItems());
+  });
+  app.get(api.riskLibrary.get.path, async (req, res) => {
+    const r = await storage.getRiskLibraryItem(Number(req.params.id));
+    if (!r) return res.status(404).json({ message: "Risk Library item not found" });
+    res.json(r);
+  });
+  app.post(api.riskLibrary.create.path, async (req, res) => {
+    try {
+      const input = api.riskLibrary.create.input.parse(req.body);
+      const r = await storage.createRiskLibraryItem(input);
+      res.status(201).json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.riskLibrary.update.path, async (req, res) => {
+    try {
+      const input = api.riskLibrary.update.input.parse(req.body);
+      const r = await storage.updateRiskLibraryItem(Number(req.params.id), input);
+      if (!r) return res.status(404).json({ message: "Risk Library item not found" });
+      res.json(r);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.riskLibrary.delete.path, async (req, res) => {
+    const existing = await storage.getRiskLibraryItem(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Risk Library item not found" });
+    await storage.deleteRiskLibraryItem(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === RISK ACTIONS ===
+  app.get(api.riskActions.list.path, async (_req, res) => {
+    res.json(await storage.getRiskActions());
+  });
+  app.get(api.riskActions.get.path, async (req, res) => {
+    const a = await storage.getRiskAction(Number(req.params.id));
+    if (!a) return res.status(404).json({ message: "Risk Action not found" });
+    res.json(a);
+  });
+  app.post(api.riskActions.create.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      if (typeof body.riskId === "string") body.riskId = Number(body.riskId);
+      const input = api.riskActions.create.input.parse(body);
+      const a = await storage.createRiskAction(input);
+      await storage.createAuditLogEntry({
+        entityType: "risk_action", entityId: a.id,
+        action: "created", actor: input.assignee, details: `Risk action "${a.title}" created`
+      });
+      res.status(201).json(a);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.riskActions.update.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      if (body.completedDate && typeof body.completedDate === "string") body.completedDate = new Date(body.completedDate);
+      if (typeof body.riskId === "string") body.riskId = Number(body.riskId);
+      const input = api.riskActions.update.input.parse(body);
+      const a = await storage.updateRiskAction(Number(req.params.id), input);
+      if (!a) return res.status(404).json({ message: "Risk Action not found" });
+      res.json(a);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.riskActions.delete.path, async (req, res) => {
+    const existing = await storage.getRiskAction(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Risk Action not found" });
+    await storage.deleteRiskAction(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === RISK SNAPSHOTS ===
+  app.get(api.riskSnapshots.list.path, async (_req, res) => {
+    res.json(await storage.getRiskSnapshots());
+  });
+  app.post(api.riskSnapshots.create.path, async (req, res) => {
+    try {
+      const allRisks = await storage.getRisks();
+      const allActions = await storage.getRiskActions();
+      const openActions = allActions.filter(a => a.status !== "Completed" && a.status !== "Closed").length;
+      const snapshotData = {
+        risksByStatus: {
+          Identified: allRisks.filter(r => r.status === "Identified").length,
+          Assessing: allRisks.filter(r => r.status === "Assessing").length,
+          Mitigating: allRisks.filter(r => r.status === "Mitigating").length,
+          Accepted: allRisks.filter(r => r.status === "Accepted").length,
+          Closed: allRisks.filter(r => r.status === "Closed").length,
+        },
+        risksByCategory: allRisks.reduce((acc: Record<string, number>, r) => {
+          acc[r.category] = (acc[r.category] || 0) + 1;
+          return acc;
+        }, {}),
+        heatmap: allRisks.map(r => ({
+          id: r.id, title: r.title,
+          inherentLikelihood: r.inherentLikelihood, inherentImpact: r.inherentImpact,
+          residualLikelihood: r.residualLikelihood, residualImpact: r.residualImpact,
+        })),
+      };
+      const body = { ...req.body };
+      const input = api.riskSnapshots.create.input.parse({
+        name: body.name || `Snapshot ${new Date().toISOString().split('T')[0]}`,
+        businessUnitId: body.businessUnitId || null,
+        totalRisks: allRisks.length,
+        criticalCount: allRisks.filter(r => r.residualRating === "Critical").length,
+        highCount: allRisks.filter(r => r.residualRating === "High").length,
+        mediumCount: allRisks.filter(r => r.residualRating === "Medium").length,
+        lowCount: allRisks.filter(r => r.residualRating === "Low").length,
+        openActions,
+        snapshotData,
+        createdBy: body.createdBy || "System",
+      });
+      const s = await storage.createRiskSnapshot(input);
+      res.status(201).json(s);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.riskSnapshots.delete.path, async (req, res) => {
+    await storage.deleteRiskSnapshot(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === RISK SETTINGS ===
+  app.get(api.riskCategories.list.path, async (_req, res) => {
+    res.json(await storage.getRiskCategories());
+  });
+  app.post(api.riskCategories.create.path, async (req, res) => {
+    try {
+      const input = api.riskCategories.create.input.parse(req.body);
+      res.status(201).json(await storage.createRiskCategory(input));
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.riskCategories.update.path, async (req, res) => {
+    const r = await storage.updateRiskCategory(Number(req.params.id), req.body);
+    if (!r) return res.status(404).json({ message: "Not found" });
+    res.json(r);
+  });
+  app.delete(api.riskCategories.delete.path, async (req, res) => {
+    await storage.deleteRiskCategory(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  app.get(api.impactLevels.list.path, async (_req, res) => {
+    res.json(await storage.getImpactLevels());
+  });
+  app.post(api.impactLevels.create.path, async (req, res) => {
+    try {
+      const input = api.impactLevels.create.input.parse(req.body);
+      res.status(201).json(await storage.createImpactLevel(input));
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.impactLevels.update.path, async (req, res) => {
+    const r = await storage.updateImpactLevel(Number(req.params.id), req.body);
+    if (!r) return res.status(404).json({ message: "Not found" });
+    res.json(r);
+  });
+  app.delete(api.impactLevels.delete.path, async (req, res) => {
+    await storage.deleteImpactLevel(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  app.get(api.likelihoodLevels.list.path, async (_req, res) => {
+    res.json(await storage.getLikelihoodLevels());
+  });
+  app.post(api.likelihoodLevels.create.path, async (req, res) => {
+    try {
+      const input = api.likelihoodLevels.create.input.parse(req.body);
+      res.status(201).json(await storage.createLikelihoodLevel(input));
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.likelihoodLevels.update.path, async (req, res) => {
+    const r = await storage.updateLikelihoodLevel(Number(req.params.id), req.body);
+    if (!r) return res.status(404).json({ message: "Not found" });
+    res.json(r);
+  });
+  app.delete(api.likelihoodLevels.delete.path, async (req, res) => {
+    await storage.deleteLikelihoodLevel(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // === STATS ===
   app.get(api.stats.get.path, async (_req, res) => {
     const allDocs = await storage.getDocuments();
