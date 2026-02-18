@@ -302,13 +302,14 @@ export async function registerRoutes(
       const versionId = Number(req.params.id);
       const existing = await storage.getDocumentVersion(versionId);
       if (!existing) return res.status(404).json({ message: "Version not found" });
-      const { version, status, changeReason, createdBy, effectiveDate } = req.body;
+      const { version, status, changeReason, createdBy, effectiveDate, markDown } = req.body;
       const updateData: any = {};
       if (version !== undefined) updateData.version = version;
       if (status !== undefined) updateData.status = status;
       if (changeReason !== undefined) updateData.changeReason = changeReason || null;
       if (createdBy !== undefined) updateData.createdBy = createdBy;
       if (effectiveDate !== undefined) updateData.effectiveDate = effectiveDate ? new Date(effectiveDate) : null;
+      if (markDown !== undefined) updateData.markDown = markDown || null;
       const updated = await storage.updateDocumentVersion(versionId, updateData);
       if (!updated) return res.status(404).json({ message: "Version not found" });
       await storage.createAuditLogEntry({
