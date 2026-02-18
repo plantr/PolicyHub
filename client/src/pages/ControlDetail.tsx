@@ -309,43 +309,84 @@ export default function ControlDetail() {
                 </p>
               ) : (
                 <div className="divide-y">
-                  {mappedDocuments.map(({ mapping, document: doc }) => (
-                    <div
-                      key={mapping.id}
-                      className="flex flex-wrap items-center gap-3 py-3"
-                      data-testid={`row-mapped-doc-${mapping.id}`}
-                    >
-                      {mapping.coverageStatus === "Covered" ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-destructive shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          href={`/documents/${doc!.id}`}
-                          className="text-sm font-medium hover:underline"
-                          data-testid={`link-doc-${doc!.id}`}
-                        >
-                          {doc!.title}
-                        </Link>
-                        {mapping.rationale && (
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{mapping.rationale}</p>
+                  {mappedDocuments.map(({ mapping, document: doc }) => {
+                    const pctMatch = mapping.rationale?.match(/\((\d+)%\)/);
+                    const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
+                    const termsMatch = mapping.rationale?.match(/:\s*(.+)$/);
+                    const matchedTerms = termsMatch ? termsMatch[1].split(",").map((t) => t.trim()).filter(Boolean) : [];
+                    const coverageColor = mapping.coverageStatus === "Covered"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      : mapping.coverageStatus === "Partially Covered"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+                    const strokeColor = pct !== null
+                      ? (pct >= 45 ? "stroke-green-500 dark:stroke-green-400" : pct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500")
+                      : "";
+                    return (
+                      <div
+                        key={mapping.id}
+                        className="py-4 space-y-2"
+                        data-testid={`row-mapped-doc-${mapping.id}`}
+                      >
+                        <div className="flex flex-wrap items-center gap-3">
+                          {pct !== null ? (
+                            <div className="flex items-center gap-1.5 shrink-0" data-testid={`match-pct-${mapping.id}`}>
+                              <svg width="28" height="28" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                <circle
+                                  cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                  strokeDasharray={`${(pct / 100) * 87.96} ${87.96}`}
+                                  transform="rotate(-90 18 18)"
+                                  className={strokeColor}
+                                />
+                              </svg>
+                              <span className="text-sm font-semibold">{pct}%</span>
+                            </div>
+                          ) : (
+                            mapping.coverageStatus === "Covered" ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-destructive shrink-0" />
+                            )
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <Link
+                              href={`/documents/${doc!.id}`}
+                              className="text-sm font-medium hover:underline"
+                              data-testid={`link-doc-${doc!.id}`}
+                            >
+                              {doc!.title}
+                            </Link>
+                          </div>
+                          <Badge variant="secondary" className={`border-0 shrink-0 ${coverageColor}`} data-testid={`badge-coverage-${mapping.id}`}>
+                            {mapping.coverageStatus}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground shrink-0" data-testid={`text-doc-owner-${doc!.id}`}>
+                            {doc!.owner}
+                          </span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="shrink-0 text-muted-foreground"
+                            onClick={() => deleteMappingMutation.mutate(mapping.id)}
+                            data-testid={`button-unlink-doc-${mapping.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {matchedTerms.length > 0 && (
+                          <div className="ml-11 flex flex-wrap gap-1.5" data-testid={`matched-terms-${mapping.id}`}>
+                            <span className="text-xs text-muted-foreground mr-1">Matched:</span>
+                            {matchedTerms.map((term, i) => (
+                              <Badge key={i} variant="outline" className="text-xs font-normal">
+                                {term}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <span className="text-xs text-muted-foreground shrink-0" data-testid={`text-doc-owner-${doc!.id}`}>
-                        {doc!.owner}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="shrink-0 text-muted-foreground"
-                        onClick={() => deleteMappingMutation.mutate(mapping.id)}
-                        data-testid={`button-unlink-doc-${mapping.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
