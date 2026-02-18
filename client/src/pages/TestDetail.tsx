@@ -181,7 +181,6 @@ export default function TestDetail() {
           </TabsList>
 
           <TabsContent value="results" className="mt-6">
-            <h3 className="text-base font-semibold mb-4" data-testid="text-results-heading">Test configuration</h3>
             <Card data-testid="card-test-form">
               <CardContent className="pt-6">
                 <Form {...form}>
