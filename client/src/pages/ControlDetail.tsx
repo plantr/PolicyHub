@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { X, CheckCircle2, XCircle, Plus, Trash2 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
 const linkDocFormSchema = z.object({
@@ -136,6 +136,25 @@ export default function ControlDetail() {
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const [aiAnalysingId, setAiAnalysingId] = useState<number | null>(null);
+
+  const aiMatchMutation = useMutation({
+    mutationFn: async (mappingId: number) => {
+      setAiAnalysingId(mappingId);
+      const res = await apiRequest("POST", `/api/gap-analysis/ai-match/${mappingId}`, {});
+      return res.json();
+    },
+    onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string }) => {
+      setAiAnalysingId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      toast({ title: "AI Analysis Complete", description: `Match score: ${data.aiMatchScore}%` });
+    },
+    onError: (err: Error) => {
+      setAiAnalysingId(null);
+      toast({ title: "AI Analysis Failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -338,19 +357,59 @@ export default function ControlDetail() {
                               )}
                             </div>
                           </div>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="shrink-0 text-muted-foreground"
-                            onClick={() => deleteMappingMutation.mutate(mapping.id)}
-                            data-testid={`button-unlink-doc-${mapping.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-muted-foreground"
+                              disabled={aiAnalysingId === mapping.id}
+                              onClick={(e) => { e.stopPropagation(); aiMatchMutation.mutate(mapping.id); }}
+                              data-testid={`button-ai-match-${mapping.id}`}
+                              title="Run AI analysis"
+                            >
+                              {aiAnalysingId === mapping.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-muted-foreground"
+                              onClick={() => deleteMappingMutation.mutate(mapping.id)}
+                              data-testid={`button-unlink-doc-${mapping.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
+                        {mapping.aiMatchScore !== null && mapping.aiMatchScore !== undefined && (
+                          <div className="ml-11 space-y-1.5" data-testid={`ai-analysis-${mapping.id}`}>
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-3.5 w-3.5 text-purple-500 dark:text-purple-400" />
+                              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">AI Analysis</span>
+                              <div className="flex items-center gap-1">
+                                <svg width="20" height="20" viewBox="0 0 36 36">
+                                  <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                  <circle
+                                    cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                    strokeDasharray={`${(mapping.aiMatchScore / 100) * 87.96} ${87.96}`}
+                                    transform="rotate(-90 18 18)"
+                                    className={mapping.aiMatchScore >= 60 ? "stroke-green-500 dark:stroke-green-400" : mapping.aiMatchScore >= 40 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                  />
+                                </svg>
+                                <span className="text-xs font-semibold">{mapping.aiMatchScore}%</span>
+                              </div>
+                            </div>
+                            {mapping.aiMatchRationale && (
+                              <p className="text-xs text-muted-foreground ml-5">{mapping.aiMatchRationale}</p>
+                            )}
+                          </div>
+                        )}
                         {matchedTerms.length > 0 && (
                           <div className="ml-11 space-y-1.5" data-testid={`matched-terms-${mapping.id}`}>
-                            <span className="text-xs font-medium text-muted-foreground">Coverage reason — matched terms:</span>
+                            <span className="text-xs font-medium text-muted-foreground">Keyword match — matched terms:</span>
                             <div className="flex flex-wrap gap-1.5">
                               {matchedTerms.map((term, i) => (
                                 <Badge key={i} variant="outline" className="text-xs font-normal">

@@ -1066,6 +1066,97 @@ export async function registerRoutes(
     res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems, contentAnalysis });
   });
 
+  // === AI MATCH ANALYSIS (single mapping) ===
+  app.post("/api/gap-analysis/ai-match/:mappingId", async (req, res) => {
+    try {
+      const mappingId = Number(req.params.mappingId);
+      const mapping = await db.select().from(requirementMappings).where(eq(requirementMappings.id, mappingId)).then(r => r[0]);
+      if (!mapping) return res.status(404).json({ message: "Mapping not found" });
+      if (!mapping.documentId) return res.status(400).json({ message: "Mapping has no linked document" });
+
+      const requirement = await storage.getRequirement(mapping.requirementId);
+      if (!requirement) return res.status(404).json({ message: "Requirement not found" });
+
+      const document = await storage.getDocument(mapping.documentId);
+      if (!document) return res.status(404).json({ message: "Document not found" });
+
+      const versions = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, mapping.documentId));
+      const latestVersion = versions.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+      const docContent = latestVersion?.markDown || "";
+
+      if (!docContent || docContent.length < 20) {
+        return res.status(400).json({ message: "Document has no content to analyse" });
+      }
+
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const anthropic = new Anthropic({
+        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      });
+
+      const truncatedContent = docContent.slice(0, 8000);
+
+      const prompt = `You are a compliance analyst reviewing whether a policy document adequately covers a regulatory requirement.
+
+REGULATORY REQUIREMENT:
+- Code: ${requirement.code}
+- Title: ${requirement.title}
+- Description: ${requirement.description || "N/A"}
+- Suggested Evidence: ${requirement.evidence || "N/A"}
+
+POLICY DOCUMENT:
+- Title: ${document.title}
+- Type: ${document.docType}
+- Content (may be truncated):
+${truncatedContent}
+
+TASK: Analyse how well this document covers the regulatory requirement. Provide:
+1. A match percentage (0-100) representing how comprehensively the document addresses the requirement
+2. A brief rationale (2-3 sentences) explaining the score
+
+Guidelines for scoring:
+- 80-100%: Document directly and comprehensively addresses the requirement with specific provisions
+- 60-79%: Document substantially covers the requirement but may lack some specifics
+- 40-59%: Document partially addresses the requirement; important gaps exist
+- 20-39%: Document touches on related topics but does not meaningfully address the requirement
+- 0-19%: Document has little to no relevance to the requirement
+
+Respond in exactly this JSON format:
+{"score": <number>, "rationale": "<string>"}`;
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 300,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      let aiScore = 0;
+      let aiRationale = "Unable to parse AI response";
+
+      try {
+        const parsed = JSON.parse(responseText);
+        aiScore = Math.min(100, Math.max(0, Math.round(parsed.score)));
+        aiRationale = parsed.rationale || "No rationale provided";
+      } catch {
+        const scoreMatch = responseText.match(/"score"\s*:\s*(\d+)/);
+        const rationaleMatch = responseText.match(/"rationale"\s*:\s*"([^"]+)"/);
+        if (scoreMatch) aiScore = Math.min(100, Math.max(0, parseInt(scoreMatch[1])));
+        if (rationaleMatch) aiRationale = rationaleMatch[1];
+      }
+
+      await db.update(requirementMappings)
+        .set({ aiMatchScore: aiScore, aiMatchRationale: aiRationale })
+        .where(eq(requirementMappings.id, mappingId));
+
+      res.json({ mappingId, aiMatchScore: aiScore, aiMatchRationale: aiRationale });
+    } catch (err: any) {
+      console.error("AI match analysis error:", err);
+      res.status(500).json({ message: err.message || "AI analysis failed" });
+    }
+  });
+
   // === FINDINGS ===
   app.get(api.findings.list.path, async (_req, res) => {
     res.json(await storage.getFindings());
