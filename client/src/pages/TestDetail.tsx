@@ -14,8 +14,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, CheckCircle2, XCircle, Clock, FileText, Save } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, CheckCircle2, XCircle, Clock, FileText, Save, MoreHorizontal, Share2, User, Pencil, Trash2 } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
+
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
 
 const createTestSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -294,41 +309,71 @@ export default function TestDetail() {
         </Button>
       </div>
 
-      <div>
-        <p className="text-xs text-muted-foreground mb-1" data-testid="text-breadcrumb">Tests</p>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-test-title">
-          {testTitle}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1 max-w-2xl" data-testid="text-test-description">
-          {testDescription}
-          {document && (
-            <>
-              {" "}
-              <Link href={`/documents/${document.id}`} className="hover:underline underline" data-testid="link-test-document">
-                {document.title}
-              </Link>
-            </>
-          )}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground mb-1" data-testid="text-breadcrumb">Tests</p>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-test-title">
+            {testTitle}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl" data-testid="text-test-description">
+            {testDescription}
+            {document && (
+              <>
+                {" "}
+                <Link href={`/documents/${document.id}`} className="underline hover:text-foreground" data-testid="link-test-document">
+                  {document.title}
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 pt-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="outline" data-testid="button-test-more">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem data-testid="menu-item-edit">
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" data-testid="menu-item-delete">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="icon" variant="outline" data-testid="button-test-share">
+            <Share2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground" data-testid="test-metadata-row">
         {document && (
           <span className="flex items-center gap-1" data-testid="text-meta-owner">
-            <FileText className="h-3.5 w-3.5" />
+            <User className="h-3.5 w-3.5" />
             {document.owner}
           </span>
         )}
         {mapping!.confirmedAt && (
           <span className="flex items-center gap-1" data-testid="text-meta-ran">
             <Clock className="h-3.5 w-3.5" />
-            Confirmed {new Date(mapping!.confirmedAt).toLocaleDateString()}
+            Ran {formatTimeAgo(new Date(mapping!.confirmedAt))}
           </span>
         )}
         {source && (
-          <span data-testid="text-meta-source">{source.shortName}</span>
+          <span className="flex items-center gap-1" data-testid="text-meta-source">
+            <FileText className="h-3.5 w-3.5" />
+            {source.shortName}
+          </span>
         )}
-        <span data-testid="text-meta-type">Policy</span>
+        <span className="flex items-center gap-1" data-testid="text-meta-type">
+          <FileText className="h-3.5 w-3.5" />
+          Policy
+        </span>
       </div>
 
       <Tabs defaultValue="results" className="w-full" data-testid="test-tabs">
