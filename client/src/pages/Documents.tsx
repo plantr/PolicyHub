@@ -5,13 +5,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import type { Document, BusinessUnit, User } from "@shared/schema";
+import type { Document, BusinessUnit, User, DocumentVersion, Approval, RequirementMapping, RegulatorySource, Requirement } from "@shared/schema";
 import { insertDocumentSchema } from "@shared/schema";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -43,26 +43,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Trash2, Upload, FileText, X } from "lucide-react";
+import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const DOC_TYPES = ["All", "Policy", "Standard", "Procedure"];
 type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
 const REVIEW_FREQUENCIES = ["Annual", "Semi-Annual", "Quarterly", "Monthly"];
-
-function getDocTypeBadgeVariant(docType: string): "default" | "secondary" | "outline" {
-  switch (docType) {
-    case "Policy":
-      return "default";
-    case "Standard":
-      return "secondary";
-    case "Procedure":
-      return "outline";
-    default:
-      return "default";
-  }
-}
 
 const docFormSchema = insertDocumentSchema
   .omit({ tags: true, nextReviewDate: true, delegates: true, reviewers: true, approvers: true, parentDocumentId: true })
@@ -78,10 +71,36 @@ const docFormSchema = insertDocumentSchema
 
 type DocFormValues = z.infer<typeof docFormSchema>;
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+  const colors = [
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+    "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+    "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+    "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+    "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
 export default function Documents() {
-  const [docTypeFilter, setDocTypeFilter] = useState("All");
-  const [taxonomyFilter, setTaxonomyFilter] = useState("All");
-  const [buFilter, setBuFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [versionFilter, setVersionFilter] = useState("all");
+  const [approverFilter, setApproverFilter] = useState("all");
+  const [frameworkFilter, setFrameworkFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -124,6 +143,26 @@ export default function Documents() {
     queryKey: ["/api/users"],
   });
 
+  const { data: versions } = useQuery<DocumentVersion[]>({
+    queryKey: ["/api/document-versions"],
+  });
+
+  const { data: approvalsData } = useQuery<Approval[]>({
+    queryKey: ["/api/approvals"],
+  });
+
+  const { data: mappings } = useQuery<RequirementMapping[]>({
+    queryKey: ["/api/requirement-mappings"],
+  });
+
+  const { data: requirements } = useQuery<Requirement[]>({
+    queryKey: ["/api/requirements"],
+  });
+
+  const { data: sources } = useQuery<RegulatorySource[]>({
+    queryKey: ["/api/regulatory-sources"],
+  });
+
   const activeUsers = useMemo(
     () => (users ?? []).filter((u) => u.status === "Active").sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
     [users],
@@ -142,18 +181,123 @@ export default function Documents() {
     return map;
   }, [businessUnits]);
 
+  const latestVersionMap = useMemo(() => {
+    const map = new Map<number, DocumentVersion>();
+    (versions ?? []).forEach((v) => {
+      const existing = map.get(v.documentId);
+      if (!existing || v.id > existing.id) map.set(v.documentId, v);
+    });
+    return map;
+  }, [versions]);
+
+  const approvalsByDoc = useMemo(() => {
+    const map = new Map<number, { approved: number; total: number; approver: string | null }>();
+    const docApprovals = (approvalsData ?? []).filter((a) => a.entityType === "document" || a.entityType === "version");
+    const grouped = new Map<number, Approval[]>();
+    docApprovals.forEach((a) => {
+      const docId = a.entityId;
+      if (!grouped.has(docId)) grouped.set(docId, []);
+      grouped.get(docId)!.push(a);
+    });
+    grouped.forEach((apps, docId) => {
+      const approved = apps.filter((a) => a.status === "Approved").length;
+      const lastApprover = apps.length > 0 ? apps[apps.length - 1].approver : null;
+      map.set(docId, { approved, total: apps.length || 1, approver: lastApprover });
+    });
+    return map;
+  }, [approvalsData]);
+
+  const docFrameworkMap = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const reqMap = new Map<number, Requirement>();
+    (requirements ?? []).forEach((r) => reqMap.set(r.id, r));
+    const srcMap = new Map<number, RegulatorySource>();
+    (sources ?? []).forEach((s) => srcMap.set(s.id, s));
+
+    (mappings ?? []).forEach((m) => {
+      if (m.documentId == null) return;
+      const req = reqMap.get(m.requirementId);
+      if (!req) return;
+      const src = srcMap.get(req.sourceId);
+      if (!src) return;
+      const label = src.shortName || src.name;
+      if (!map.has(m.documentId)) map.set(m.documentId, []);
+      const arr = map.get(m.documentId)!;
+      if (!arr.includes(label)) arr.push(label);
+    });
+    return map;
+  }, [mappings, requirements, sources]);
+
+  const uniqueFrameworks = useMemo(() => {
+    const set = new Set<string>();
+    docFrameworkMap.forEach((labels) => labels.forEach((l) => set.add(l)));
+    return Array.from(set).sort();
+  }, [docFrameworkMap]);
+
+  const uniqueApprovers = useMemo(() => {
+    const set = new Set<string>();
+    approvalsByDoc.forEach((v) => { if (v.approver) set.add(v.approver); });
+    return Array.from(set).sort();
+  }, [approvalsByDoc]);
+
+  const getOverallStatus = (doc: Document) => {
+    const ver = latestVersionMap.get(doc.id);
+    if (ver && (ver.status === "Approved" || ver.status === "Published")) return "OK";
+    const approval = approvalsByDoc.get(doc.id);
+    if (approval && approval.approved >= approval.total) return "OK";
+    return "Needs attention";
+  };
+
+  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all";
+
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
-    return documents.filter((doc) => {
-      if (docTypeFilter !== "All" && doc.docType !== docTypeFilter) return false;
-      if (taxonomyFilter !== "All" && doc.taxonomy !== taxonomyFilter) return false;
-      if (buFilter !== "All") {
-        const buName = doc.businessUnitId ? buMap.get(doc.businessUnitId) : "Group";
-        if (buName !== buFilter) return false;
+    let filtered = documents.filter((doc) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!doc.title.toLowerCase().includes(q) && !(doc.documentReference ?? "").toLowerCase().includes(q)) return false;
+      }
+      if (statusFilter !== "all") {
+        const status = getOverallStatus(doc);
+        if (statusFilter === "ok" && status !== "OK") return false;
+        if (statusFilter === "attention" && status !== "Needs attention") return false;
+      }
+      if (versionFilter !== "all") {
+        const ver = latestVersionMap.get(doc.id);
+        if (!ver || ver.status !== versionFilter) return false;
+      }
+      if (approverFilter !== "all") {
+        const a = approvalsByDoc.get(doc.id);
+        if (!a || a.approver !== approverFilter) return false;
+      }
+      if (frameworkFilter !== "all") {
+        const fw = docFrameworkMap.get(doc.id) ?? [];
+        if (!fw.includes(frameworkFilter)) return false;
+      }
+      if (sourceFilter !== "all") {
+        const fw = docFrameworkMap.get(doc.id) ?? [];
+        if (!fw.includes(sourceFilter)) return false;
       }
       return true;
     });
-  }, [documents, docTypeFilter, taxonomyFilter, buFilter, buMap]);
+    return filtered;
+  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap]);
+
+  const totalResults = filteredDocuments.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const paginatedDocs = filteredDocuments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startItem = totalResults === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalResults);
+
+  function resetFilters() {
+    setStatusFilter("all");
+    setVersionFilter("all");
+    setApproverFilter("all");
+    setFrameworkFilter("all");
+    setSourceFilter("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
 
   const createMutation = useMutation({
     mutationFn: async (data: DocFormValues) => {
@@ -328,130 +472,325 @@ export default function Documents() {
     }
   }
 
+  const tabs = [
+    { id: "all", label: "All" },
+    { id: "needs-approval", label: "Needs approval" },
+    { id: "needs-reassignment", label: "Needs reassignment" },
+  ];
+
   return (
-    <div className="space-y-6" data-testid="page-documents">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="section-page-header">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Documents</h1>
-          <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-            Policy estate document library
-          </p>
-        </div>
-        <Button onClick={openCreateDialog} data-testid="button-add-document">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Document
-        </Button>
+    <div className="space-y-4" data-testid="page-documents">
+      <div className="flex flex-wrap items-center gap-4 border-b" data-testid="section-tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setCurrentPage(1); }}
+            className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid={`tab-${tab.id}`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <Card className="p-4" data-testid="section-filters">
-        <div className="flex flex-wrap items-center gap-3">
-          <Select value={docTypeFilter} onValueChange={setDocTypeFilter}>
-            <SelectTrigger className="w-[160px]" data-testid="select-doc-type-filter">
-              <SelectValue placeholder="Document Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {DOC_TYPES.map((t) => (
-                <SelectItem key={t} value={t} data-testid={`option-doc-type-${t.toLowerCase()}`}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={taxonomyFilter} onValueChange={setTaxonomyFilter}>
-            <SelectTrigger className="w-[200px]" data-testid="select-taxonomy-filter">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All" data-testid="option-taxonomy-all">All</SelectItem>
-              {activeCategories.map((c) => (
-                <SelectItem key={c.id} value={c.label} data-testid={`option-taxonomy-${c.id}`}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={buFilter} onValueChange={setBuFilter}>
-            <SelectTrigger className="w-[200px]" data-testid="select-bu-filter">
-              <SelectValue placeholder="Business Unit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All" data-testid="option-bu-all">All</SelectItem>
-              {businessUnits?.map((bu) => (
-                <SelectItem key={bu.id} value={bu.name} data-testid={`option-bu-${bu.id}`}>
-                  {bu.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex flex-wrap items-center gap-2" data-testid="section-filters">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            className="pl-9 w-[160px]"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            data-testid="input-search-documents"
+          />
         </div>
-      </Card>
 
-      <Card data-testid="section-documents-table">
-        {isLoading ? (
-          <div className="p-4 space-y-3" data-testid="loading-skeleton">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
+              Overall status <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("ok"); setCurrentPage(1); }}>OK</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setStatusFilter("attention"); setCurrentPage(1); }}>Needs attention</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-version">
+              Latest version <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setVersionFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setVersionFilter("Approved"); setCurrentPage(1); }}>Approved</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setVersionFilter("Draft"); setCurrentPage(1); }}>Draft</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setVersionFilter("Published"); setCurrentPage(1); }}>Published</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-approver">
+              Approver <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setApproverFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {uniqueApprovers.map((a) => (
+              <DropdownMenuItem key={a} onClick={() => { setApproverFilter(a); setCurrentPage(1); }}>{a}</DropdownMenuItem>
             ))}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead data-testid="col-ref">Ref</TableHead>
-                <TableHead data-testid="col-title">Title</TableHead>
-                <TableHead data-testid="col-type">Type</TableHead>
-                <TableHead data-testid="col-taxonomy">Category</TableHead>
-                <TableHead data-testid="col-owner">Owner</TableHead>
-                <TableHead data-testid="col-review-frequency">Review Frequency</TableHead>
-                <TableHead data-testid="col-next-review">Next Review</TableHead>
-                <TableHead data-testid="col-bu">BU</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredDocuments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
-                    No documents found
-                  </TableCell>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-framework">
+              Framework <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setFrameworkFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {uniqueFrameworks.map((fw) => (
+              <DropdownMenuItem key={fw} onClick={() => { setFrameworkFilter(fw); setCurrentPage(1); }}>{fw}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-source">
+              Source <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setSourceFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {uniqueFrameworks.map((fw) => (
+              <DropdownMenuItem key={fw} onClick={() => { setSourceFilter(fw); setCurrentPage(1); }}>{fw}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
+            Reset view
+          </Button>
+        )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-document">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add document
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3" data-testid="loading-skeleton">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="border rounded-md" data-testid="section-documents-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-name">Name</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-status">
+                    <span className="flex items-center gap-1">Overall status</span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-renew">Renew by</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-version">Latest version</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-approver">
+                    <Tooltip>
+                      <TooltipTrigger asChild><span className="cursor-default">Appr...</span></TooltipTrigger>
+                      <TooltipContent>Approver</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-approval-status">
+                    <Tooltip>
+                      <TooltipTrigger asChild><span className="cursor-default">Approval stat...</span></TooltipTrigger>
+                      <TooltipContent>Approval status</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-personnel">
+                    <Tooltip>
+                      <TooltipTrigger asChild><span className="cursor-default">Personnel...</span></TooltipTrigger>
+                      <TooltipContent>Personnel assigned</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-framework">Framework</TableHead>
+                  <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
-              ) : (
-                filteredDocuments.map((doc) => (
-                  <TableRow key={doc.id} data-testid={`row-document-${doc.id}`}>
-                    <TableCell data-testid={`text-ref-${doc.id}`} className="text-muted-foreground">{doc.documentReference || "-"}</TableCell>
-                    <TableCell>
-                      <Link href={`/documents/${doc.id}`} data-testid={`link-document-${doc.id}`}>
-                        <span className="font-medium text-foreground hover:underline cursor-pointer">
-                          {doc.title}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getDocTypeBadgeVariant(doc.docType)} className="no-default-active-elevate" data-testid={`badge-type-${doc.id}`}>
-                        {doc.docType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell data-testid={`text-taxonomy-${doc.id}`}>{doc.taxonomy}</TableCell>
-                    <TableCell data-testid={`text-owner-${doc.id}`}>{doc.owner}</TableCell>
-                    <TableCell data-testid={`text-review-freq-${doc.id}`}>
-                      {doc.reviewFrequency || "-"}
-                    </TableCell>
-                    <TableCell data-testid={`text-next-review-${doc.id}`}>
-                      {doc.nextReviewDate
-                        ? format(new Date(doc.nextReviewDate), "dd MMM yyyy")
-                        : "-"}
-                    </TableCell>
-                    <TableCell data-testid={`text-bu-${doc.id}`}>
-                      {doc.businessUnitId ? buMap.get(doc.businessUnitId) || "Unknown" : "Group"}
+              </TableHeader>
+              <TableBody>
+                {paginatedDocs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                      No documents found
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+                ) : (
+                  paginatedDocs.map((doc) => {
+                    const latestVer = latestVersionMap.get(doc.id);
+                    const approval = approvalsByDoc.get(doc.id);
+                    const overallStatus = getOverallStatus(doc);
+                    const frameworks = docFrameworkMap.get(doc.id) ?? [];
+                    const approverName = approval?.approver || doc.owner;
+
+                    return (
+                      <TableRow key={doc.id} className="group" data-testid={`row-document-${doc.id}`}>
+                        <TableCell className="max-w-[260px]">
+                          <Link href={`/documents/${doc.id}`} data-testid={`link-document-${doc.id}`}>
+                            <span className="text-sm font-medium text-foreground hover:underline cursor-pointer truncate block">
+                              {doc.title}
+                            </span>
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1.5 text-sm" data-testid={`text-status-${doc.id}`}>
+                            {overallStatus === "OK" ? (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                                <span className="text-emerald-600 dark:text-emerald-400">OK</span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">{overallStatus}</span>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-renew-${doc.id}`}>
+                          {doc.nextReviewDate
+                            ? format(new Date(doc.nextReviewDate), "MMM d, yyyy")
+                            : <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
+                        <TableCell data-testid={`text-version-${doc.id}`}>
+                          {latestVer ? (
+                            <span className="flex items-center gap-1.5 text-sm">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                              <span className="text-emerald-600 dark:text-emerald-400">{latestVer.status}</span>
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
+                        <TableCell data-testid={`text-approver-${doc.id}`}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className={`text-xs ${getAvatarColor(approverName)}`}>
+                                  {getInitials(approverName)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TooltipTrigger>
+                            <TooltipContent>{approverName}</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell data-testid={`text-approval-status-${doc.id}`}>
+                          {approval ? (
+                            <span className="flex items-center gap-1.5 text-sm">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                              <span>{approval.approved}/{approval.total}</span>
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
+                        <TableCell data-testid={`text-personnel-${doc.id}`}>
+                          <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                        </TableCell>
+                        <TableCell data-testid={`text-framework-${doc.id}`}>
+                          {frameworks.length > 0 ? (
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">
+                              {frameworks.slice(0, 2).join("  ")}
+                              {frameworks.length > 2 && (
+                                <span className="ml-1 text-xs text-muted-foreground/60">+{frameworks.length - 2}</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`button-actions-${doc.id}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(doc)} data-testid={`menu-edit-${doc.id}`}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => { setDeletingDoc(doc); setDeleteConfirmOpen(true); }}
+                                data-testid={`menu-delete-${doc.id}`}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" data-testid="section-pagination">
+            <span data-testid="text-results-count">
+              {totalResults === 0 ? "0 results" : `${startItem} to ${endItem} of ${totalResults} results`}
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span>Show per page</span>
+                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-[65px] h-8" data-testid="select-page-size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  data-testid="button-next-page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[500px]" data-testid="dialog-document">
