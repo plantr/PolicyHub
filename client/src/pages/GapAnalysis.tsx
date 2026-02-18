@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { RequirementMapping, Requirement, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
-import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -252,6 +252,11 @@ export default function GapAnalysis() {
           vb = extractPct(b.rationale);
           break;
         }
+        case "aiMatch": {
+          va = a.aiMatchScore ?? -1;
+          vb = b.aiMatchScore ?? -1;
+          break;
+        }
       }
       if (va < vb) return -1 * dir;
       if (va > vb) return 1 * dir;
@@ -401,13 +406,14 @@ export default function GapAnalysis() {
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("bu")} data-testid="th-bu">Business Unit<SortIcon col="bu" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("coverage")} data-testid="th-coverage">Coverage<SortIcon col="coverage" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("matchPct")} data-testid="th-match-pct">Match %<SortIcon col="matchPct" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("aiMatch")} data-testid="th-ai-match"><Sparkles className="inline h-3 w-3 mr-0.5 text-purple-500 dark:text-purple-400" />AI %<SortIcon col="aiMatch" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rationale">Rationale</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedMappings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-32 text-center text-muted-foreground" data-testid="text-no-mappings">
+                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-mappings">
                           No mappings found.
                         </TableCell>
                       </TableRow>
@@ -459,6 +465,24 @@ export default function GapAnalysis() {
                                     />
                                   </svg>
                                   <span className="text-xs font-medium">{pct}%</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell data-testid={`text-ai-match-${m.id}`}>
+                              {m.aiMatchScore != null ? (
+                                <div className="flex items-center gap-1.5">
+                                  <svg width="24" height="24" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                    <circle
+                                      cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                      strokeDasharray={`${(m.aiMatchScore / 100) * 87.96} ${87.96}`}
+                                      transform="rotate(-90 18 18)"
+                                      className={m.aiMatchScore >= 60 ? "stroke-purple-500 dark:stroke-purple-400" : m.aiMatchScore >= 40 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                    />
+                                  </svg>
+                                  <span className="text-xs font-medium">{m.aiMatchScore}%</span>
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">—</span>
