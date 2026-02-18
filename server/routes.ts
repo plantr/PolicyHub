@@ -530,6 +530,178 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // === AUTO-MAP CONTROLS TO DOCUMENTS ===
+  app.post("/api/gap-analysis/auto-map", async (req, res) => {
+    const { sourceId, dryRun } = req.body as { sourceId?: number; dryRun?: boolean };
+
+    const allRequirements = await storage.getRequirements();
+    const allDocuments = await storage.getDocuments();
+    const allMappings = await storage.getRequirementMappings();
+    const allVersions = await db.select().from(schema.documentVersions);
+
+    const latestVersionMarkdown = new Map<number, string>();
+    for (const v of allVersions) {
+      if (!v.markDown) continue;
+      latestVersionMarkdown.set(v.documentId, v.markDown);
+    }
+
+    const docsWithContent = allDocuments.filter((d) => {
+      const md = latestVersionMarkdown.get(d.id);
+      return md && md.length > 100;
+    });
+
+    if (docsWithContent.length === 0) {
+      return res.json({ message: "No documents with markdown content found", created: 0, results: [] });
+    }
+
+    const targetReqs = sourceId
+      ? allRequirements.filter((r) => r.sourceId === sourceId)
+      : allRequirements;
+
+    const existingMappingKeys = new Set(
+      allMappings.map((m) => `${m.requirementId}-${m.documentId}`)
+    );
+
+    function tokenize(text: string): string[] {
+      return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 2);
+    }
+
+    const stopWords = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "shall", "should", "may", "might", "can", "could", "would", "must", "that", "this", "these", "those", "it", "its", "with", "by", "from", "as", "at", "on", "not", "no", "but", "if", "all", "any", "each", "every", "such", "than", "too", "very", "so", "up", "out", "about", "into", "through", "during", "before", "after", "above", "below", "between", "under", "over", "other", "which", "who", "whom", "where", "when", "how", "what", "why", "their", "there", "they", "them", "we", "our", "you", "your", "company", "also", "based", "ensure", "required", "includes", "including", "use", "used", "using", "within", "upon", "per", "least", "place"]);
+
+    function extractMeaningfulTerms(text: string): string[] {
+      return tokenize(text).filter((w) => !stopWords.has(w));
+    }
+
+    function buildNGrams(terms: string[], n: number): string[] {
+      const grams: string[] = [];
+      for (let i = 0; i <= terms.length - n; i++) {
+        grams.push(terms.slice(i, i + n).join(" "));
+      }
+      return grams;
+    }
+
+    const docTokenSets = new Map<number, { tokens: Set<string>; text: string }>();
+    for (const doc of docsWithContent) {
+      const md = latestVersionMarkdown.get(doc.id)!;
+      const lowerMd = md.toLowerCase();
+      const tokens = new Set(extractMeaningfulTerms(md));
+      docTokenSets.set(doc.id, { tokens, text: lowerMd });
+    }
+
+    function scoreMatch(req: typeof targetReqs[0], docId: number): { score: number; matchedTerms: string[] } {
+      const docData = docTokenSets.get(docId);
+      if (!docData) return { score: 0, matchedTerms: [] };
+
+      const titleTerms = Array.from(new Set(extractMeaningfulTerms(req.title)));
+      const descTerms = Array.from(new Set(extractMeaningfulTerms(req.description)));
+      const allUniqueTerms = Array.from(new Set([...titleTerms, ...descTerms]));
+      if (allUniqueTerms.length === 0) return { score: 0, matchedTerms: [] };
+
+      const matchedTitle: string[] = [];
+      for (const t of titleTerms) {
+        if (docData.tokens.has(t)) matchedTitle.push(t);
+      }
+
+      const matchedDesc: string[] = [];
+      for (const t of descTerms) {
+        if (docData.tokens.has(t) && !matchedTitle.includes(t)) matchedDesc.push(t);
+      }
+
+      const titleBigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.title), 2)));
+      const descBigrams = Array.from(new Set(buildNGrams(extractMeaningfulTerms(req.description), 2)));
+      const matchedBigrams: string[] = [];
+      for (const bg of [...titleBigrams, ...descBigrams]) {
+        if (docData.text.includes(bg) && !matchedBigrams.includes(bg)) {
+          matchedBigrams.push(bg);
+        }
+      }
+
+      const titleScore = titleTerms.length > 0 ? matchedTitle.length / titleTerms.length : 0;
+      const descScore = descTerms.length > 0 ? matchedDesc.length / descTerms.length : 0;
+      const bigramCount = titleBigrams.length + descBigrams.length;
+      const bigramScore = bigramCount > 0 ? matchedBigrams.length / bigramCount : 0;
+
+      const combinedScore = (titleScore * 0.45) + (descScore * 0.25) + (bigramScore * 0.30);
+
+      return {
+        score: combinedScore,
+        matchedTerms: [...matchedBigrams, ...matchedTitle, ...matchedDesc].filter((t, i, a) => a.indexOf(t) === i),
+      };
+    }
+
+    const results: Array<{
+      requirementId: number;
+      requirementCode: string;
+      requirementTitle: string;
+      documentId: number;
+      documentTitle: string;
+      score: number;
+      coverageStatus: string;
+      matchedTerms: string[];
+      created: boolean;
+    }> = [];
+
+    let created = 0;
+    let skippedExisting = 0;
+
+    for (const req of targetReqs) {
+      let bestDoc: { docId: number; score: number; matchedTerms: string[] } | null = null;
+
+      for (const doc of docsWithContent) {
+        const { score, matchedTerms } = scoreMatch(req, doc.id);
+        if (score > 0.25 && (!bestDoc || score > bestDoc.score)) {
+          bestDoc = { docId: doc.id, score, matchedTerms };
+        }
+      }
+
+      if (bestDoc) {
+        const doc = allDocuments.find((d) => d.id === bestDoc!.docId)!;
+        const key = `${req.id}-${bestDoc.docId}`;
+        const alreadyExists = existingMappingKeys.has(key);
+
+        let coverageStatus = "Not Covered";
+        if (bestDoc.score >= 0.45) coverageStatus = "Covered";
+        else if (bestDoc.score >= 0.30) coverageStatus = "Partially Covered";
+
+        if (!alreadyExists && !dryRun) {
+          await storage.createRequirementMapping({
+            requirementId: req.id,
+            documentId: bestDoc.docId,
+            coverageStatus,
+            rationale: `Auto-mapped: ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`,
+          });
+          created++;
+          existingMappingKeys.add(key);
+        }
+
+        if (alreadyExists) skippedExisting++;
+
+        results.push({
+          requirementId: req.id,
+          requirementCode: req.code,
+          requirementTitle: req.title,
+          documentId: bestDoc.docId,
+          documentTitle: doc.title,
+          score: Math.round(bestDoc.score * 100),
+          coverageStatus,
+          matchedTerms: bestDoc.matchedTerms.slice(0, 10),
+          created: !alreadyExists && !dryRun,
+        });
+      }
+    }
+
+    res.json({
+      message: dryRun ? "Dry run complete" : `Auto-mapping complete`,
+      totalControls: targetReqs.length,
+      docsAnalysed: docsWithContent.length,
+      created,
+      skippedExisting,
+      matched: results.length,
+      unmatched: targetReqs.length - results.length,
+      results: results.sort((a, b) => b.score - a.score),
+    });
+  });
+
   // === GAP ANALYSIS (REFRESH) ===
   app.get("/api/gap-analysis/refresh", async (_req, res) => {
     const allRequirements = await storage.getRequirements();

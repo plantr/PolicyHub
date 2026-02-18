@@ -13,8 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { RequirementMapping, Requirement, Document, BusinessUnit } from "@shared/schema";
-import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import type { RequirementMapping, Requirement, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
+import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -111,6 +111,31 @@ export default function GapAnalysis() {
   });
   const { data: businessUnits, isLoading: buLoading } = useQuery<BusinessUnit[]>({
     queryKey: ["/api/business-units"],
+  });
+  const { data: sources } = useQuery<RegulatorySource[]>({
+    queryKey: ["/api/regulatory-sources"],
+  });
+
+  const autoMapMutation = useMutation({
+    mutationFn: async (sourceId?: number) => {
+      const res = await fetch("/api/gap-analysis/auto-map", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId }),
+      });
+      if (!res.ok) throw new Error("Auto-mapping failed");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      toast({
+        title: "Auto-mapping complete",
+        description: `${data.created} new mappings created from ${data.docsAnalysed} documents. ${data.matched} controls matched, ${data.unmatched} unmatched.`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const refreshMutation = useMutation({
@@ -227,7 +252,30 @@ export default function GapAnalysis() {
           </Button>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={autoMapMutation.isPending}
+                data-testid="button-auto-map"
+              >
+                <Wand2 className={`h-4 w-4 mr-1 ${autoMapMutation.isPending ? "animate-spin" : ""}`} />
+                {autoMapMutation.isPending ? "Mapping..." : "Auto-Map Controls"}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => autoMapMutation.mutate(undefined)} data-testid="menu-automap-all">
+                All Frameworks
+              </DropdownMenuItem>
+              {(sources ?? []).map((s) => (
+                <DropdownMenuItem key={s.id} onClick={() => autoMapMutation.mutate(s.id)} data-testid={`menu-automap-${s.id}`}>
+                  {s.shortName}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={() => refreshMutation.mutate()}
             disabled={refreshMutation.isPending}
