@@ -5,6 +5,7 @@ import {
   approvals, auditLog, reviewHistory, requirementMappings,
   findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities, documentStatuses,
+  commitments, knowledgeBaseArticles,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
   type Requirement, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
@@ -18,7 +19,9 @@ import {
   type CreateFindingRequest, type UpdateFindingRequest,
   type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest,
   type CreateRegulatorySourceRequest, type UpdateRegulatorySourceRequest,
-  type CreateRequirementRequest, type UpdateRequirementRequest
+  type CreateRequirementRequest, type UpdateRequirementRequest,
+  type Commitment, type CreateCommitmentRequest, type UpdateCommitmentRequest,
+  type KnowledgeBaseArticle, type CreateKnowledgeBaseArticleRequest, type UpdateKnowledgeBaseArticleRequest,
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -96,6 +99,18 @@ export interface IStorage {
   createUser(user: CreateUserRequest): Promise<User>;
   updateUser(id: number, user: UpdateUserRequest): Promise<User | undefined>;
   deactivateUser(id: number): Promise<User | undefined>;
+
+  getCommitments(): Promise<Commitment[]>;
+  getCommitment(id: number): Promise<Commitment | undefined>;
+  createCommitment(commitment: CreateCommitmentRequest): Promise<Commitment>;
+  updateCommitment(id: number, commitment: UpdateCommitmentRequest): Promise<Commitment | undefined>;
+  deleteCommitment(id: number): Promise<void>;
+
+  getKnowledgeBaseArticles(): Promise<KnowledgeBaseArticle[]>;
+  getKnowledgeBaseArticle(id: number): Promise<KnowledgeBaseArticle | undefined>;
+  createKnowledgeBaseArticle(article: CreateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle>;
+  updateKnowledgeBaseArticle(id: number, article: UpdateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle | undefined>;
+  deleteKnowledgeBaseArticle(id: number): Promise<void>;
 
   getAdminRecords(table: string): Promise<AdminRecord[]>;
   getAdminRecord(table: string, id: number): Promise<AdminRecord | undefined>;
@@ -329,6 +344,44 @@ export class DatabaseStorage implements IStorage {
   async deactivateUser(id: number): Promise<User | undefined> {
     const [updated] = await db.update(users).set({ status: "Inactive" }).where(eq(users.id, id)).returning();
     return updated;
+  }
+
+  async getCommitments(): Promise<Commitment[]> {
+    return await db.select().from(commitments);
+  }
+  async getCommitment(id: number): Promise<Commitment | undefined> {
+    const [c] = await db.select().from(commitments).where(eq(commitments.id, id));
+    return c;
+  }
+  async createCommitment(data: CreateCommitmentRequest): Promise<Commitment> {
+    const [created] = await db.insert(commitments).values(data).returning();
+    return created;
+  }
+  async updateCommitment(id: number, data: UpdateCommitmentRequest): Promise<Commitment | undefined> {
+    const [updated] = await db.update(commitments).set(data).where(eq(commitments.id, id)).returning();
+    return updated;
+  }
+  async deleteCommitment(id: number): Promise<void> {
+    await db.delete(commitments).where(eq(commitments.id, id));
+  }
+
+  async getKnowledgeBaseArticles(): Promise<KnowledgeBaseArticle[]> {
+    return await db.select().from(knowledgeBaseArticles);
+  }
+  async getKnowledgeBaseArticle(id: number): Promise<KnowledgeBaseArticle | undefined> {
+    const [a] = await db.select().from(knowledgeBaseArticles).where(eq(knowledgeBaseArticles.id, id));
+    return a;
+  }
+  async createKnowledgeBaseArticle(data: CreateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle> {
+    const [created] = await db.insert(knowledgeBaseArticles).values(data).returning();
+    return created;
+  }
+  async updateKnowledgeBaseArticle(id: number, data: UpdateKnowledgeBaseArticleRequest): Promise<KnowledgeBaseArticle | undefined> {
+    const [updated] = await db.update(knowledgeBaseArticles).set(data).where(eq(knowledgeBaseArticles.id, id)).returning();
+    return updated;
+  }
+  async deleteKnowledgeBaseArticle(id: number): Promise<void> {
+    await db.delete(knowledgeBaseArticles).where(eq(knowledgeBaseArticles.id, id));
   }
 
   private getAdminTable(table: string) {

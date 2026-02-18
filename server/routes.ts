@@ -737,6 +737,124 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // === COMMITMENTS ===
+  app.get(api.commitments.list.path, async (_req, res) => {
+    res.json(await storage.getCommitments());
+  });
+  app.get(api.commitments.get.path, async (req, res) => {
+    const c = await storage.getCommitment(Number(req.params.id));
+    if (!c) return res.status(404).json({ message: "Commitment not found" });
+    res.json(c);
+  });
+  app.post(api.commitments.create.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      const input = api.commitments.create.input.parse(body);
+      const c = await storage.createCommitment(input);
+      await storage.createAuditLogEntry({
+        entityType: "commitment", entityId: c.id,
+        action: "created", actor: input.owner,
+        details: `Commitment "${c.title}" created`
+      });
+      res.status(201).json(c);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.commitments.update.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (body.dueDate && typeof body.dueDate === "string") body.dueDate = new Date(body.dueDate);
+      if (body.completedDate && typeof body.completedDate === "string") body.completedDate = new Date(body.completedDate);
+      const input = api.commitments.update.input.parse(body);
+      const c = await storage.updateCommitment(Number(req.params.id), input);
+      if (!c) return res.status(404).json({ message: "Commitment not found" });
+      await storage.createAuditLogEntry({
+        entityType: "commitment", entityId: c.id,
+        action: "updated", actor: "System",
+        details: `Commitment "${c.title}" updated`
+      });
+      res.json(c);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.commitments.delete.path, async (req, res) => {
+    const existing = await storage.getCommitment(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Commitment not found" });
+    await storage.deleteCommitment(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "commitment", entityId: existing.id,
+      action: "deleted", actor: "System",
+      details: `Commitment "${existing.title}" deleted`
+    });
+    res.status(204).send();
+  });
+
+  // === KNOWLEDGE BASE ===
+  app.get(api.knowledgeBase.list.path, async (_req, res) => {
+    res.json(await storage.getKnowledgeBaseArticles());
+  });
+  app.get(api.knowledgeBase.get.path, async (req, res) => {
+    const a = await storage.getKnowledgeBaseArticle(Number(req.params.id));
+    if (!a) return res.status(404).json({ message: "Article not found" });
+    res.json(a);
+  });
+  app.post(api.knowledgeBase.create.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (typeof body.tags === "string") {
+        try { body.tags = JSON.parse(body.tags); } catch { body.tags = []; }
+      }
+      if (!body.tags) body.tags = [];
+      const input = api.knowledgeBase.create.input.parse(body);
+      const a = await storage.createKnowledgeBaseArticle(input);
+      await storage.createAuditLogEntry({
+        entityType: "knowledge_base_article", entityId: a.id,
+        action: "created", actor: input.author,
+        details: `Article "${a.title}" created`
+      });
+      res.status(201).json(a);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.put(api.knowledgeBase.update.path, async (req, res) => {
+    try {
+      const body = { ...req.body };
+      if (typeof body.tags === "string") {
+        try { body.tags = JSON.parse(body.tags); } catch { body.tags = []; }
+      }
+      const input = api.knowledgeBase.update.input.parse(body);
+      const a = await storage.updateKnowledgeBaseArticle(Number(req.params.id), input);
+      if (!a) return res.status(404).json({ message: "Article not found" });
+      await storage.createAuditLogEntry({
+        entityType: "knowledge_base_article", entityId: a.id,
+        action: "updated", actor: "System",
+        details: `Article "${a.title}" updated`
+      });
+      res.json(a);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+  app.delete(api.knowledgeBase.delete.path, async (req, res) => {
+    const existing = await storage.getKnowledgeBaseArticle(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Article not found" });
+    await storage.deleteKnowledgeBaseArticle(Number(req.params.id));
+    await storage.createAuditLogEntry({
+      entityType: "knowledge_base_article", entityId: existing.id,
+      action: "deleted", actor: "System",
+      details: `Article "${existing.title}" deleted`
+    });
+    res.status(204).send();
+  });
+
   // === USERS ===
   app.get(api.users.list.path, async (_req, res) => {
     res.json(await storage.getUsers());

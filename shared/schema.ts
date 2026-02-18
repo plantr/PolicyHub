@@ -254,6 +254,45 @@ export const audits = pgTable("audits", {
 });
 
 // =============================================
+// COMMITMENTS (Regulatory conditions / undertakings)
+// =============================================
+
+export const commitments = pgTable("commitments", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  source: text("source").notNull(),
+  sourceReference: text("source_reference"),
+  businessUnitId: integer("business_unit_id"),
+  category: text("category").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("Open"),
+  owner: text("owner").notNull(),
+  dueDate: timestamp("due_date"),
+  completedDate: timestamp("completed_date"),
+  evidenceNotes: text("evidence_notes"),
+  priority: text("priority").notNull().default("Medium"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================
+// KNOWLEDGE BASE ARTICLES
+// =============================================
+
+export const knowledgeBaseArticles = pgTable("knowledge_base_articles", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  content: text("content").notNull(),
+  author: text("author").notNull(),
+  tags: text("tags").array(),
+  status: text("status").notNull().default("Published"),
+  jurisdiction: text("jurisdiction"),
+  relatedDocumentId: integer("related_document_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// =============================================
 // USERS
 // =============================================
 
@@ -348,6 +387,8 @@ export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({
 export const insertDocumentCategorySchema = createInsertSchema(documentCategories).omit({ id: true });
 export const insertFindingSeveritySchema = createInsertSchema(findingSeverities).omit({ id: true });
 export const insertDocumentStatusSchema = createInsertSchema(documentStatuses).omit({ id: true });
+export const insertCommitmentSchema = createInsertSchema(commitments).omit({ id: true, createdAt: true, completedDate: true });
+export const insertKnowledgeBaseArticleSchema = createInsertSchema(knowledgeBaseArticles).omit({ id: true, createdAt: true, updatedAt: true });
 
 // =============================================
 // SELECT TYPES
@@ -375,6 +416,8 @@ export type Role = typeof roles.$inferSelect;
 export type Jurisdiction = typeof jurisdictions.$inferSelect;
 export type DocumentCategory = typeof documentCategories.$inferSelect;
 export type FindingSeverity = typeof findingSeverities.$inferSelect;
+export type Commitment = typeof commitments.$inferSelect;
+export type KnowledgeBaseArticle = typeof knowledgeBaseArticles.$inferSelect;
 export type AdminRecord = EntityType | Role | Jurisdiction | DocumentCategory | FindingSeverity;
 
 // =============================================
@@ -402,3 +445,7 @@ export type CreateRegulatorySourceRequest = z.infer<typeof insertRegulatorySourc
 export type UpdateRegulatorySourceRequest = Partial<CreateRegulatorySourceRequest>;
 export type CreateRequirementRequest = z.infer<typeof insertRequirementSchema>;
 export type UpdateRequirementRequest = Partial<CreateRequirementRequest>;
+export type CreateCommitmentRequest = z.infer<typeof insertCommitmentSchema>;
+export type UpdateCommitmentRequest = Partial<CreateCommitmentRequest>;
+export type CreateKnowledgeBaseArticleRequest = z.infer<typeof insertKnowledgeBaseArticleSchema>;
+export type UpdateKnowledgeBaseArticleRequest = Partial<CreateKnowledgeBaseArticleRequest>;

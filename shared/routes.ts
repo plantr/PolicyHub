@@ -4,11 +4,12 @@ import {
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
   insertRequirementMappingSchema, insertReviewHistorySchema,
   insertRegulatorySourceSchema, insertRequirementSchema, insertAuditSchema,
-  insertUserSchema,
+  insertUserSchema, insertCommitmentSchema, insertKnowledgeBaseArticleSchema,
   businessUnits, regulatorySources, requirements, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
   audits, users, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  commitments, knowledgeBaseArticles,
 } from './schema';
 
 export const errorSchemas = {
@@ -538,6 +539,96 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/admin/:table/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // COMMITMENTS
+  // =============================================
+  commitments: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/commitments' as const,
+      responses: { 200: z.array(z.custom<typeof commitments.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/commitments/:id' as const,
+      responses: {
+        200: z.custom<typeof commitments.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/commitments' as const,
+      input: insertCommitmentSchema,
+      responses: {
+        201: z.custom<typeof commitments.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/commitments/:id' as const,
+      input: insertCommitmentSchema.partial(),
+      responses: {
+        200: z.custom<typeof commitments.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/commitments/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // =============================================
+  // KNOWLEDGE BASE
+  // =============================================
+  knowledgeBase: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/knowledge-base' as const,
+      responses: { 200: z.array(z.custom<typeof knowledgeBaseArticles.$inferSelect>()) },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/knowledge-base/:id' as const,
+      responses: {
+        200: z.custom<typeof knowledgeBaseArticles.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/knowledge-base' as const,
+      input: insertKnowledgeBaseArticleSchema,
+      responses: {
+        201: z.custom<typeof knowledgeBaseArticles.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/knowledge-base/:id' as const,
+      input: insertKnowledgeBaseArticleSchema.partial(),
+      responses: {
+        200: z.custom<typeof knowledgeBaseArticles.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/knowledge-base/:id' as const,
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,
