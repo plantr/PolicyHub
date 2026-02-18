@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,6 +54,25 @@ function EvidenceTestCriteria({
 }) {
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<"about" | "logic">("about");
+  const [isEditingLogic, setIsEditingLogic] = useState(false);
+  const [logicText, setLogicText] = useState(mapping.testLogic || "");
+  const { toast } = useToast();
+
+  const saveLogicMutation = useMutation({
+    mutationFn: async (newLogic: string) => {
+      await apiRequest("PUT", `/api/requirement-mappings/${mapping.id}`, {
+        testLogic: newLogic,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      setIsEditingLogic(false);
+      toast({ title: "Test logic saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save test logic", variant: "destructive" });
+    },
+  });
 
   const testDescription = mapping.rationale || "This test verifies compliance with the mapped control.";
   const docTitle = document?.title ?? "the linked document";
@@ -132,7 +152,7 @@ function EvidenceTestCriteria({
                   <h4 className="font-semibold mb-1">Key terms</h4>
                   <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                     {document && (
-                      <li><strong className="text-foreground">{docTitle}:</strong> {document.description || `A ${document.docType} document owned by ${document.owner}.`}</li>
+                      <li><strong className="text-foreground">{docTitle}:</strong> A {document.docType} document owned by {document.owner}.</li>
                     )}
                     {source && (
                       <li><strong className="text-foreground">{source.name}:</strong> {source.description || `Regulatory source from ${source.jurisdiction}.`}</li>
@@ -155,18 +175,70 @@ function EvidenceTestCriteria({
               </div>
             ) : (
               <div className="space-y-4 text-sm" data-testid="criteria-logic">
-                <div>
-                  <h4 className="font-semibold mb-1">Test logic</h4>
-                  <p className="text-muted-foreground mb-3">This test evaluates the following conditions:</p>
-                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                    <li>Document exists and is mapped to this requirement</li>
-                    <li>Coverage status is set to "Covered"</li>
-                    {document && <li>Document status is "Approved" or "Published"</li>}
-                  </ul>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <h4 className="font-semibold">Test logic</h4>
+                  {!isEditingLogic ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setLogicText(mapping.testLogic || ""); setIsEditingLogic(true); }}
+                      data-testid="button-edit-logic"
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsEditingLogic(false)}
+                        data-testid="button-cancel-logic"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => saveLogicMutation.mutate(logicText)}
+                        disabled={saveLogicMutation.isPending}
+                        data-testid="button-save-logic"
+                      >
+                        <Save className="h-3.5 w-3.5 mr-1.5" />
+                        {saveLogicMutation.isPending ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <h4 className="font-semibold mb-1">Current status</h4>
+                {isEditingLogic ? (
+                  <Textarea
+                    value={logicText}
+                    onChange={(e) => setLogicText(e.target.value)}
+                    placeholder="Describe the test logic — what conditions must be met, what inputs are evaluated, and what constitutes a pass or fail..."
+                    className="min-h-[200px] text-sm"
+                    data-testid="input-test-logic"
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {mapping.testLogic ? (
+                      <div className="text-muted-foreground whitespace-pre-wrap" data-testid="text-test-logic">
+                        {mapping.testLogic}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-muted-foreground">This test evaluates the following conditions:</p>
+                        <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                          <li>Document exists and is mapped to this requirement</li>
+                          <li>Coverage status is set to "Covered"</li>
+                          {document && <li>Document status is "Approved" or "Published"</li>}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="font-semibold mb-2">Current status</h4>
                   <div className="flex items-center gap-2">
                     {isPassing ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
@@ -180,7 +252,7 @@ function EvidenceTestCriteria({
                 </div>
 
                 {mapping.evidencePointers && (
-                  <div>
+                  <div className="border-t pt-4">
                     <h4 className="font-semibold mb-1">Evidence pointers</h4>
                     <p className="text-muted-foreground">{mapping.evidencePointers}</p>
                   </div>

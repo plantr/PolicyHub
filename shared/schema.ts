@@ -181,6 +181,7 @@ export const requirementMappings = pgTable("requirement_mappings", {
   coverageStatus: text("coverage_status").notNull(),
   rationale: text("rationale"),
   evidencePointers: text("evidence_pointers"),
+  testLogic: text("test_logic"),
   reviewerSignOff: text("reviewer_sign_off"),
   confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").defaultNow(),
