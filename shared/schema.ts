@@ -293,6 +293,104 @@ export const knowledgeBaseArticles = pgTable("knowledge_base_articles", {
 });
 
 // =============================================
+// RISK MANAGEMENT
+// =============================================
+
+export const risks = pgTable("risks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  status: text("status").notNull().default("Identified"),
+  businessUnitId: integer("business_unit_id"),
+  requirementId: integer("requirement_id"),
+  owner: text("owner").notNull(),
+  inherentLikelihood: integer("inherent_likelihood").notNull().default(3),
+  inherentImpact: integer("inherent_impact").notNull().default(3),
+  inherentScore: integer("inherent_score").notNull().default(9),
+  inherentRating: text("inherent_rating").notNull().default("Medium"),
+  residualLikelihood: integer("residual_likelihood").notNull().default(3),
+  residualImpact: integer("residual_impact").notNull().default(3),
+  residualScore: integer("residual_score").notNull().default(9),
+  residualRating: text("residual_rating").notNull().default("Medium"),
+  mitigationStrategy: text("mitigation_strategy"),
+  controlDescription: text("control_description"),
+  riskAppetite: text("risk_appetite"),
+  reviewDate: timestamp("review_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const riskLibrary = pgTable("risk_library", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  suggestedLikelihood: integer("suggested_likelihood").notNull().default(3),
+  suggestedImpact: integer("suggested_impact").notNull().default(3),
+  suggestedControls: text("suggested_controls"),
+  jurisdiction: text("jurisdiction"),
+  source: text("source"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const riskActions = pgTable("risk_actions", {
+  id: serial("id").primaryKey(),
+  riskId: integer("risk_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  assignee: text("assignee").notNull(),
+  status: text("status").notNull().default("Open"),
+  priority: text("priority").notNull().default("Medium"),
+  dueDate: timestamp("due_date"),
+  completedDate: timestamp("completed_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const riskSnapshots = pgTable("risk_snapshots", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  businessUnitId: integer("business_unit_id"),
+  totalRisks: integer("total_risks").notNull().default(0),
+  criticalCount: integer("critical_count").notNull().default(0),
+  highCount: integer("high_count").notNull().default(0),
+  mediumCount: integer("medium_count").notNull().default(0),
+  lowCount: integer("low_count").notNull().default(0),
+  openActions: integer("open_actions").notNull().default(0),
+  snapshotData: jsonb("snapshot_data"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const riskCategories = pgTable("risk_categories", {
+  id: serial("id").primaryKey(),
+  value: text("value").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const impactLevels = pgTable("impact_levels", {
+  id: serial("id").primaryKey(),
+  value: integer("value").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const likelihoodLevels = pgTable("likelihood_levels", {
+  id: serial("id").primaryKey(),
+  value: integer("value").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+// =============================================
 // USERS
 // =============================================
 
@@ -389,6 +487,13 @@ export const insertFindingSeveritySchema = createInsertSchema(findingSeverities)
 export const insertDocumentStatusSchema = createInsertSchema(documentStatuses).omit({ id: true });
 export const insertCommitmentSchema = createInsertSchema(commitments).omit({ id: true, createdAt: true, completedDate: true });
 export const insertKnowledgeBaseArticleSchema = createInsertSchema(knowledgeBaseArticles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRiskLibrarySchema = createInsertSchema(riskLibrary).omit({ id: true, createdAt: true });
+export const insertRiskActionSchema = createInsertSchema(riskActions).omit({ id: true, createdAt: true, completedDate: true });
+export const insertRiskSnapshotSchema = createInsertSchema(riskSnapshots).omit({ id: true, createdAt: true });
+export const insertRiskCategorySchema = createInsertSchema(riskCategories).omit({ id: true });
+export const insertImpactLevelSchema = createInsertSchema(impactLevels).omit({ id: true });
+export const insertLikelihoodLevelSchema = createInsertSchema(likelihoodLevels).omit({ id: true });
 
 // =============================================
 // SELECT TYPES
@@ -418,6 +523,13 @@ export type DocumentCategory = typeof documentCategories.$inferSelect;
 export type FindingSeverity = typeof findingSeverities.$inferSelect;
 export type Commitment = typeof commitments.$inferSelect;
 export type KnowledgeBaseArticle = typeof knowledgeBaseArticles.$inferSelect;
+export type Risk = typeof risks.$inferSelect;
+export type RiskLibraryItem = typeof riskLibrary.$inferSelect;
+export type RiskAction = typeof riskActions.$inferSelect;
+export type RiskSnapshot = typeof riskSnapshots.$inferSelect;
+export type RiskCategory = typeof riskCategories.$inferSelect;
+export type ImpactLevel = typeof impactLevels.$inferSelect;
+export type LikelihoodLevel = typeof likelihoodLevels.$inferSelect;
 export type AdminRecord = EntityType | Role | Jurisdiction | DocumentCategory | FindingSeverity;
 
 // =============================================
@@ -449,3 +561,10 @@ export type CreateCommitmentRequest = z.infer<typeof insertCommitmentSchema>;
 export type UpdateCommitmentRequest = Partial<CreateCommitmentRequest>;
 export type CreateKnowledgeBaseArticleRequest = z.infer<typeof insertKnowledgeBaseArticleSchema>;
 export type UpdateKnowledgeBaseArticleRequest = Partial<CreateKnowledgeBaseArticleRequest>;
+export type CreateRiskRequest = z.infer<typeof insertRiskSchema>;
+export type UpdateRiskRequest = Partial<CreateRiskRequest>;
+export type CreateRiskLibraryRequest = z.infer<typeof insertRiskLibrarySchema>;
+export type UpdateRiskLibraryRequest = Partial<CreateRiskLibraryRequest>;
+export type CreateRiskActionRequest = z.infer<typeof insertRiskActionSchema>;
+export type UpdateRiskActionRequest = Partial<CreateRiskActionRequest>;
+export type CreateRiskSnapshotRequest = z.infer<typeof insertRiskSnapshotSchema>;
