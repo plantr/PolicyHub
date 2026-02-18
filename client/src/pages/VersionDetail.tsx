@@ -137,6 +137,7 @@ export default function VersionDetail() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: EditVersionValues) => {
+      const currentMarkDown = form.getValues("markDown");
       const res = await fetch(`/api/document-versions/${verId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -146,7 +147,7 @@ export default function VersionDetail() {
           changeReason: data.changeReason || null,
           createdBy: data.createdBy,
           effectiveDate: data.effectiveDate || null,
-          markDown: data.markDown || null,
+          markDown: currentMarkDown || null,
         }),
         credentials: "include",
       });
