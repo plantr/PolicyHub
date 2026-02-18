@@ -14,6 +14,7 @@ import DocumentDetail from "@/pages/DocumentDetail";
 import VersionDetail from "@/pages/VersionDetail";
 import Requirements from "@/pages/Requirements";
 import ControlDetail from "@/pages/ControlDetail";
+import TestDetail from "@/pages/TestDetail";
 import RegulatorySources from "@/pages/RegulatorySources";
 import FrameworkDetail from "@/pages/FrameworkDetail";
 import GapAnalysis from "@/pages/GapAnalysis";
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/documents/:docId/versions/:verId" component={VersionDetail} />
       <Route path="/requirements" component={Requirements} />
       <Route path="/controls/:id" component={ControlDetail} />
+      <Route path="/tests/:id" component={TestDetail} />
       <Route path="/sources" component={RegulatorySources} />
       <Route path="/sources/:id" component={FrameworkDetail} />
       <Route path="/gap-analysis" component={GapAnalysis} />

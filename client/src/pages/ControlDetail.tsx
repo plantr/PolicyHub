@@ -278,7 +278,8 @@ export default function ControlDetail() {
                     return (
                       <div
                         key={mapping.id}
-                        className="flex flex-wrap items-center gap-3 py-3"
+                        className="flex flex-wrap items-center gap-3 py-3 cursor-pointer hover-elevate"
+                        onClick={() => navigate(`/tests/${mapping.id}`)}
                         data-testid={`row-test-${mapping.id}`}
                       >
                         {passed ? (
@@ -298,7 +299,7 @@ export default function ControlDetail() {
                           size="icon"
                           variant="ghost"
                           className="shrink-0 text-muted-foreground"
-                          onClick={() => deleteMappingMutation.mutate(mapping.id)}
+                          onClick={(e) => { e.stopPropagation(); deleteMappingMutation.mutate(mapping.id); }}
                           data-testid={`button-delete-test-${mapping.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
