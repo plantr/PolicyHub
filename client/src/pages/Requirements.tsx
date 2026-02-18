@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
@@ -169,7 +169,7 @@ export default function Requirements() {
 
     mappingsByReq.forEach((maps, reqId) => {
       for (const m of maps) {
-        docIds.add(m.documentId);
+        if (m.documentId != null) docIds.add(m.documentId);
         if (m.coverageStatus === "Covered") coveredIds.add(reqId);
         else if (m.coverageStatus === "Partially Covered") partialIds.add(reqId);
       }
@@ -319,12 +319,23 @@ export default function Requirements() {
 
   return (
     <div className="space-y-6" data-testid="controls-page">
-      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="controls-header">
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
-        <Button onClick={openCreateDialog} data-testid="button-add-control">
-          <Plus className="h-4 w-4 mr-1" />
-          Add control
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3" data-testid="controls-header">
+        <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search"
+              className="pl-9 w-[180px]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-controls-header"
+            />
+          </div>
+          <Button variant="outline" onClick={openCreateDialog} data-testid="button-add-control">
+            Add control
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -464,11 +475,11 @@ export default function Requirements() {
         <Table data-testid="controls-table">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]" data-testid="th-id">ID</TableHead>
+              <TableHead className="w-[120px]" data-testid="th-id">ID</TableHead>
               <TableHead data-testid="th-control">Control</TableHead>
-              <TableHead className="w-[160px]" data-testid="th-frameworks">Frameworks</TableHead>
-              <TableHead className="w-[120px]" data-testid="th-status">Status</TableHead>
-              <TableHead className="w-[100px]" data-testid="th-mappings">Mappings</TableHead>
+              <TableHead className="w-[200px]" data-testid="th-owner">Owner</TableHead>
+              <TableHead data-testid="th-frameworks">Frameworks</TableHead>
+              <TableHead className="w-[50px]" data-testid="th-actions"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -482,10 +493,14 @@ export default function Requirements() {
               filtered.map((req) => {
                 const source = sourceMap.get(req.sourceId);
                 const maps = mappingsByReq.get(req.id) || [];
-                const bestStatus = getBestStatus(req.id);
-                const statusVariant = bestStatus === "Covered" ? "default" as const
-                  : bestStatus === "Partially Covered" ? "secondary" as const
-                  : "destructive" as const;
+                const ownerDoc = maps.length > 0 && maps[0].documentId
+                  ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
+                  : null;
+                const ownerName = ownerDoc?.owner ?? "--";
+                const frameworkLabel = source
+                  ? `${source.shortName} · ${req.code}`
+                  : req.code;
+                const extraFrameworks = maps.length > 1 ? maps.length - 1 : 0;
                 return (
                   <TableRow
                     key={req.id}
@@ -493,25 +508,36 @@ export default function Requirements() {
                     onClick={() => navigate(`/controls/${req.id}`)}
                     data-testid={`row-control-${req.id}`}
                   >
-                    <TableCell className="font-mono text-xs text-muted-foreground align-top" data-testid={`text-id-${req.id}`}>
+                    <TableCell className="font-mono text-xs text-muted-foreground" data-testid={`text-id-${req.id}`}>
                       {req.code}
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-control-${req.id}`}>
-                      <div className="font-medium text-sm">{req.title}</div>
-                      {req.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 max-w-lg">{req.description}</p>
-                      )}
+                    <TableCell data-testid={`text-control-${req.id}`}>
+                      <span className="text-sm">{req.title}</span>
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-framework-${req.id}`}>
-                      {source && (
-                        <span className="text-sm">{source.shortName}</span>
-                      )}
+                    <TableCell className="text-sm" data-testid={`text-owner-${req.id}`}>
+                      {ownerName}
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`badge-status-${req.id}`}>
-                      <Badge variant={statusVariant} className="text-xs">{bestStatus}</Badge>
+                    <TableCell data-testid={`text-framework-${req.id}`}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{frameworkLabel}</span>
+                        {extraFrameworks > 0 && (
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">+{extraFrameworks}</span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="align-top" data-testid={`text-mappings-${req.id}`}>
-                      <span className="text-sm">{maps.length > 0 ? maps.length : "--"}</span>
+                    <TableCell data-testid={`text-actions-${req.id}`}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/controls/${req.id}`);
+                        }}
+                        data-testid={`button-open-${req.id}`}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
