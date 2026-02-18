@@ -259,7 +259,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Coverage</h3>
                     <p className="text-3xl font-bold" data-testid="text-coverage-percent">{metrics.coveragePercent}%</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      of {source.shortName} requirements have policy coverage
+                      of {source.shortName} controls have policy coverage
                     </p>
                   </div>
                   <div className="space-y-3">
@@ -288,10 +288,10 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
               <Card data-testid="card-requirement-status">
                 <CardContent className="pt-6 space-y-4">
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Requirements</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Controls</h3>
                     <p className="text-3xl font-bold" data-testid="text-mapped-percent">{metrics.mappedPercent}%</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      of requirements have document mappings
+                      of controls have document mappings
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -328,7 +328,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                       {metrics.total > 0 ? Math.round((metrics.covered / metrics.total) * 100) : 0}%
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {metrics.covered} out of {metrics.total} requirements in {source.shortName} are fully covered by mapped documents
+                      {metrics.covered} out of {metrics.total} controls in {source.shortName} are fully covered by mapped documents
                     </p>
                   </div>
                   <DonutChart covered={metrics.covered} total={metrics.total} label={source.shortName} />
@@ -370,7 +370,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         {linkedDocuments.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-3 pl-6">No documents linked to this framework's requirements.</p>
+                          <p className="text-sm text-muted-foreground py-3 pl-6">No documents linked to this framework's controls.</p>
                         ) : (
                           <div className="border rounded-md overflow-hidden mb-4">
                             <Table>
@@ -455,7 +455,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 <div className="flex flex-col gap-3 lg:w-64 shrink-0">
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="text-xs text-muted-foreground">Requirements mapped</span>
+                      <span className="text-xs text-muted-foreground">Controls mapped</span>
                       <span className="text-xs font-medium">{metrics.mappedPercent}%</span>
                     </div>
                     <CoverageBar
@@ -495,7 +495,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
             {showCategorySidebar && reqCategories.length > 0 && (
               <div className="hidden lg:block w-56 shrink-0 px-2" data-testid="controls-category-sidebar">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Requirement Categories</h3>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Control Categories</h3>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -552,7 +552,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
             <div className="flex-1 min-w-0 space-y-4">
               {groupedRequirements.length === 0 && (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  {searchQuery || selectedCategory ? "No controls match your filters." : "No requirements defined for this framework."}
+                  {searchQuery || selectedCategory ? "No controls match your filters." : "No controls defined for this framework."}
                 </p>
               )}
               {groupedRequirements.map(([category, reqs]) => (
