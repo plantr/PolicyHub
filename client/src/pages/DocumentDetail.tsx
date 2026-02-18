@@ -217,6 +217,10 @@ export default function DocumentDetail() {
   const [mappedPage, setMappedPage] = useState(1);
   const [mappedPageSize, setMappedPageSize] = useState(5);
 
+  const [mapControlOpen, setMapControlOpen] = useState(false);
+  const [mapSearch, setMapSearch] = useState("");
+  const [mapFrameworkFilter, setMapFrameworkFilter] = useState("all");
+
   const mappedHasActiveFilters = mappedSearch.length > 0 || mappedFrameworkFilter !== "all" || mappedCodeFilter !== "all";
 
   const filteredMappings = useMemo(() => {
@@ -271,6 +275,64 @@ export default function DocumentDetail() {
     setMappedCodeFilter("all");
     setMappedPage(1);
   }
+
+  const alreadyMappedReqIds = useMemo(() => {
+    return new Set(docMappings.map((m) => m.requirementId));
+  }, [docMappings]);
+
+  const allFrameworkOptions = useMemo(() => {
+    const set = new Set<string>();
+    allSources?.forEach((s) => set.add(s.shortName));
+    return Array.from(set).sort();
+  }, [allSources]);
+
+  const mapControlRequirements = useMemo(() => {
+    if (!allRequirements) return [];
+    return allRequirements.filter((r) => {
+      const source = sourceMap.get(r.sourceId);
+      if (mapFrameworkFilter !== "all" && source?.shortName !== mapFrameworkFilter) return false;
+      if (mapSearch) {
+        const q = mapSearch.toLowerCase();
+        if (!r.title.toLowerCase().includes(q) && !r.code.toLowerCase().includes(q) && !(r.description ?? "").toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [allRequirements, sourceMap, mapFrameworkFilter, mapSearch]);
+
+  const addMappingMutation = useMutation({
+    mutationFn: async (requirementId: number) => {
+      const res = await fetch("/api/requirement-mappings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requirementId,
+          documentId: Number(id),
+          coverageStatus: "Not Covered",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add mapping");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add mapping", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removeMappingMutation = useMutation({
+    mutationFn: async (mappingId: number) => {
+      const res = await fetch(`/api/requirement-mappings/${mappingId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove mapping");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
+    },
+  });
 
   const uploadMutation = useMutation({
     mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
@@ -745,7 +807,7 @@ export default function DocumentDetail() {
               <Button variant="outline" size="icon" data-testid="button-settings">
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" data-testid="button-map-control">
+              <Button variant="outline" size="sm" data-testid="button-map-control" onClick={() => { setMapControlOpen(true); setMapSearch(""); setMapFrameworkFilter("all"); }}>
                 Map control
               </Button>
             </div>
@@ -1058,6 +1120,122 @@ export default function DocumentDetail() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mapControlOpen} onOpenChange={setMapControlOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Map Controls to Document</DialogTitle>
+            <DialogDescription>
+              Search and select framework requirements to map to this document. Already mapped controls can be removed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2 flex-wrap" data-testid="map-control-filters">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search requirements..."
+                value={mapSearch}
+                onChange={(e) => setMapSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-map-search"
+              />
+            </div>
+            <Select value={mapFrameworkFilter} onValueChange={setMapFrameworkFilter}>
+              <SelectTrigger className="w-[180px]" data-testid="select-map-framework">
+                <SelectValue placeholder="Framework" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Frameworks</SelectItem>
+                {allFrameworkOptions.map((f) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex-1 overflow-auto border rounded-md" data-testid="map-control-list">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px]">Code</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Title</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[130px]">Framework</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px] text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mapControlRequirements.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground" data-testid="text-no-map-results">
+                      No requirements found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  mapControlRequirements.slice(0, 50).map((r) => {
+                    const source = sourceMap.get(r.sourceId);
+                    const isMapped = alreadyMappedReqIds.has(r.id);
+                    const existingMapping = isMapped ? docMappings.find((m) => m.requirementId === r.id) : null;
+                    return (
+                      <TableRow key={r.id} data-testid={`row-map-req-${r.id}`}>
+                        <TableCell className="font-mono text-sm font-medium" data-testid={`text-map-code-${r.id}`}>
+                          {r.code}
+                        </TableCell>
+                        <TableCell data-testid={`text-map-title-${r.id}`}>
+                          <div className="text-sm font-medium">{r.title}</div>
+                          {r.description && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[350px]">{r.description}</div>
+                          )}
+                        </TableCell>
+                        <TableCell data-testid={`text-map-fw-${r.id}`}>
+                          <Badge className="bg-muted text-muted-foreground no-default-hover-elevate no-default-active-elevate">
+                            {source?.shortName ?? "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isMapped ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => existingMapping && removeMappingMutation.mutate(existingMapping.id)}
+                              disabled={removeMappingMutation.isPending}
+                              data-testid={`button-unmap-${r.id}`}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Unmap
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => addMappingMutation.mutate(r.id)}
+                              disabled={addMappingMutation.isPending}
+                              data-testid={`button-map-${r.id}`}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Map
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+            {mapControlRequirements.length > 50 && (
+              <p className="text-xs text-muted-foreground text-center py-2" data-testid="text-map-truncated">
+                Showing first 50 of {mapControlRequirements.length} results. Refine your search to see more.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMapControlOpen(false)} data-testid="button-close-map-control">
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
