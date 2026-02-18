@@ -82,7 +82,7 @@ export default function ControlDetail() {
 
   const mappedDocuments = useMemo(() => {
     return mappings
-      .map((m) => ({ mapping: m, document: documentMap.get(m.documentId) }))
+      .map((m) => ({ mapping: m, document: m.documentId ? documentMap.get(m.documentId) : undefined }))
       .filter((entry) => entry.document);
   }, [mappings, documentMap]);
 
@@ -245,7 +245,7 @@ export default function ControlDetail() {
               ) : (
                 <div className="divide-y">
                   {mappings.map((mapping) => {
-                    const doc = documentMap.get(mapping.documentId);
+                    const doc = mapping.documentId ? documentMap.get(mapping.documentId) : undefined;
                     const passed = mapping.coverageStatus === "Covered" || mapping.coverageStatus === "Partially Covered";
                     return (
                       <div

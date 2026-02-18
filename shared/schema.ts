@@ -175,7 +175,7 @@ export const reviewHistory = pgTable("review_history", {
 export const requirementMappings = pgTable("requirement_mappings", {
   id: serial("id").primaryKey(),
   requirementId: integer("requirement_id").notNull(),
-  documentId: integer("document_id").notNull(),
+  documentId: integer("document_id"),
   versionId: integer("version_id"),
   businessUnitId: integer("business_unit_id"),
   coverageStatus: text("coverage_status").notNull(),
