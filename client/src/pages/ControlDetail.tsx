@@ -154,7 +154,7 @@ export default function ControlDetail() {
     return (
       <div className="space-y-4" data-testid="control-detail-not-found">
         <div className="flex justify-end">
-          <Button size="icon" variant="ghost" onClick={() => navigate("/sources")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => navigate("/requirements")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -180,7 +180,7 @@ export default function ControlDetail() {
             </p>
           )}
         </div>
-        <Button size="icon" variant="ghost" onClick={() => navigate("/sources")} data-testid="button-close">
+        <Button size="icon" variant="ghost" onClick={() => source ? navigate(`/sources/${source.id}`) : navigate("/requirements")} data-testid="button-close">
           <X className="h-4 w-4" />
         </Button>
       </div>
