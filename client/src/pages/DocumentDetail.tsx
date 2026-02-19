@@ -630,6 +630,20 @@ export default function DocumentDetail() {
           <Button variant="outline" size="icon" data-testid="button-owner-info">
             <UserCircle className="h-4 w-4" />
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="button-ai-auto-map"
+            disabled={aiAutoMapRunning || !hasPublishedVersion}
+            onClick={() => aiAutoMapMutation.mutate()}
+          >
+            {aiAutoMapRunning ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-1.5 text-purple-500 dark:text-purple-400" />
+            )}
+            {aiAutoMapRunning ? "Analysing..." : "AI Auto-Map"}
+          </Button>
           <Button variant="outline" size="sm" data-testid="button-edit-details">
             <Pencil className="h-3.5 w-3.5 mr-1.5" />
             Edit details
@@ -840,20 +854,6 @@ export default function DocumentDetail() {
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="icon" data-testid="button-settings">
                 <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="button-ai-auto-map"
-                disabled={aiAutoMapRunning || !hasPublishedVersion}
-                onClick={() => aiAutoMapMutation.mutate()}
-              >
-                {aiAutoMapRunning ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-1 text-purple-500 dark:text-purple-400" />
-                )}
-                {aiAutoMapRunning ? "Analysing..." : "AI Auto-Map"}
               </Button>
               <Button variant="outline" size="sm" data-testid="button-map-control" onClick={() => { setMapControlOpen(true); setMapSearch(""); setMapFrameworkFilter("all"); }}>
                 Map control
