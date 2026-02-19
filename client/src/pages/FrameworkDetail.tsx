@@ -43,6 +43,7 @@ import { ChevronDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import type { RegulatorySource, Requirement, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
 const editFrameworkSchema = z.object({
@@ -139,7 +140,12 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   const { toast } = useToast();
 
   const { data: source, isLoading: sourceLoading } = useQuery<RegulatorySource>({
-    queryKey: [`/api/regulatory-sources/${sourceId}`],
+    queryKey: ["regulatory-sources", sourceId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*").eq("id", sourceId).single();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const editForm = useForm<EditFrameworkValues>({
@@ -172,8 +178,8 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
       await apiRequest("PUT", `/api/regulatory-sources/${sourceId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/regulatory-sources/${sourceId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-sources", sourceId] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-sources"] });
       toast({ title: "Framework updated" });
       setEditOpen(false);
     },
@@ -183,15 +189,30 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   });
 
   const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+    queryKey: ["requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
-    queryKey: ["/api/documents"],
+    queryKey: ["documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const requirements = useMemo(() => {

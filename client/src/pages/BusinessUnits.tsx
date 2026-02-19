@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, MapPin } from "lucide-react";
 import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
@@ -66,7 +67,12 @@ export default function BusinessUnits() {
   });
 
   const { data: businessUnits, isLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -86,8 +92,8 @@ export default function BusinessUnits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit created" });
       closeDialog();
     },
@@ -113,8 +119,8 @@ export default function BusinessUnits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit updated" });
       closeDialog();
     },
@@ -129,8 +135,8 @@ export default function BusinessUnits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit archived" });
       setArchiveConfirmOpen(false);
       setArchivingBU(null);

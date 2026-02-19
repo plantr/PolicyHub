@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { X, CheckCircle2, XCircle, FileText, Save, MoreHorizontal, Share2, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
@@ -51,7 +52,7 @@ function EvidenceTestCriteria({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
       setIsEditingLogic(false);
       toast({ title: "Test logic saved" });
     },
@@ -269,19 +270,39 @@ export default function TestDetail() {
   });
 
   const { data: allMappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+    queryKey: ["requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
-    queryKey: ["/api/documents"],
+    queryKey: ["documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: sources } = useQuery<RegulatorySource[]>({
-    queryKey: ["/api/regulatory-sources"],
+    queryKey: ["regulatory-sources"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const mapping = useMemo(() => {
@@ -327,8 +348,8 @@ export default function TestDetail() {
       return res.json();
     },
     onSuccess: (created: RequirementMapping) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Test created" });
       navigate(`/tests/${created.id}`, { replace: true });
     },

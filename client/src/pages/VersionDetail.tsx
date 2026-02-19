@@ -32,6 +32,7 @@ import {
 import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -71,13 +72,23 @@ export default function VersionDetail() {
   const { toast } = useToast();
 
   const { data: document, isLoading: docLoading } = useQuery<Document>({
-    queryKey: ["/api/documents", docId],
+    queryKey: ["documents", docId],
     enabled: !!docId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*").eq("id", Number(docId)).single();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: versions, isLoading: versionsLoading } = useQuery<DocumentVersion[]>({
-    queryKey: ["/api/documents", docId, "versions"],
+    queryKey: ["document-versions", docId],
     enabled: !!docId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("document_versions").select("*").eq("document_id", Number(docId)).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const version = useMemo(
@@ -86,7 +97,12 @@ export default function VersionDetail() {
   );
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("users").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const activeUsers = useMemo(
@@ -158,7 +174,7 @@ export default function VersionDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", docId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
       toast({ title: "Version saved" });
     },
     onError: (err: Error) => {
@@ -181,7 +197,7 @@ export default function VersionDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", docId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
       toast({ title: "PDF uploaded successfully" });
     },
     onError: (err: Error) => {
@@ -223,7 +239,7 @@ export default function VersionDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", docId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
       toast({ title: "PDF removed" });
     },
     onError: (err: Error) => {

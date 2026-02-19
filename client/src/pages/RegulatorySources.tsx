@@ -16,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { Plus, Pencil, Trash2, ExternalLink, LayoutGrid, List, Search, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import type { RegulatorySource, Requirement, RequirementMapping } from "@shared/schema";
@@ -157,15 +158,30 @@ export default function RegulatorySources() {
   });
 
   const { data: sources, isLoading } = useQuery<RegulatorySource[]>({
-    queryKey: ["/api/regulatory-sources"],
+    queryKey: ["regulatory-sources"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: requirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+    queryKey: ["requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: mappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -181,8 +197,8 @@ export default function RegulatorySources() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-sources"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Framework created" });
       closeDialog();
     },
@@ -204,7 +220,7 @@ export default function RegulatorySources() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-sources"] });
       toast({ title: "Framework updated" });
       closeDialog();
     },
@@ -218,8 +234,8 @@ export default function RegulatorySources() {
       await apiRequest("DELETE", `/api/regulatory-sources/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-sources"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Framework deleted" });
       setDeleteConfirmOpen(false);
       setDeletingSource(null);

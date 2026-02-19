@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 
@@ -39,20 +40,40 @@ export default function ControlDetail() {
   });
 
   const { data: control, isLoading: controlLoading } = useQuery<Requirement>({
-    queryKey: [`/api/requirements/${controlId}`],
+    queryKey: ["requirements", controlId],
     enabled: !!controlId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*").eq("id", controlId).single();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: sources } = useQuery<RegulatorySource[]>({
-    queryKey: ["/api/regulatory-sources"],
+    queryKey: ["regulatory-sources"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
-    queryKey: ["/api/documents"],
+    queryKey: ["documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const source = useMemo(() => {
@@ -118,8 +139,8 @@ export default function ControlDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -131,8 +152,8 @@ export default function ControlDetail() {
       await apiRequest("DELETE", `/api/requirement-mappings/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -151,7 +172,7 @@ export default function ControlDetail() {
     onSuccess: (data: { combinedAiScore: number; combinedAiRationale: string; combinedAiRecommendations?: string }) => {
       setAiCoverageRunning(false);
       queryClient.invalidateQueries({ queryKey: [`/api/requirements/${controlId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["requirements"] });
       toast({ title: "AI Coverage Analysis Complete", description: `Combined score: ${data.combinedAiScore}%` });
     },
     onError: (err: Error) => {
@@ -168,7 +189,7 @@ export default function ControlDetail() {
     },
     onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string; aiMatchRecommendations?: string }) => {
       setAiAnalysingId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
       toast({ title: "AI Analysis Complete", description: `Match score: ${data.aiMatchScore}%` });
     },
     onError: (err: Error) => {

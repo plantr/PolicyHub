@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -21,6 +22,21 @@ export async function apiRequest(
 
   await throwIfResNotOk(res);
   return res;
+}
+
+export async function supabaseQuery<T>(table: string): Promise<T[]> {
+  const { data, error } = await supabase.from(table).select("*");
+  if (error) throw error;
+  return (data ?? []) as T[];
+}
+
+export async function supabaseQuerySingle<T>(
+  table: string,
+  id: number
+): Promise<T> {
+  const { data, error } = await supabase.from(table).select("*").eq("id", id).single();
+  if (error) throw error;
+  return data as T;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

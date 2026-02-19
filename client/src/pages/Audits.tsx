@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Audit, BusinessUnit } from "@shared/schema";
@@ -107,10 +108,20 @@ export default function Audits() {
   });
 
   const { data: auditsData, isLoading: auditsLoading } = useQuery<Audit[]>({
-    queryKey: ["/api/audits"],
+    queryKey: ["audits"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("audits").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -126,7 +137,7 @@ export default function Audits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/audits"] });
+      queryClient.invalidateQueries({ queryKey: ["audits"] });
       toast({ title: "Audit created" });
       closeDialog();
     },
@@ -148,7 +159,7 @@ export default function Audits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/audits"] });
+      queryClient.invalidateQueries({ queryKey: ["audits"] });
       toast({ title: "Audit updated" });
       closeDialog();
     },
@@ -162,7 +173,7 @@ export default function Audits() {
       await apiRequest("DELETE", `/api/audits/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/audits"] });
+      queryClient.invalidateQueries({ queryKey: ["audits"] });
       toast({ title: "Audit deleted" });
       setDeleteConfirmOpen(false);
       setDeletingAudit(null);

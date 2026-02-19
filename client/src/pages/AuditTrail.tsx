@@ -21,6 +21,7 @@ import {
 import { format } from "date-fns";
 import { Search, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { AuditLogEntry } from "@shared/schema";
+import { supabase } from "@/lib/supabase";
 
 const ENTITY_TYPES = [
   "document",
@@ -39,7 +40,12 @@ export default function AuditTrail() {
   const [pageSize, setPageSize] = useState(20);
 
   const { data: entries, isLoading } = useQuery<AuditLogEntry[]>({
-    queryKey: ["/api/audit-log"],
+    queryKey: ["audit-log"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("audit_log").select("*").order("timestamp", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const hasActiveFilters = entityTypeFilter !== "all" || searchQuery.length > 0;

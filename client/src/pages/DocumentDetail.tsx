@@ -83,6 +83,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -117,38 +118,78 @@ export default function DocumentDetail() {
   const [, navigate] = useLocation();
 
   const { data: document, isLoading: docLoading } = useQuery<Document>({
-    queryKey: ["/api/documents", id],
+    queryKey: ["documents", id],
     enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*").eq("id", Number(id)).single();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: versions, isLoading: versionsLoading } = useQuery<DocumentVersion[]>({
-    queryKey: ["/api/documents", id, "versions"],
+    queryKey: ["document-versions", id],
     enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("document_versions").select("*").eq("document_id", Number(id)).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
 
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("users").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+    queryKey: ["requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allSources } = useQuery<RegulatorySource[]>({
-    queryKey: ["/api/regulatory-sources"],
+    queryKey: ["regulatory-sources"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: allAudits } = useQuery<Audit[]>({
-    queryKey: ["/api/audits"],
+    queryKey: ["audits"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("audits").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const activeUsers = useMemo(
@@ -373,7 +414,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to add mapping", description: err.message, variant: "destructive" });
@@ -386,7 +427,7 @@ export default function DocumentDetail() {
       if (!res.ok) throw new Error("Failed to remove mapping");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
@@ -410,7 +451,7 @@ export default function DocumentDetail() {
     },
     onSuccess: (data: { matched: number; total: number; removed?: number }) => {
       setAiAutoMapRunning(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
       const removedMsg = data.removed ? `, removed ${data.removed} low-quality mappings` : "";
       toast({
         title: "AI Auto-Map Complete",
@@ -442,7 +483,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
       toast({ title: "PDF uploaded successfully" });
       setUploadingVersionId(null);
     },
@@ -486,7 +527,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
       toast({ title: "PDF removed" });
     },
     onError: (err: Error) => {
@@ -548,7 +589,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", id, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
       toast({ title: "Version created" });
       setAddVersionOpen(false);
       setVersionFile(null);

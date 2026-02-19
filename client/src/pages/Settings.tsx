@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 
@@ -39,11 +40,21 @@ export const ADMIN_CATEGORIES: Record<string, { slug: string; label: string; sin
   "document-statuses": { slug: "document-statuses", label: "Document Statuses", singular: "Document Status" },
 };
 
+const SLUG_TO_TABLE: Record<string, string> = {
+  "entity-types": "entity_types",
+  "roles": "roles",
+  "jurisdictions": "jurisdictions",
+  "document-categories": "document_categories",
+  "finding-severities": "finding_severities",
+  "document-statuses": "document_statuses",
+};
+
 export default function LookupAdmin({ slug }: { slug: string }) {
   const config = ADMIN_CATEGORIES[slug];
   const pageTitle = config?.label ?? slug;
   const singular = config?.singular ?? "Item";
   const apiBase = `/api/admin/${slug}`;
+  const tableName = SLUG_TO_TABLE[slug] ?? slug.replace(/-/g, "_");
   const hasValue = !TABLES_WITHOUT_VALUE.includes(slug);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,7 +74,12 @@ export default function LookupAdmin({ slug }: { slug: string }) {
   });
 
   const { data: records, isLoading } = useQuery<AdminRecord[]>({
-    queryKey: [apiBase],
+    queryKey: ["admin", slug],
+    queryFn: async () => {
+      const { data, error } = await supabase.from(tableName).select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const sorted = (records ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -75,7 +91,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [apiBase] });
+      queryClient.invalidateQueries({ queryKey: ["admin", slug] });
       toast({ title: `${singular} created` });
       closeDialog();
     },
@@ -91,7 +107,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [apiBase] });
+      queryClient.invalidateQueries({ queryKey: ["admin", slug] });
       toast({ title: `${singular} updated` });
       closeDialog();
     },
@@ -105,7 +121,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
       await apiRequest("DELETE", `${apiBase}/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [apiBase] });
+      queryClient.invalidateQueries({ queryKey: ["admin", slug] });
       toast({ title: `${singular} deleted` });
       setDeleteConfirmOpen(false);
       setDeletingRecord(null);
@@ -121,7 +137,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [apiBase] });
+      queryClient.invalidateQueries({ queryKey: ["admin", slug] });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
