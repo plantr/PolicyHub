@@ -1166,10 +1166,11 @@ Respond in exactly this JSON format:
 
       const allRequirements = await storage.getRequirements();
       const existingMappings = await storage.getRequirementMappings();
-      const existingDocMappings = new Set(
-        existingMappings.filter((m) => m.documentId === docId).map((m) => m.requirementId)
+      const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
+      const aiVerifiedIds = new Set(
+        existingDocMappings.filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60).map((m) => m.requirementId)
       );
-      const unmappedRequirements = allRequirements.filter((r) => !existingDocMappings.has(r.id));
+      const unmappedRequirements = allRequirements.filter((r) => !aiVerifiedIds.has(r.id));
 
       if (unmappedRequirements.length === 0) {
         return res.json({ message: "All controls are already mapped", matched: 0, total: 0, mappings: [] });
@@ -1257,29 +1258,56 @@ If no requirements match at 60% or above, return an empty array: []`;
         }
       }
 
-      const createdMappings: any[] = [];
+      const resultMappings: any[] = [];
+      const existingByReq = new Map(existingDocMappings.map((m) => [m.requirementId, m]));
+
       for (const match of newMappings) {
         const coverageStatus = match.score >= 80 ? "Covered" : "Partially Covered";
-        const created = await storage.createRequirementMapping({
-          requirementId: match.requirementId,
-          documentId: docId,
-          coverageStatus,
-          rationale: match.rationale,
-        });
-        await db.update(requirementMappings)
-          .set({
-            aiMatchScore: match.score,
-            aiMatchRationale: match.rationale,
-            aiMatchRecommendations: match.recommendations,
-          })
-          .where(eq(requirementMappings.id, created.id));
-        createdMappings.push({ ...created, aiMatchScore: match.score, aiMatchRationale: match.rationale, aiMatchRecommendations: match.recommendations });
+        const existing = existingByReq.get(match.requirementId);
+
+        if (existing) {
+          await db.update(requirementMappings)
+            .set({
+              coverageStatus,
+              rationale: match.rationale,
+              aiMatchScore: match.score,
+              aiMatchRationale: match.rationale,
+              aiMatchRecommendations: match.recommendations,
+            })
+            .where(eq(requirementMappings.id, existing.id));
+          resultMappings.push({ ...existing, coverageStatus, aiMatchScore: match.score, aiMatchRationale: match.rationale, aiMatchRecommendations: match.recommendations });
+        } else {
+          const created = await storage.createRequirementMapping({
+            requirementId: match.requirementId,
+            documentId: docId,
+            coverageStatus,
+            rationale: match.rationale,
+          });
+          await db.update(requirementMappings)
+            .set({
+              aiMatchScore: match.score,
+              aiMatchRationale: match.rationale,
+              aiMatchRecommendations: match.recommendations,
+            })
+            .where(eq(requirementMappings.id, created.id));
+          resultMappings.push({ ...created, aiMatchScore: match.score, aiMatchRationale: match.rationale, aiMatchRecommendations: match.recommendations });
+        }
+      }
+
+      const matchedReqIds = new Set(newMappings.map((m) => m.requirementId));
+      let removedCount = 0;
+      for (const existing of existingDocMappings) {
+        if (!matchedReqIds.has(existing.requirementId) && existing.aiMatchScore == null && existing.rationale?.startsWith("Auto-mapped")) {
+          await storage.deleteRequirementMapping(existing.id);
+          removedCount++;
+        }
       }
 
       res.json({
-        matched: createdMappings.length,
+        matched: resultMappings.length,
         total: unmappedRequirements.length,
-        mappings: createdMappings,
+        removed: removedCount,
+        mappings: resultMappings,
       });
     } catch (err: any) {
       console.error("AI auto-map error:", err);

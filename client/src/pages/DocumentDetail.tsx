@@ -350,12 +350,13 @@ export default function DocumentDetail() {
       }
       return res.json();
     },
-    onSuccess: (data: { matched: number; total: number }) => {
+    onSuccess: (data: { matched: number; total: number; removed?: number }) => {
       setAiAutoMapRunning(false);
       queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      const removedMsg = data.removed ? `, removed ${data.removed} low-quality mappings` : "";
       toast({
         title: "AI Auto-Map Complete",
-        description: `Matched ${data.matched} controls out of ${data.total} evaluated`,
+        description: `Matched ${data.matched} controls out of ${data.total} evaluated${removedMsg}`,
       });
     },
     onError: (err: Error) => {
