@@ -645,7 +645,7 @@ export default function Documents() {
                       <TooltipContent>Personnel assigned</TooltipContent>
                     </Tooltip>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls covered</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls Covered</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-framework">Framework</TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
