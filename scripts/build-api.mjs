@@ -60,6 +60,8 @@ const vcConfig = JSON.stringify({
   runtime: "nodejs22.x",
   handler: "index.mjs",
   launcherType: "Nodejs",
+  shouldAddHelpers: true,
+  shouldAddSourcemapSupport: false,
 }, null, 2);
 
 for (const entry of entries) {
