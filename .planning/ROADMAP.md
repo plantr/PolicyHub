@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Supabase Foundation** - Provision Supabase, migrate schema, wire up email/password auth, deploy RLS policies on all 27+ tables
 - [ ] **Phase 2: Storage Migration** - Create private PDF bucket, write storage.objects RLS policies, implement signed upload/download URLs
 - [x] **Phase 3: Vercel Deployment** - Deploy SPA and serverless functions to Vercel, configure connection pooling, AI timeouts, and environment variables
-- [ ] **Phase 4: Client Migration + Cleanup** - Replace Express API calls with Supabase client reads, build auth UI, remove all Replit/Passport/S3 legacy code
+- [x] **Phase 4: Client Migration + Cleanup** - Replace Express API calls with Supabase client reads, build auth UI, remove all Replit/Passport/S3 legacy code
 
 ## Phase Details
 
@@ -71,11 +71,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Login, signup, and password reset UI components work end-to-end using Supabase Auth
   3. The codebase contains no references to `.replit`, `server/replit_integrations/`, `passport`, `express-session`, `server/s3.ts`, or multer for file uploads
   4. The Express server entry point is removed or refactored — `npm run dev` starts via Vercel CLI or Vite directly, not via `server/index.ts`
-**Plans:** 3/4 plans executed
-- [ ] 04-01-PLAN.md — Auth UI + route protection + session management
-- [ ] 04-02-PLAN.md — Migrate read operations to direct Supabase client queries
-- [ ] 04-03-PLAN.md — Break Express into individual Vercel serverless functions
-- [ ] 04-04-PLAN.md — Remove legacy code (Replit, Passport, S3, multer) + README
+**Plans:** 4/4 plans complete
+- [x] 04-01-PLAN.md — Auth UI + route protection + session management
+- [x] 04-02-PLAN.md — Migrate read operations to direct Supabase client queries
+- [x] 04-03-PLAN.md — Break Express into individual Vercel serverless functions
+- [x] 04-04-PLAN.md — Remove legacy code (Replit, Passport, S3, multer) + README
 
 ## Progress
 

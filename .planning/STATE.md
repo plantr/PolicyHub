@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 4 of 4 (Client Migration + Cleanup)
-Plan: 4 of 4 (04-01, 04-02, 04-03 complete)
-Status: Executing Phase 4
-Last activity: 2026-02-19 — 04-02 complete (25 pages migrated to direct Supabase reads, all /api/ GET queryKeys eliminated)
+Plan: 4 of 4 (04-01, 04-02, 04-03, 04-04 complete)
+Status: Phase 4 Complete — All phases complete
+Last activity: 2026-02-19 — 04-04 complete (legacy cleanup, TUS upload migration, README)
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -30,7 +30,7 @@ Progress: [█████████░] 90%
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
 | 03-vercel-deployment | 3/3 | 31 min | 10 min |
-| 04-client-migration-cleanup | 3/4 | 53 min | 18 min |
+| 04-client-migration-cleanup | 4/4 | 60 min | 15 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -84,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-03: multer removed from serverless functions — TUS signed URL flow (upload-url + upload-confirm) replaces direct file upload; serverless functions cannot buffer large streams
 - [Phase 04]: 04-03: AI processors co-located in dispatch function files — processAiMatchJob in gap-analysis.ts, processAiCoverageJob and processAiMapControlsJob in ai-jobs.ts; fire-and-forget pattern preserved
 - [Phase 04]: 04-02: Direct Supabase reads replace all Express GET round-trips — 25 pages migrated, stats/gap-analysis-refresh stay serverless
+- [Phase 04]: 04-04: server/index.ts and server/routes.ts deleted — api/*.ts serverless functions are the sole routing layer; no Express server needed
+- [Phase 04]: 04-04: All API URL patterns standardized to query-param convention (?id=N&action=verb) throughout client pages
+- [Phase 04]: 04-04: Two-step TUS flow for Documents.tsx: create document (JSON) + create initial draft version + TUS upload
 
 ### Pending Todos
 
@@ -97,5 +100,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 04-02-PLAN.md (client read migration)
-Resume file: .planning/phases/04-client-migration-cleanup/04-04-PLAN.md
+Stopped at: Completed 04-04-PLAN.md (legacy cleanup + TUS upload migration)
+Resume file: None — all phases complete

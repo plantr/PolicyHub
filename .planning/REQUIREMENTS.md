@@ -68,12 +68,12 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 
 ### Cleanup
 
-- [ ] **CLNP-01**: Replit-specific code removed (`.replit`, `server/replit_integrations/`, Vite plugins)
-- [ ] **CLNP-02**: Passport.js and express-session packages and configuration removed
-- [ ] **CLNP-03**: AWS S3 integration (`server/s3.ts`, multer config) removed
+- [x] **CLNP-01**: Replit-specific code removed (`.replit`, `server/replit_integrations/`, Vite plugins)
+- [x] **CLNP-02**: Passport.js and express-session packages and configuration removed
+- [x] **CLNP-03**: AWS S3 integration (`server/s3.ts`, multer config) removed
 - [x] **CLNP-04**: Express server entry point (`server/index.ts`) refactored or removed
-- [ ] **CLNP-05**: Hardcoded port 5000 and Replit-specific environment detection removed
-- [ ] **CLNP-06**: Node.js engine pinned to 22.x in package.json (Vercel compatibility)
+- [x] **CLNP-05**: Hardcoded port 5000 and Replit-specific environment detection removed
+- [x] **CLNP-06**: Node.js engine pinned to 22.x in package.json (Vercel compatibility)
 
 ## v2 Requirements
 
@@ -137,12 +137,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | CLNT-03 | Phase 4 | Complete |
 | CLNT-04 | Phase 4 | Complete |
 | CLNT-05 | Phase 4 | Complete |
-| CLNP-01 | Phase 4 | Pending |
-| CLNP-02 | Phase 4 | Pending |
-| CLNP-03 | Phase 4 | Pending |
+| CLNP-01 | Phase 4 | Complete |
+| CLNP-02 | Phase 4 | Complete |
+| CLNP-03 | Phase 4 | Complete |
 | CLNP-04 | Phase 4 | Complete |
-| CLNP-05 | Phase 4 | Pending |
-| CLNP-06 | Phase 4 | Pending |
+| CLNP-05 | Phase 4 | Complete |
+| CLNP-06 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 44 total
