@@ -27,10 +27,10 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 ### Authorization (RLS)
 
 - [x] **RLS-01**: Row Level Security enabled on all database tables (27+)
-- [ ] **RLS-02**: RLS policies scope data access by business unit using JWT claims from `app_metadata`
-- [ ] **RLS-03**: Anonymous (unauthenticated) access blocked on all tables
-- [ ] **RLS-04**: Service role bypass available for serverless functions (AI endpoints, admin operations)
-- [ ] **RLS-05**: RLS policies use inverted query pattern to avoid N+1 performance degradation
+- [x] **RLS-02**: RLS policies scope data access by business unit using JWT claims from `app_metadata`
+- [x] **RLS-03**: Anonymous (unauthenticated) access blocked on all tables
+- [x] **RLS-04**: Service role bypass available for serverless functions (AI endpoints, admin operations)
+- [x] **RLS-05**: RLS policies use inverted query pattern to avoid N+1 performance degradation
 - [x] **RLS-06**: All tables verified via `pg_tables WHERE rowsecurity = false` query returns zero rows
 
 ### Storage
@@ -111,10 +111,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Pending |
 | RLS-01 | Phase 1 | Complete |
-| RLS-02 | Phase 1 | Pending |
-| RLS-03 | Phase 1 | Pending |
-| RLS-04 | Phase 1 | Pending |
-| RLS-05 | Phase 1 | Pending |
+| RLS-02 | Phase 1 | Complete |
+| RLS-03 | Phase 1 | Complete |
+| RLS-04 | Phase 1 | Complete |
+| RLS-05 | Phase 1 | Complete |
 | RLS-06 | Phase 1 | Complete |
 | STOR-01 | Phase 2 | Pending |
 | STOR-02 | Phase 2 | Pending |

@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 1 of 4 (Supabase Foundation)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-19 — 01-04 Task 1 complete (Supabase JS client installed + modules created)
+Last activity: 2026-02-19 — Completed Plan 01-03 (66 RLS policies across all 33 tables)
 
-Progress: [██░░░░░░░░] 13%
+Progress: [███░░░░░░░] 19%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 2.5 min
-- Total execution time: 5 min
+- Total plans completed: 3
+- Average duration: 2.7 min
+- Total execution time: 8 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-supabase-foundation | 2/4 | 5 min | 2.5 min |
+| 01-supabase-foundation | 3/4 | 8 min | 2.7 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 2 min
+- Last 5 plans: 3 min, 2 min, 3 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -54,10 +54,13 @@ Recent decisions affecting current work:
 - 01-02: supabase_auth_admin needs both GRANT SELECT and CREATE POLICY to read user_business_units when RLS is enabled — GRANT alone is insufficient
 - 01-02: Custom Access Token Hook declared STABLE (reads DB, does not write) — correct volatility for Postgres optimization
 - 01-02: Hook uses COALESCE to empty array — users with no BU memberships get [] not NULL to prevent downstream null-pointer errors in RLS policies
+- 01-03: Template A-indirect pattern for join-dependent tables (no direct BU column) — permissive reads + service role writes avoids cross-table JOIN complexity in RLS
+- 01-03: audit_log uses permissive Phase 1 read policy — BU-scoping deferred to Phase 4 (entity_id references many tables)
+- 01-03: NULL BU rows in nullable-BU tables readable by all authenticated but not writable via API — global/shared records managed via service role only
 
 ### Pending Todos
 
-- Apply migrations to Supabase: set DATABASE_URL and DATABASE_URL_DIRECT, run `npx drizzle-kit migrate`, then apply supabase/migrations/0001_enable_rls.sql and 0002_auth_hook.sql
+- Apply migrations to Supabase: set DATABASE_URL and DATABASE_URL_DIRECT, run `npx drizzle-kit migrate`, then apply supabase/migrations/0001_enable_rls.sql, 0002_auth_hook.sql, and 0003_rls_policies.sql
 - Enable Custom Access Token Hook in Supabase Dashboard: Authentication > Hooks > Custom Access Token > select `public.custom_access_token_hook`
 
 ### Blockers/Concerns
@@ -70,5 +73,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: 01-04 Task 2 checkpoint (human-verify — Supabase project setup + auth config + SMTP + migrations)
+Stopped at: Completed 01-03-PLAN.md (RLS policies migration for all 33 tables)
 Resume file: .planning/phases/01-supabase-foundation/01-04-PLAN.md
