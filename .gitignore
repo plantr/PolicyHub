@@ -1,7 +1,7 @@
 node_modules
 dist
-api/index.js
-api/index.js.map
+api/*.js
+api/*.js.map
 .DS_Store
 server/public
 vite.config.ts.*
@@ -13,5 +13,3 @@ vite.config.ts.*
 .replit
 replit.nix
 .local/
-api/*.js
-api/*.js.map
