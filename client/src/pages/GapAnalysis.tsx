@@ -178,6 +178,7 @@ export default function GapAnalysis() {
 
   const filtered = useMemo(() => {
     return allMappings.filter((m) => {
+      if (m.documentId == null) return false;
       if (statusFilter !== "all" && m.coverageStatus !== statusFilter) return false;
       if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
       if (searchQuery) {
@@ -373,7 +374,7 @@ export default function GapAnalysis() {
           <Tabs defaultValue="mappings" data-testid="gap-analysis-tabs">
             <TabsList data-testid="tabs-list">
               <TabsTrigger value="mappings" data-testid="tab-mappings">
-                Mappings ({allMappings.length})
+                Mappings ({allMappings.filter((m) => m.documentId != null).length})
               </TabsTrigger>
               {analysisResult && (
                 <>

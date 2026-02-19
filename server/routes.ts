@@ -1032,16 +1032,18 @@ export async function registerRoutes(
       ? await storage.getRequirementMappings()
       : allMappings;
 
+    const docLinkedMappings = updatedMappings.filter((m) => m.documentId != null);
+
     const summary = {
       totalRequirements: allRequirements.length,
       applicableRequirements: applicableRequirements.length,
-      totalMapped: updatedMappings.length,
+      totalMapped: docLinkedMappings.length,
       unmappedCount: unmappedRequirements.length,
       perBuGapCount: perBuGaps.length,
       overStrictCount: overStrictItems.length,
-      coveredCount: updatedMappings.filter((m) => m.coverageStatus === "Covered").length,
-      partiallyCoveredCount: updatedMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
-      notCoveredCount: updatedMappings.filter((m) => m.coverageStatus === "Not Covered").length,
+      coveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Covered").length,
+      partiallyCoveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
+      notCoveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Not Covered").length,
       contentAnalysisCount: contentAnalysis.length,
       contentUpdatedCount: mappingsToUpdate.length,
     };
