@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 Phase: 1 of 4 (Supabase Foundation)
 Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-19 — Completed Plan 01-02 (RLS enablement + Custom Access Token Hook)
+Last activity: 2026-02-19 — 01-04 Task 1 complete (Supabase JS client installed + modules created)
 
 Progress: [██░░░░░░░░] 13%
 
@@ -70,5 +70,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 01-02-PLAN.md (RLS enablement migration + Custom Access Token Hook migration)
-Resume file: .planning/phases/01-supabase-foundation/01-03-PLAN.md
+Stopped at: 01-04 Task 2 checkpoint (human-verify — Supabase project setup + auth config + SMTP + migrations)
+Resume file: .planning/phases/01-supabase-foundation/01-04-PLAN.md
