@@ -27,8 +27,6 @@ import {
   createSignedDownloadUrl, deleteStorageObject, bucketName,
   validateFileType, validateFileSize,
 } from "../server/storage-supabase";
-import { supabaseAdmin } from "../server/lib/supabase-admin";
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
 

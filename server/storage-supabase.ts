@@ -1,5 +1,5 @@
 import path from 'path';
-import { supabaseAdmin } from './lib/supabase-admin';
+import { getSupabaseAdmin } from './lib/supabase-admin';
 
 // =============================================
 // CONSTANTS
@@ -96,7 +96,7 @@ export async function resolveFilename(
   const bucket = bucketName(buId);
   const prefix = `${docId}/${versionId}/`;
 
-  const { data, error } = await supabaseAdmin.storage.from(bucket).list(prefix);
+  const { data, error } = await getSupabaseAdmin().storage.from(bucket).list(prefix);
   if (error) {
     // If listing fails (e.g., bucket empty), return original name
     return originalName;
@@ -138,7 +138,7 @@ export async function createSignedUploadUrl(
   buId: number,
   filePath: string
 ): Promise<{ signedUrl: string; token: string; path: string }> {
-  const { data, error } = await supabaseAdmin.storage
+  const { data, error } = await getSupabaseAdmin().storage
     .from(bucketName(buId))
     .createSignedUploadUrl(filePath);
 
@@ -161,7 +161,7 @@ export async function createSignedDownloadUrl(
 ): Promise<string> {
   const options = forDownload ? { download: forDownload } : undefined;
 
-  const { data, error } = await supabaseAdmin.storage
+  const { data, error } = await getSupabaseAdmin().storage
     .from(bucketName(buId))
     .createSignedUrl(filePath, SIGNED_URL_EXPIRY, options);
 
@@ -181,7 +181,7 @@ export async function createSignedDownloadUrl(
  * Uses the service-role client (bypasses RLS).
  */
 export async function deleteStorageObject(buId: number, filePath: string): Promise<void> {
-  const { error } = await supabaseAdmin.storage
+  const { error } = await getSupabaseAdmin().storage
     .from(bucketName(buId))
     .remove([filePath]);
 
@@ -195,7 +195,7 @@ export async function deleteStorageObject(buId: number, filePath: string): Promi
  * Caller should handle "bucket already exists" errors gracefully if needed.
  */
 export async function createBucketForBusinessUnit(buId: number): Promise<void> {
-  const { error } = await supabaseAdmin.storage.createBucket(bucketName(buId), {
+  const { error } = await getSupabaseAdmin().storage.createBucket(bucketName(buId), {
     public: false,
     fileSizeLimit: MAX_FILE_SIZE,
     allowedMimeTypes: ALLOWED_MIME_TYPES,
