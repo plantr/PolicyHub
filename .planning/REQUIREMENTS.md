@@ -35,10 +35,10 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 
 ### Storage
 
-- [ ] **STOR-01**: Private Supabase Storage bucket created for PDF documents
-- [ ] **STOR-02**: Server-generated signed upload URLs allow client to upload PDFs directly to Supabase Storage
-- [ ] **STOR-03**: Signed download URLs generated for authenticated PDF access
-- [ ] **STOR-04**: RLS policies on `storage.objects` scope PDF access by business unit
+- [x] **STOR-01**: Private Supabase Storage bucket created for PDF documents
+- [x] **STOR-02**: Server-generated signed upload URLs allow client to upload PDFs directly to Supabase Storage
+- [x] **STOR-03**: Signed download URLs generated for authenticated PDF access
+- [x] **STOR-04**: RLS policies on `storage.objects` scope PDF access by business unit
 - [ ] **STOR-05**: Resumable uploads via TUS protocol enabled for PDFs over 6 MB
 - [ ] **STOR-06**: Existing S3 upload/download code in `server/s3.ts` replaced with Supabase Storage equivalents
 
@@ -116,10 +116,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | RLS-04 | Phase 1 | Complete |
 | RLS-05 | Phase 1 | Complete |
 | RLS-06 | Phase 1 | Complete |
-| STOR-01 | Phase 2 | Pending |
-| STOR-02 | Phase 2 | Pending |
-| STOR-03 | Phase 2 | Pending |
-| STOR-04 | Phase 2 | Pending |
+| STOR-01 | Phase 2 | Complete |
+| STOR-02 | Phase 2 | Complete |
+| STOR-03 | Phase 2 | Complete |
+| STOR-04 | Phase 2 | Complete |
 | STOR-05 | Phase 2 | Pending |
 | STOR-06 | Phase 2 | Pending |
 | DEPL-01 | Phase 3 | Pending |

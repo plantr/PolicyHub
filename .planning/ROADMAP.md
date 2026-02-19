@@ -44,7 +44,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A user can download a PDF they have access to via a signed URL that expires
   3. A user cannot download a PDF belonging to a different business unit (storage.objects RLS blocks access)
   4. A PDF larger than 6 MB uploads successfully via the TUS resumable protocol
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 - [ ] 02-01-PLAN.md — Storage bucket SQL migrations + RLS policies + Supabase Storage service module
 - [ ] 02-02-PLAN.md — Replace S3 routes with Supabase Storage signed URLs + client-side TUS upload utility
 
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Supabase Foundation | 4/4 | Complete    | 2026-02-19 |
-| 2. Storage Migration | 0/2 | Planning complete | - |
+| 2. Storage Migration | 1/2 | In Progress|  |
 | 3. Vercel Deployment | 0/TBD | Not started | - |
 | 4. Client Migration + Cleanup | 0/TBD | Not started | - |

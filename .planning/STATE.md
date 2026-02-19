@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Get Policy Hub running on Supabase + Vercel with business-unit-scoped access control
-**Current focus:** Phase 1 — Supabase Foundation
+**Current focus:** Phase 2 — Storage Migration
 
 ## Current Position
 
-Phase: 1 of 4 (Supabase Foundation)
-Plan: 4 of 4 in current phase — PHASE COMPLETE
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-02-19 — Completed Plan 01-04 (Supabase client setup + full auth verification)
+Phase: 2 of 4 (Storage Migration)
+Plan: 1 of 4 in current phase — COMPLETE
+Status: Phase 2 in progress (1/4 plans complete)
+Last activity: 2026-02-19 — Completed Plan 02-01 (Storage buckets SQL migrations + TypeScript service module)
 
-Progress: [██████░░░░] 25%
+Progress: [███████░░░] 31%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 5 min
-- Total execution time: 20 min
+- Total plans completed: 5
+- Average duration: 4 min
+- Total execution time: 21 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
+| 02-storage-migration | 1/4 | 1 min | 1 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint)
+- Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -59,6 +60,10 @@ Recent decisions affecting current work:
 - 01-03: NULL BU rows in nullable-BU tables readable by all authenticated but not writable via API — global/shared records managed via service role only
 - 01-04: SMTP deferred — not blocking Phase 1; must configure before Phase 2 auth email flows (invite, password reset)
 - 01-04: VITE_SUPABASE_PUBLISHABLE_KEY used as env var name — post-May 2025 Supabase projects use sb_publishable_xxx key format
+- 02-01: Bucket naming bu-{id} enables direct mapping from JWT claim elem->>'id' to bucket_id in RLS EXISTS subquery
+- 02-01: No UPDATE policy on storage.objects — files are immutable; version suffix pattern handles updates as new uploads
+- 02-01: SIGNED_URL_EXPIRY = 3600s (1 hour) — sufficient for a reading/review session
+- 02-01: resolveFilename uses prefix listing rather than error-based retry for conflict detection
 
 ### Pending Todos
 
@@ -71,5 +76,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 01-04-PLAN.md — Phase 1 (Supabase Foundation) complete
-Resume file: .planning/phases/02-storage-migration/ (Phase 2 not yet planned)
+Stopped at: Completed 02-01-PLAN.md — Storage foundation (buckets + RLS migrations + TypeScript service module)
+Resume file: .planning/phases/02-storage-migration/02-02-PLAN.md
