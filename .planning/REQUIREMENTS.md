@@ -44,19 +44,19 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 
 ### Deployment
 
-- [ ] **DEPL-01**: React SPA deployed to Vercel with production build
-- [ ] **DEPL-02**: `vercel.json` configured with SPA rewrites for Wouter client-side routing
+- [x] **DEPL-01**: React SPA deployed to Vercel with production build
+- [x] **DEPL-02**: `vercel.json` configured with SPA rewrites for Wouter client-side routing
 - [ ] **DEPL-03**: Environment variables set in Vercel (Supabase URL, anon key, service role key, Anthropic API key)
-- [ ] **DEPL-04**: Client-side env vars use `VITE_` prefix for Vite build exposure
-- [ ] **DEPL-05**: Preview deployments enabled per branch/PR
-- [ ] **DEPL-06**: Supabase Marketplace integration installed to auto-populate env vars
+- [x] **DEPL-04**: Client-side env vars use `VITE_` prefix for Vite build exposure
+- [x] **DEPL-05**: Preview deployments enabled per branch/PR
+- [x] **DEPL-06**: Supabase Marketplace integration installed to auto-populate env vars
 
 ### Serverless Functions
 
-- [ ] **FUNC-01**: AI analysis endpoints migrated to Vercel Serverless Functions (Node 22.x runtime)
+- [x] **FUNC-01**: AI analysis endpoints migrated to Vercel Serverless Functions (Node 22.x runtime)
 - [ ] **FUNC-02**: `maxDuration` configured for long-running AI calls (Anthropic API)
 - [ ] **FUNC-03**: Serverless functions use Supabase service role client for database access
-- [ ] **FUNC-04**: Serverless functions use pooled connection string (port 6543) for Drizzle queries
+- [x] **FUNC-04**: Serverless functions use pooled connection string (port 6543) for Drizzle queries
 
 ### Client Migration
 
@@ -122,16 +122,16 @@ Deferred to future release. Tracked but not in current roadmap.
 | STOR-04 | Phase 2 | Complete |
 | STOR-05 | Phase 2 | Complete |
 | STOR-06 | Phase 2 | Complete |
-| DEPL-01 | Phase 3 | Pending |
-| DEPL-02 | Phase 3 | Pending |
+| DEPL-01 | Phase 3 | Complete |
+| DEPL-02 | Phase 3 | Complete |
 | DEPL-03 | Phase 3 | Pending |
-| DEPL-04 | Phase 3 | Pending |
-| DEPL-05 | Phase 3 | Pending |
-| DEPL-06 | Phase 3 | Pending |
-| FUNC-01 | Phase 3 | Pending |
+| DEPL-04 | Phase 3 | Complete |
+| DEPL-05 | Phase 3 | Complete |
+| DEPL-06 | Phase 3 | Complete |
+| FUNC-01 | Phase 3 | Complete |
 | FUNC-02 | Phase 3 | Pending |
 | FUNC-03 | Phase 3 | Pending |
-| FUNC-04 | Phase 3 | Pending |
+| FUNC-04 | Phase 3 | Complete |
 | CLNT-01 | Phase 4 | Pending |
 | CLNT-02 | Phase 4 | Pending |
 | CLNT-03 | Phase 4 | Pending |

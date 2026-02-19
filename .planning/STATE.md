@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Get Policy Hub running on Supabase + Vercel with business-unit-scoped access control
-**Current focus:** Phase 2 — Storage Migration
+**Current focus:** Phase 3 — Vercel Deployment
 
 ## Current Position
 
-Phase: 2 of 4 (Storage Migration)
-Plan: 2 of 4 in current phase — COMPLETE
-Status: Phase 2 in progress (2/4 plans complete)
-Last activity: 2026-02-19 — Completed Plan 02-02 (Route migration to Supabase Storage signed URLs + client TUS upload utility)
+Phase: 3 of 4 (Vercel Deployment)
+Plan: 1 of 3 in current phase — COMPLETE
+Status: Phase 3 in progress (1/3 plans complete)
+Last activity: 2026-02-19 — Completed Plan 03-01 (Vercel project config, Express default export, Replit plugin isolation, env documentation)
 
-Progress: [████████░░] 38%
+Progress: [█████████░] 50%
 
 ## Performance Metrics
 
@@ -29,6 +29,7 @@ Progress: [████████░░] 38%
 |-------|-------|-------|----------|
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
+| 03-vercel-deployment | 1/3 | 2 min | 2 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -67,6 +68,10 @@ Recent decisions affecting current work:
 - 02-02: Legacy inline multer upload routes retained during Phase 2/3 transition — Phase 4 switches clients to signed URL TUS flow
 - 02-02: Download route uses Accept header for backward compatibility — JSON clients get { url, expiresIn }; legacy clients get 302 redirect
 - 02-02: BU creation wraps bucket provisioning in try/catch with warn-on-fail — BU record creation not blocked by storage failures
+- 03-01: buildCommand uses 'npx vite build' not 'tsx script/build.ts' — bypasses Replit-specific esbuild server bundling not needed for Vercel
+- 03-01: SPA rewrite uses negative lookahead /((?!api/).*) — excludes /api/* from catch-all so Vercel Express handles API routes
+- 03-01: registerRoutes() Promise intentionally ignored — async declaration is vestigial, registration is synchronous
+- 03-01: All Replit Vite plugins isolated behind REPL_ID guard with dynamic imports — prevents build failures outside Replit
 
 ### Pending Todos
 
@@ -79,5 +84,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 02-02-PLAN.md — Route migration to Supabase Storage signed URLs + client TUS upload utility
-Resume file: .planning/phases/02-storage-migration/02-03-PLAN.md
+Stopped at: Completed 03-01-PLAN.md — Vercel project config, Express default export, Replit plugin isolation, env documentation
+Resume file: .planning/phases/03-vercel-deployment/03-02-PLAN.md
