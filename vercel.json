@@ -1,9 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "VERCEL_FORCE_NO_BUILD_CACHE=1 npx vite build && node scripts/build-api.mjs && rm -rf api/*.ts api/_shared",
-  "devCommand": "npx vite --port $PORT",
-  "outputDirectory": "dist/public",
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "npx vite build && node scripts/build-api.mjs",
+  "devCommand": "npx vite --port $PORT"
 }
