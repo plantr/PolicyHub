@@ -7,6 +7,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { UserMenu } from "@/components/user-menu";
+import Landing from "@/pages/Landing";
+import AuthPage from "@/components/auth/AuthPage";
 
 import Dashboard from "@/pages/Dashboard";
 import Documents from "@/pages/Documents";
@@ -38,7 +42,7 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/documents" component={Documents} />
       <Route path="/documents/:id" component={DocumentDetail} />
       <Route path="/documents/:docId/versions/:verId" component={VersionDetail} />
@@ -82,20 +86,31 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
-          <SidebarProvider style={sidebarStyle}>
-            <div className="flex h-screen w-full">
-              <AppSidebar />
-              <div className="flex flex-col flex-1">
-                <header className="flex items-center justify-between gap-2 border-b p-2">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
-                </header>
-                <main className="flex-1 overflow-auto p-6">
-                  <Router />
-                </main>
-              </div>
-            </div>
-          </SidebarProvider>
+          <Switch>
+            <Route path="/" component={Landing} />
+            <Route path="/login" component={AuthPage} />
+            <Route>
+              <ProtectedRoute>
+                <SidebarProvider style={sidebarStyle}>
+                  <div className="flex h-screen w-full">
+                    <AppSidebar />
+                    <div className="flex flex-col flex-1">
+                      <header className="flex items-center justify-between gap-2 border-b p-2">
+                        <SidebarTrigger data-testid="button-sidebar-toggle" />
+                        <div className="flex items-center gap-2">
+                          <ThemeToggle />
+                          <UserMenu />
+                        </div>
+                      </header>
+                      <main className="flex-1 overflow-auto p-6">
+                        <Router />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            </Route>
+          </Switch>
           <Toaster />
         </ThemeProvider>
       </TooltipProvider>
