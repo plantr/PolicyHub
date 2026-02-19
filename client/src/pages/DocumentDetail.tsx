@@ -868,6 +868,7 @@ export default function DocumentDetail() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-control">Control</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-frameworks">Frameworks</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-ai-match">AI Match</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-rationale">Rationale</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-coverage">Coverage</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[50px]"></TableHead>
@@ -876,7 +877,7 @@ export default function DocumentDetail() {
               <TableBody>
                 {mappedPaginated.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       No mapped controls found
                     </TableCell>
                   </TableRow>
@@ -900,6 +901,24 @@ export default function DocumentDetail() {
                         </TableCell>
                         <TableCell className="text-sm" data-testid={`text-framework-${mapping.id}`}>
                           {source?.shortName ?? "-"}
+                        </TableCell>
+                        <TableCell data-testid={`text-ai-match-${mapping.id}`}>
+                          {mapping.aiMatchScore != null ? (
+                            <div className="flex items-center gap-1.5">
+                              <svg width="24" height="24" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                <circle
+                                  cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                  strokeDasharray={`${(mapping.aiMatchScore / 100) * 87.96} ${87.96}`}
+                                  transform="rotate(-90 18 18)"
+                                  className={mapping.aiMatchScore >= 80 ? "stroke-green-500 dark:stroke-green-400" : mapping.aiMatchScore >= 60 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                />
+                              </svg>
+                              <span className="text-xs font-semibold">{mapping.aiMatchScore}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm max-w-[250px]" data-testid={`text-rationale-${mapping.id}`}>
                           {mapping.rationale ?? "-"}
