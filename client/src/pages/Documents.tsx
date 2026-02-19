@@ -645,8 +645,7 @@ export default function Documents() {
                       <TooltipContent>Personnel assigned</TooltipContent>
                     </Tooltip>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-published">Published</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls covered</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-framework">Framework</TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
@@ -654,7 +653,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -731,13 +730,6 @@ export default function Documents() {
                         </TableCell>
                         <TableCell data-testid={`text-personnel-${doc.id}`}>
                           <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                        </TableCell>
-                        <TableCell data-testid={`text-published-${doc.id}`}>
-                          {publishedVersionMap.has(doc.id) ? (
-                            <Badge variant="secondary" className="text-xs">v{publishedVersionMap.get(doc.id)}</Badge>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                          )}
                         </TableCell>
                         <TableCell data-testid={`text-controls-${doc.id}`}>
                           {(docControlsCountMap.get(doc.id) ?? 0) > 0 ? (
