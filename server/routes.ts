@@ -1150,6 +1150,102 @@ Respond in exactly this JSON format:
     }
   });
 
+  // === AI COMBINED COVERAGE ANALYSIS (all linked documents for a control) ===
+  app.post("/api/requirements/:id/ai-coverage", async (req, res) => {
+    try {
+      const requirementId = Number(req.params.id);
+      const requirement = await storage.getRequirement(requirementId);
+      if (!requirement) return res.status(404).json({ message: "Requirement not found" });
+
+      const allMappings = await storage.getRequirementMappings();
+      const controlMappings = allMappings.filter((m) => m.requirementId === requirementId && m.documentId);
+
+      if (controlMappings.length === 0) {
+        return res.status(400).json({ message: "No documents linked to this control" });
+      }
+
+      const docSummaries: string[] = [];
+      for (const mapping of controlMappings) {
+        const document = await storage.getDocument(mapping.documentId!);
+        if (!document) continue;
+
+        const versions = await db.select().from(documentVersions)
+          .where(eq(documentVersions.documentId, mapping.documentId!));
+        const latestVersion = versions.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+        const docContent = latestVersion?.markDown || "";
+        const truncated = docContent.slice(0, 4000);
+
+        docSummaries.push(`--- DOCUMENT: ${document.title} (${document.docType}) ---\n${truncated || "(No content available)"}`);
+      }
+
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const anthropic = new Anthropic({
+        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      });
+
+      const prompt = `You are a compliance analyst assessing the COMBINED coverage of a regulatory requirement across multiple policy documents.
+
+REGULATORY REQUIREMENT:
+- Code: ${requirement.code}
+- Title: ${requirement.title}
+- Description: ${requirement.description || "N/A"}
+- Suggested Evidence: ${requirement.evidence || "N/A"}
+
+LINKED POLICY DOCUMENTS (${controlMappings.length} total):
+${docSummaries.join("\n\n")}
+
+TASK: Assess how well ALL these documents TOGETHER cover the regulatory requirement. Different documents may cover different aspects, so consider their combined coverage holistically. Provide:
+1. A combined match percentage (0-100) representing how comprehensively ALL documents together address the requirement
+2. A brief rationale (2-3 sentences) explaining what aspects are well covered across the documents
+3. Specific recommendations for what gaps remain. If fully covered, say "No further action needed."
+
+Guidelines for scoring:
+- 80-100%: The documents together directly and comprehensively address all aspects of the requirement
+- 60-79%: The documents substantially cover the requirement but some specifics are missing
+- 40-59%: The documents partially address the requirement; important gaps exist across all documents
+- 20-39%: The documents touch on related topics but do not meaningfully address the requirement
+- 0-19%: The documents have little to no relevance to the requirement
+
+Respond in exactly this JSON format:
+{"score": <number>, "rationale": "<string>", "recommendations": "<string>"}`;
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 500,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      let aiScore = 0;
+      let aiRationale = "Unable to parse AI response";
+      let aiRecommendations = "";
+
+      try {
+        const parsed = JSON.parse(responseText);
+        aiScore = Math.min(100, Math.max(0, Math.round(parsed.score)));
+        aiRationale = parsed.rationale || "No rationale provided";
+        aiRecommendations = parsed.recommendations || "";
+      } catch {
+        const scoreMatch = responseText.match(/"score"\s*:\s*(\d+)/);
+        const rationaleMatch = responseText.match(/"rationale"\s*:\s*"([^"]+)"/);
+        const recsMatch = responseText.match(/"recommendations"\s*:\s*"([^"]+)"/);
+        if (scoreMatch) aiScore = Math.min(100, Math.max(0, parseInt(scoreMatch[1])));
+        if (rationaleMatch) aiRationale = rationaleMatch[1];
+        if (recsMatch) aiRecommendations = recsMatch[1];
+      }
+
+      await db.update(requirements)
+        .set({ combinedAiScore: aiScore, combinedAiRationale: aiRationale, combinedAiRecommendations: aiRecommendations })
+        .where(eq(requirements.id, requirementId));
+
+      res.json({ requirementId, combinedAiScore: aiScore, combinedAiRationale: aiRationale, combinedAiRecommendations: aiRecommendations });
+    } catch (err: any) {
+      console.error("AI combined coverage error:", err);
+      res.status(500).json({ message: err.message || "AI analysis failed" });
+    }
+  });
+
   // === AI AUTO-MAP DOCUMENT TO CONTROLS ===
   app.post("/api/documents/:id/ai-map-controls", async (req, res) => {
     try {

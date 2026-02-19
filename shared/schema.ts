@@ -54,6 +54,9 @@ export const requirements = pgTable("requirements", {
   owner: text("owner"),
   status: text("status"),
   notes: text("notes"),
+  combinedAiScore: integer("combined_ai_score"),
+  combinedAiRationale: text("combined_ai_rationale"),
+  combinedAiRecommendations: text("combined_ai_recommendations"),
 });
 
 // =============================================

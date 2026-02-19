@@ -140,6 +140,25 @@ export default function ControlDetail() {
   });
 
   const [aiAnalysingId, setAiAnalysingId] = useState<number | null>(null);
+  const [aiCoverageRunning, setAiCoverageRunning] = useState(false);
+
+  const aiCoverageMutation = useMutation({
+    mutationFn: async () => {
+      setAiCoverageRunning(true);
+      const res = await apiRequest("POST", `/api/requirements/${controlId}/ai-coverage`, {});
+      return res.json();
+    },
+    onSuccess: (data: { combinedAiScore: number; combinedAiRationale: string; combinedAiRecommendations?: string }) => {
+      setAiCoverageRunning(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/requirements/${controlId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      toast({ title: "AI Coverage Analysis Complete", description: `Combined score: ${data.combinedAiScore}%` });
+    },
+    onError: (err: Error) => {
+      setAiCoverageRunning(false);
+      toast({ title: "AI Coverage Failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const aiMatchMutation = useMutation({
     mutationFn: async (mappingId: number) => {
@@ -250,27 +269,66 @@ export default function ControlDetail() {
         </TabsList>
 
         <TabsContent value="mapped" className="mt-6 space-y-6">
-          {bestPct !== null && (
+          {mappedDocuments.length > 0 && (
             <Card data-testid="card-coverage-summary">
               <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <svg width="56" height="56" viewBox="0 0 36 36" data-testid="coverage-circle">
-                    <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted" />
-                    <circle
-                      cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round"
-                      strokeDasharray={`${(bestPct / 100) * 87.96} ${87.96}`}
-                      transform="rotate(-90 18 18)"
-                      className={bestPct >= 45 ? "stroke-green-500 dark:stroke-green-400" : bestPct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
-                    />
-                    <text x="18" y="19" textAnchor="middle" dominantBaseline="central" className="fill-current text-[7px] font-semibold">{bestPct}%</text>
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold" data-testid="text-coverage-label">Coverage Score</p>
-                    <p className="text-xs text-muted-foreground">
-                      Best match across {mappedDocuments.length} linked document{mappedDocuments.length !== 1 ? "s" : ""} — {coveredCount} of {mappings.length} providing coverage
-                    </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-4">
+                    {(() => {
+                      const score = control?.combinedAiScore;
+                      const hasScore = score !== null && score !== undefined;
+                      const displayPct = hasScore ? score : (bestPct ?? 0);
+                      const strokeColor = displayPct >= 80 ? "stroke-green-500 dark:stroke-green-400" : displayPct >= 60 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500";
+                      return (
+                        <svg width="56" height="56" viewBox="0 0 36 36" data-testid="coverage-circle">
+                          <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted" />
+                          <circle
+                            cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round"
+                            strokeDasharray={`${(displayPct / 100) * 87.96} ${87.96}`}
+                            transform="rotate(-90 18 18)"
+                            className={strokeColor}
+                          />
+                          <text x="18" y="19" textAnchor="middle" dominantBaseline="central" className="fill-current text-[7px] font-semibold">{displayPct}%</text>
+                        </svg>
+                      );
+                    })()}
+                    <div>
+                      <p className="text-sm font-semibold" data-testid="text-coverage-label">
+                        {control?.combinedAiScore !== null && control?.combinedAiScore !== undefined ? "AI Coverage Score" : "Coverage Score"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {control?.combinedAiScore !== null && control?.combinedAiScore !== undefined
+                          ? `Combined AI assessment across ${mappedDocuments.length} linked document${mappedDocuments.length !== 1 ? "s" : ""}`
+                          : `${coveredCount} of ${mappings.length} providing coverage across ${mappedDocuments.length} document${mappedDocuments.length !== 1 ? "s" : ""}`}
+                      </p>
+                    </div>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => aiCoverageMutation.mutate()}
+                    disabled={aiCoverageRunning}
+                    data-testid="button-ai-coverage"
+                  >
+                    {aiCoverageRunning ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-1.5 text-purple-500" />
+                    )}
+                    {aiCoverageRunning ? "Analysing..." : "AI Assess Coverage"}
+                  </Button>
                 </div>
+                {control?.combinedAiRationale && (
+                  <div className="mt-4 border-l-2 border-purple-300 dark:border-purple-600 pl-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">{control.combinedAiRationale}</p>
+                    {control.combinedAiRecommendations && (
+                      <div className="border border-purple-200 dark:border-purple-700 rounded-md p-2 bg-purple-50/50 dark:bg-purple-950/30">
+                        <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-0.5">Recommendations</p>
+                        <p className="text-xs text-muted-foreground">{control.combinedAiRecommendations}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
