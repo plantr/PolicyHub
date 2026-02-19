@@ -9,10 +9,10 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: PostgreSQL database provisioned on Supabase with schema migrated from Drizzle definitions
-- [ ] **INFRA-02**: Transaction-mode connection pooling (port 6543) configured for serverless function access
-- [ ] **INFRA-03**: Drizzle ORM configured with `prepare: false` for pooler compatibility
-- [ ] **INFRA-04**: Separate direct connection URL (port 5432) configured for Drizzle Kit migrations
+- [x] **INFRA-01**: PostgreSQL database provisioned on Supabase with schema migrated from Drizzle definitions
+- [x] **INFRA-02**: Transaction-mode connection pooling (port 6543) configured for serverless function access
+- [x] **INFRA-03**: Drizzle ORM configured with `prepare: false` for pooler compatibility
+- [x] **INFRA-04**: Separate direct connection URL (port 5432) configured for Drizzle Kit migrations
 - [ ] **INFRA-05**: Custom SMTP provider configured for Supabase Auth emails (default 2/hour is insufficient)
 
 ### Authentication
@@ -99,10 +99,10 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Pending |
 | AUTH-01 | Phase 1 | Pending |
 | AUTH-02 | Phase 1 | Pending |
