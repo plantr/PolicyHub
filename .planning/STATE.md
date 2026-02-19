@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 4 of 4 (Client Migration + Cleanup)
-Plan: 4 of 4 (04-03 complete)
+Plan: 4 of 4 (04-01, 04-02, 04-03 complete)
 Status: Executing Phase 4
-Last activity: 2026-02-19 — 04-03 complete (Express monolith split into 21 individual Vercel serverless functions)
+Last activity: 2026-02-19 — 04-02 complete (25 pages migrated to direct Supabase reads, all /api/ GET queryKeys eliminated)
 
 Progress: [█████████░] 90%
 
@@ -30,14 +30,13 @@ Progress: [█████████░] 90%
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
 | 03-vercel-deployment | 3/3 | 31 min | 10 min |
-| 04-client-migration-cleanup | 1/4 | 3 min | 3 min |
+| 04-client-migration-cleanup | 3/4 | 53 min | 18 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
 - Trend: —
 
 *Updated after each plan completion*
-| Phase 04 P03 | 9 | 2 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -84,6 +83,7 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-03: Query param routing for serverless functions — Vercel functions use req.query for id, action, resource sub-operations since function file is selected by path not query params
 - [Phase 04]: 04-03: multer removed from serverless functions — TUS signed URL flow (upload-url + upload-confirm) replaces direct file upload; serverless functions cannot buffer large streams
 - [Phase 04]: 04-03: AI processors co-located in dispatch function files — processAiMatchJob in gap-analysis.ts, processAiCoverageJob and processAiMapControlsJob in ai-jobs.ts; fire-and-forget pattern preserved
+- [Phase 04]: 04-02: Direct Supabase reads replace all Express GET round-trips — 25 pages migrated, stats/gap-analysis-refresh stay serverless
 
 ### Pending Todos
 
@@ -97,5 +97,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 04-03 (Express monolith to individual serverless functions)
+Stopped at: Completed 04-02-PLAN.md (client read migration)
 Resume file: .planning/phases/04-client-migration-cleanup/04-04-PLAN.md

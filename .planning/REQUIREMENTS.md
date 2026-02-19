@@ -61,7 +61,7 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 ### Client Migration
 
 - [x] **CLNT-01**: Supabase JS client initialized as singleton with anon key for frontend queries
-- [ ] **CLNT-02**: Read operations (list/get) migrated from API calls to direct Supabase client queries
+- [x] **CLNT-02**: Read operations (list/get) migrated from API calls to direct Supabase client queries
 - [x] **CLNT-03**: Write operations with business logic validation use serverless functions
 - [x] **CLNT-04**: React Query cache invalidation updated for Supabase auth state changes
 - [x] **CLNT-05**: Login/signup/password reset UI components built using Supabase Auth
@@ -133,7 +133,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | FUNC-03 | Phase 3 | Complete |
 | FUNC-04 | Phase 3 | Complete |
 | CLNT-01 | Phase 4 | Complete |
-| CLNT-02 | Phase 4 | Pending |
+| CLNT-02 | Phase 4 | Complete |
 | CLNT-03 | Phase 4 | Complete |
 | CLNT-04 | Phase 4 | Complete |
 | CLNT-05 | Phase 4 | Complete |
