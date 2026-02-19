@@ -7,17 +7,23 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { createHash } from "crypto";
 import multer from "multer";
-import { generateS3Key, uploadToS3, getLocalFilePath, deleteFromS3 } from "./s3";
+import {
+  bucketName, storagePath, resolveFilename,
+  createSignedUploadUrl, createSignedDownloadUrl,
+  deleteStorageObject, createBucketForBusinessUnit,
+  validateFileType, validateFileSize, ALLOWED_MIME_TYPES
+} from "./storage-supabase";
+import { supabaseAdmin } from "./lib/supabase-admin";
 import * as schema from "@shared/schema";
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === "application/pdf") {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF files are allowed"));
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Accepted: PDF, Word, Excel, PowerPoint, PNG, JPEG`));
     }
   },
 });
@@ -47,6 +53,11 @@ export async function registerRoutes(
     try {
       const input = api.businessUnits.create.input.parse(req.body);
       const bu = await storage.createBusinessUnit(input);
+      try {
+        await createBucketForBusinessUnit(bu.id);
+      } catch (bucketErr) {
+        console.warn(`Failed to provision storage bucket for BU ${bu.id}:`, bucketErr);
+      }
       await storage.createAuditLogEntry({
         entityType: "business_unit", entityId: bu.id,
         action: "created", actor: "System", details: `Business Unit "${bu.name}" created`
@@ -216,9 +227,14 @@ export async function registerRoutes(
           contentHash,
           createdBy: input.owner,
         });
-        const s3Key = generateS3Key(doc.id, version.id, req.file.originalname);
-        await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
-        await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
+        const buId = doc.businessUnitId;
+        if (buId) {
+          const resolvedName = await resolveFilename(buId, doc.id, version.id, req.file.originalname);
+          const objectPath = storagePath(doc.id, version.id, resolvedName);
+          const bucket = bucketName(buId);
+          await supabaseAdmin.storage.from(bucket).upload(objectPath, req.file.buffer, { contentType: req.file.mimetype });
+          await storage.updateDocumentVersionPdf(version.id, objectPath, req.file.originalname, req.file.size);
+        }
         await storage.createAuditLogEntry({
           entityType: "document_version", entityId: version.id,
           action: "pdf_uploaded", actor: input.owner,
@@ -280,9 +296,15 @@ export async function registerRoutes(
 
       if (req.file) {
         try {
-          const s3Key = generateS3Key(version.documentId, version.id, req.file.originalname);
-          await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
-          await storage.updateDocumentVersionPdf(version.id, s3Key, req.file.originalname, req.file.size);
+          const doc = await storage.getDocument(version.documentId);
+          const buId = doc?.businessUnitId;
+          if (buId) {
+            const resolvedName = await resolveFilename(buId, version.documentId, version.id, req.file.originalname);
+            const objectPath = storagePath(version.documentId, version.id, resolvedName);
+            const bucket = bucketName(buId);
+            await supabaseAdmin.storage.from(bucket).upload(objectPath, req.file.buffer, { contentType: req.file.mimetype });
+            await storage.updateDocumentVersionPdf(version.id, objectPath, req.file.originalname, req.file.size);
+          }
           await storage.createAuditLogEntry({
             entityType: "document_version", entityId: version.id,
             action: "pdf_uploaded", actor: input.createdBy,
@@ -290,8 +312,8 @@ export async function registerRoutes(
           });
           const updated = await storage.getDocumentVersion(version.id);
           return res.status(201).json(updated);
-        } catch (s3Err) {
-          console.error("S3 upload failed during version creation:", s3Err);
+        } catch (uploadErr) {
+          console.error("Storage upload failed during version creation:", uploadErr);
           return res.status(201).json({ ...version, _pdfWarning: "Version created but PDF upload failed. You can attach the PDF separately." });
         }
       }
@@ -341,20 +363,28 @@ export async function registerRoutes(
   });
 
   // === DOCUMENT VERSION PDF UPLOAD/DOWNLOAD ===
+
+  // Legacy inline upload (file buffered through server via multer — still needed during Phase 2/3 transition)
   app.post("/api/document-versions/:id/pdf", upload.single("pdf"), async (req, res) => {
     try {
       const versionId = Number(req.params.id);
       const version = await storage.getDocumentVersion(versionId);
       if (!version) return res.status(404).json({ message: "Version not found" });
-      if (!req.file) return res.status(400).json({ message: "No PDF file provided" });
+      if (!req.file) return res.status(400).json({ message: "No file provided" });
+
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(400).json({ message: "Document has no business unit — cannot determine storage bucket" });
 
       if (version.pdfS3Key) {
-        try { await deleteFromS3(version.pdfS3Key); } catch {}
+        try { await deleteStorageObject(buId, version.pdfS3Key); } catch {}
       }
 
-      const s3Key = generateS3Key(version.documentId, versionId, req.file.originalname);
-      await uploadToS3(s3Key, req.file.buffer, req.file.mimetype);
-      const updated = await storage.updateDocumentVersionPdf(versionId, s3Key, req.file.originalname, req.file.size);
+      const resolvedName = await resolveFilename(buId, version.documentId, versionId, req.file.originalname);
+      const objectPath = storagePath(version.documentId, versionId, resolvedName);
+      const bucket = bucketName(buId);
+      await supabaseAdmin.storage.from(bucket).upload(objectPath, req.file.buffer, { contentType: req.file.mimetype });
+      const updated = await storage.updateDocumentVersionPdf(versionId, objectPath, req.file.originalname, req.file.size);
 
       await storage.createAuditLogEntry({
         entityType: "document_version", entityId: versionId,
@@ -368,17 +398,88 @@ export async function registerRoutes(
     }
   });
 
+  // New signed URL upload flow — Phase 4 client calls this to get upload credentials
+  app.post("/api/document-versions/:id/upload-url", async (req, res) => {
+    try {
+      const versionId = Number(req.params.id);
+      const { fileName, mimeType, fileSize } = req.body as { fileName: string; mimeType: string; fileSize: number };
+
+      const typeCheck = validateFileType(mimeType);
+      if (!typeCheck.valid) return res.status(400).json({ message: typeCheck.message });
+
+      const sizeCheck = validateFileSize(fileSize);
+      if (!sizeCheck.valid) return res.status(400).json({ message: sizeCheck.message });
+
+      const version = await storage.getDocumentVersion(versionId);
+      if (!version) return res.status(404).json({ message: "Version not found" });
+
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(400).json({ message: "Document has no business unit — cannot determine storage bucket" });
+
+      const resolvedName = await resolveFilename(buId, version.documentId, versionId, fileName);
+      const objectPath = storagePath(version.documentId, versionId, resolvedName);
+      const { signedUrl, token, path } = await createSignedUploadUrl(buId, objectPath);
+
+      res.json({ signedUrl, token, path, bucketId: bucketName(buId) });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to generate upload URL" });
+    }
+  });
+
+  // Upload confirmation — client calls this after TUS upload completes
+  app.post("/api/document-versions/:id/upload-confirm", async (req, res) => {
+    try {
+      const versionId = Number(req.params.id);
+      const { storagePath: filePath, fileName, fileSize } = req.body as { storagePath: string; fileName: string; fileSize: number };
+
+      const version = await storage.getDocumentVersion(versionId);
+      if (!version) return res.status(404).json({ message: "Version not found" });
+
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+
+      if (version.pdfS3Key) {
+        try { await deleteStorageObject(buId, version.pdfS3Key); } catch {}
+      }
+
+      const updated = await storage.updateDocumentVersionPdf(versionId, filePath, fileName, fileSize);
+      await storage.createAuditLogEntry({
+        entityType: "document_version", entityId: versionId,
+        action: "pdf_uploaded", actor: "System",
+        details: `File "${fileName}" uploaded via signed URL`
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Upload confirmation failed" });
+    }
+  });
+
   app.get("/api/document-versions/:id/pdf/download", async (req, res) => {
     try {
       const version = await storage.getDocumentVersion(Number(req.params.id));
       if (!version) return res.status(404).json({ message: "Version not found" });
       if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
 
-      const filePath = getLocalFilePath(version.pdfS3Key);
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(404).json({ message: "Document has no business unit" });
+
+      const isDownload = req.query.mode === "download";
       const fileName = version.pdfFileName || "policy.pdf";
-      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-      res.setHeader("Content-Type", "application/pdf");
-      res.sendFile(filePath);
+      const signedUrl = isDownload
+        ? await createSignedDownloadUrl(buId, version.pdfS3Key, fileName)
+        : await createSignedDownloadUrl(buId, version.pdfS3Key);
+
+      // Backward compatibility: if client accepts JSON return URL; otherwise redirect
+      const acceptHeader = req.headers.accept || "";
+      if (acceptHeader.includes("application/json")) {
+        res.json({ url: signedUrl, expiresIn: 3600 });
+      } else {
+        res.redirect(302, signedUrl);
+      }
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Download failed" });
     }
@@ -391,7 +492,11 @@ export async function registerRoutes(
       if (!version) return res.status(404).json({ message: "Version not found" });
       if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached" });
 
-      await deleteFromS3(version.pdfS3Key);
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+
+      await deleteStorageObject(buId, version.pdfS3Key);
       const updated = await storage.updateDocumentVersionPdf(versionId, "", "", 0);
 
       await storage.createAuditLogEntry({
@@ -412,14 +517,20 @@ export async function registerRoutes(
       if (!version) return res.status(404).json({ message: "Version not found" });
       if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
 
-      const filePath = getLocalFilePath(version.pdfS3Key);
-      const fs = await import("fs/promises");
-      const buffer = await fs.readFile(filePath);
+      const doc = await storage.getDocument(version.documentId);
+      const buId = doc?.businessUnitId;
+      if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+
+      const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error(`Failed to fetch PDF from storage: ${response.status}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+
       const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+      const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
       const textParts: string[] = [];
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i);
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
         const content = await page.getTextContent();
         const pageText = content.items
           .map((item: any) => item.str)
