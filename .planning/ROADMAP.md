@@ -12,7 +12,7 @@ Migrate Policy Hub from its current Express + PostgreSQL monolith on Replit to S
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Supabase Foundation** - Provision Supabase, migrate schema, wire up email/password auth, deploy RLS policies on all 27+ tables
+- [x] **Phase 1: Supabase Foundation** - Provision Supabase, migrate schema, wire up email/password auth, deploy RLS policies on all 27+ tables
 - [ ] **Phase 2: Storage Migration** - Create private PDF bucket, write storage.objects RLS policies, implement signed upload/download URLs
 - [ ] **Phase 3: Vercel Deployment** - Deploy SPA and serverless functions to Vercel, configure connection pooling, AI timeouts, and environment variables
 - [ ] **Phase 4: Client Migration + Cleanup** - Replace Express API calls with Supabase client reads, build auth UI, remove all Replit/Passport/S3 legacy code
@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. An admin can assign a user to a business unit with a specific role (admin/editor/viewer) and that assignment appears in the user's JWT claims on next login
   4. All 27+ database tables have Row Level Security enabled — the query `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = false` returns zero rows
   5. A user in business unit A cannot read, write, or delete records belonging to business unit B
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans executed — COMPLETE
 - [x] 01-01-PLAN.md — Schema migration + Drizzle driver switch (postgres.js with prepare:false)
-- [ ] 01-02-PLAN.md — Enable RLS on all 33 tables + Custom Access Token Hook
-- [ ] 01-03-PLAN.md — RLS policies for all 33 tables (BU-scoped, reference, special, audit)
-- [ ] 01-04-PLAN.md — Supabase client setup, auth configuration, SMTP, end-to-end verification
+- [x] 01-02-PLAN.md — Enable RLS on all 33 tables + Custom Access Token Hook
+- [x] 01-03-PLAN.md — RLS policies for all 33 tables (BU-scoped, reference, special, audit)
+- [x] 01-04-PLAN.md — Supabase client setup, auth configuration, SMTP, end-to-end verification
 
 ### Phase 2: Storage Migration
 **Goal**: PDFs can be uploaded to and downloaded from a private Supabase Storage bucket with business-unit-scoped access, replacing the existing S3 and local file storage
@@ -75,7 +75,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Supabase Foundation | 2/4 | In Progress|  |
+| 1. Supabase Foundation | 4/4 | Complete | 2026-02-19 |
 | 2. Storage Migration | 0/TBD | Not started | - |
 | 3. Vercel Deployment | 0/TBD | Not started | - |
 | 4. Client Migration + Cleanup | 0/TBD | Not started | - |

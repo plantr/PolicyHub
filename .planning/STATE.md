@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 1 of 4 (Supabase Foundation)
-Plan: 3 of 4 in current phase
-Status: In progress
-Last activity: 2026-02-19 — Completed Plan 01-03 (66 RLS policies across all 33 tables)
+Plan: 4 of 4 in current phase — PHASE COMPLETE
+Status: Phase 1 complete, ready for Phase 2
+Last activity: 2026-02-19 — Completed Plan 01-04 (Supabase client setup + full auth verification)
 
-Progress: [███░░░░░░░] 19%
+Progress: [██████░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 2.7 min
-- Total execution time: 8 min
+- Total plans completed: 4
+- Average duration: 5 min
+- Total execution time: 20 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-supabase-foundation | 3/4 | 8 min | 2.7 min |
+| 01-supabase-foundation | 4/4 | 20 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 2 min, 3 min
+- Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint)
 - Trend: —
 
 *Updated after each plan completion*
@@ -57,21 +57,19 @@ Recent decisions affecting current work:
 - 01-03: Template A-indirect pattern for join-dependent tables (no direct BU column) — permissive reads + service role writes avoids cross-table JOIN complexity in RLS
 - 01-03: audit_log uses permissive Phase 1 read policy — BU-scoping deferred to Phase 4 (entity_id references many tables)
 - 01-03: NULL BU rows in nullable-BU tables readable by all authenticated but not writable via API — global/shared records managed via service role only
+- 01-04: SMTP deferred — not blocking Phase 1; must configure before Phase 2 auth email flows (invite, password reset)
+- 01-04: VITE_SUPABASE_PUBLISHABLE_KEY used as env var name — post-May 2025 Supabase projects use sb_publishable_xxx key format
 
 ### Pending Todos
 
-- Apply migrations to Supabase: set DATABASE_URL and DATABASE_URL_DIRECT, run `npx drizzle-kit migrate`, then apply supabase/migrations/0001_enable_rls.sql, 0002_auth_hook.sql, and 0003_rls_policies.sql
-- Enable Custom Access Token Hook in Supabase Dashboard: Authentication > Hooks > Custom Access Token > select `public.custom_access_token_hook`
+- Configure custom SMTP before Phase 2: Supabase Dashboard > Project Settings > Auth > SMTP > Enable Custom SMTP (required for invite and password-reset email delivery)
 
 ### Blockers/Concerns
 
-- [Research]: Custom SMTP must be configured before auth emails are tested — Supabase default rate limit is 2/hour
-- [Research]: Confirm actual Supabase API key format for post-May 2025 projects (sb_publishable_xxx vs anon key) — Vercel Marketplace integration handles this automatically if used
 - [Research]: Batch AI auto-mapping endpoint timeout budget unknown — validate against real deployment before committing to streaming vs async job queue architecture
-- [01-01]: Migration not yet applied — requires Supabase project + DATABASE_URL_DIRECT env var
 
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 01-03-PLAN.md (RLS policies migration for all 33 tables)
-Resume file: .planning/phases/01-supabase-foundation/01-04-PLAN.md
+Stopped at: Completed 01-04-PLAN.md — Phase 1 (Supabase Foundation) complete
+Resume file: .planning/phases/02-storage-migration/ (Phase 2 not yet planned)

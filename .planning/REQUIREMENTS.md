@@ -13,16 +13,16 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 - [x] **INFRA-02**: Transaction-mode connection pooling (port 6543) configured for serverless function access
 - [x] **INFRA-03**: Drizzle ORM configured with `prepare: false` for pooler compatibility
 - [x] **INFRA-04**: Separate direct connection URL (port 5432) configured for Drizzle Kit migrations
-- [ ] **INFRA-05**: Custom SMTP provider configured for Supabase Auth emails (default 2/hour is insufficient)
+- [x] **INFRA-05**: Custom SMTP provider configured for Supabase Auth emails (default 2/hour is insufficient)
 
 ### Authentication
 
-- [ ] **AUTH-01**: User can sign up with email and password via Supabase Auth
-- [ ] **AUTH-02**: User receives email confirmation after signup
-- [ ] **AUTH-03**: User can reset password via email link
-- [ ] **AUTH-04**: User session persists across browser refresh via Supabase JS auto-refresh
+- [x] **AUTH-01**: User can sign up with email and password via Supabase Auth
+- [x] **AUTH-02**: User receives email confirmation after signup
+- [x] **AUTH-03**: User can reset password via email link
+- [x] **AUTH-04**: User session persists across browser refresh via Supabase JS auto-refresh
 - [x] **AUTH-05**: Custom Access Token Hook injects business unit IDs and role into JWT from `app_metadata`
-- [ ] **AUTH-06**: Admin can assign users to business units with specific roles (admin/editor/viewer)
+- [x] **AUTH-06**: Admin can assign users to business units with specific roles (admin/editor/viewer)
 
 ### Authorization (RLS)
 
@@ -103,13 +103,13 @@ Deferred to future release. Tracked but not in current roadmap.
 | INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
-| INFRA-05 | Phase 1 | Pending |
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Complete |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
 | AUTH-05 | Phase 1 | Complete |
-| AUTH-06 | Phase 1 | Pending |
+| AUTH-06 | Phase 1 | Complete |
 | RLS-01 | Phase 1 | Complete |
 | RLS-02 | Phase 1 | Complete |
 | RLS-03 | Phase 1 | Complete |
