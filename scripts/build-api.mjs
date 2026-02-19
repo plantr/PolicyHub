@@ -43,9 +43,9 @@ await build({
   entryPoints: entries,
   bundle: true,
   platform: "node",
-  format: "cjs",
+  format: "esm",
   outdir: tmpDir,
-  outExtension: { ".js": ".js" },
+  outExtension: { ".js": ".mjs" },
   external: externals,
   tsconfig: "tsconfig.json",
   sourcemap: false,
@@ -58,20 +58,16 @@ await build({
 const funcBase = ".vercel/output/functions/api";
 const vcConfig = JSON.stringify({
   runtime: "nodejs22.x",
-  handler: "index.js",
+  handler: "index.mjs",
   launcherType: "Nodejs",
 }, null, 2);
-
-// Override project root "type": "module" so Node.js treats our CJS bundles correctly
-const pkgJson = JSON.stringify({ "type": "commonjs" });
 
 for (const entry of entries) {
   const name = basename(entry, ".ts");
   const funcDir = `${funcBase}/${name}.func`;
   mkdirSync(funcDir, { recursive: true });
-  cpSync(`${tmpDir}/${name}.js`, `${funcDir}/index.js`);
+  cpSync(`${tmpDir}/${name}.mjs`, `${funcDir}/index.mjs`);
   writeFileSync(`${funcDir}/.vc-config.json`, vcConfig);
-  writeFileSync(`${funcDir}/package.json`, pkgJson);
 }
 
 // Clean up temp
