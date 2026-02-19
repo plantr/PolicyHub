@@ -99,56 +99,56 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| INFRA-05 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| RLS-01 | — | Pending |
-| RLS-02 | — | Pending |
-| RLS-03 | — | Pending |
-| RLS-04 | — | Pending |
-| RLS-05 | — | Pending |
-| RLS-06 | — | Pending |
-| STOR-01 | — | Pending |
-| STOR-02 | — | Pending |
-| STOR-03 | — | Pending |
-| STOR-04 | — | Pending |
-| STOR-05 | — | Pending |
-| STOR-06 | — | Pending |
-| DEPL-01 | — | Pending |
-| DEPL-02 | — | Pending |
-| DEPL-03 | — | Pending |
-| DEPL-04 | — | Pending |
-| DEPL-05 | — | Pending |
-| DEPL-06 | — | Pending |
-| FUNC-01 | — | Pending |
-| FUNC-02 | — | Pending |
-| FUNC-03 | — | Pending |
-| FUNC-04 | — | Pending |
-| CLNT-01 | — | Pending |
-| CLNT-02 | — | Pending |
-| CLNT-03 | — | Pending |
-| CLNT-04 | — | Pending |
-| CLNT-05 | — | Pending |
-| CLNP-01 | — | Pending |
-| CLNP-02 | — | Pending |
-| CLNP-03 | — | Pending |
-| CLNP-04 | — | Pending |
-| CLNP-05 | — | Pending |
-| CLNP-06 | — | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| AUTH-06 | Phase 1 | Pending |
+| RLS-01 | Phase 1 | Pending |
+| RLS-02 | Phase 1 | Pending |
+| RLS-03 | Phase 1 | Pending |
+| RLS-04 | Phase 1 | Pending |
+| RLS-05 | Phase 1 | Pending |
+| RLS-06 | Phase 1 | Pending |
+| STOR-01 | Phase 2 | Pending |
+| STOR-02 | Phase 2 | Pending |
+| STOR-03 | Phase 2 | Pending |
+| STOR-04 | Phase 2 | Pending |
+| STOR-05 | Phase 2 | Pending |
+| STOR-06 | Phase 2 | Pending |
+| DEPL-01 | Phase 3 | Pending |
+| DEPL-02 | Phase 3 | Pending |
+| DEPL-03 | Phase 3 | Pending |
+| DEPL-04 | Phase 3 | Pending |
+| DEPL-05 | Phase 3 | Pending |
+| DEPL-06 | Phase 3 | Pending |
+| FUNC-01 | Phase 3 | Pending |
+| FUNC-02 | Phase 3 | Pending |
+| FUNC-03 | Phase 3 | Pending |
+| FUNC-04 | Phase 3 | Pending |
+| CLNT-01 | Phase 4 | Pending |
+| CLNT-02 | Phase 4 | Pending |
+| CLNT-03 | Phase 4 | Pending |
+| CLNT-04 | Phase 4 | Pending |
+| CLNT-05 | Phase 4 | Pending |
+| CLNP-01 | Phase 4 | Pending |
+| CLNP-02 | Phase 4 | Pending |
+| CLNP-03 | Phase 4 | Pending |
+| CLNP-04 | Phase 4 | Pending |
+| CLNP-05 | Phase 4 | Pending |
+| CLNP-06 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 38 total
-- Mapped to phases: 0
-- Unmapped: 38
+- v1 requirements: 44 total
+- Mapped to phases: 44
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-19*
-*Last updated: 2026-02-19 after initial definition*
+*Last updated: 2026-02-19 after roadmap creation — all 44 requirements mapped*
