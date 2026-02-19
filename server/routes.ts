@@ -1147,6 +1147,146 @@ Respond in exactly this JSON format:
     }
   });
 
+  // === AI AUTO-MAP DOCUMENT TO CONTROLS ===
+  app.post("/api/documents/:id/ai-map-controls", async (req, res) => {
+    try {
+      const docId = Number(req.params.id);
+      const document = await storage.getDocument(docId);
+      if (!document) return res.status(404).json({ message: "Document not found" });
+
+      const allVersions = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, docId));
+      const publishedVersion = allVersions.find((v) => v.status === "Published");
+      if (!publishedVersion) return res.status(400).json({ message: "No published version found" });
+
+      const docContent = publishedVersion.markDown || "";
+      if (!docContent || docContent.length < 20) {
+        return res.status(400).json({ message: "Published version has no content to analyse" });
+      }
+
+      const allRequirements = await storage.getRequirements();
+      const existingMappings = await storage.getRequirementMappings();
+      const existingDocMappings = new Set(
+        existingMappings.filter((m) => m.documentId === docId).map((m) => m.requirementId)
+      );
+      const unmappedRequirements = allRequirements.filter((r) => !existingDocMappings.has(r.id));
+
+      if (unmappedRequirements.length === 0) {
+        return res.json({ message: "All controls are already mapped", matched: 0, total: 0, mappings: [] });
+      }
+
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const anthropic = new Anthropic({
+        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      });
+
+      const truncatedContent = docContent.slice(0, 10000);
+      const BATCH_SIZE = 25;
+      const batches: typeof unmappedRequirements[] = [];
+      for (let i = 0; i < unmappedRequirements.length; i += BATCH_SIZE) {
+        batches.push(unmappedRequirements.slice(i, i + BATCH_SIZE));
+      }
+
+      const newMappings: Array<{ requirementId: number; score: number; rationale: string; recommendations: string }> = [];
+
+      for (const batch of batches) {
+        const reqList = batch.map((r) =>
+          `ID:${r.id} | Code:${r.code} | Title:${r.title} | Description:${(r.description || "N/A").slice(0, 200)}`
+        ).join("\n");
+
+        const prompt = `You are a compliance analyst. Evaluate whether a policy document satisfies each of the following regulatory requirements/controls.
+
+POLICY DOCUMENT:
+- Title: ${document.title}
+- Type: ${document.docType}
+- Content (may be truncated):
+${truncatedContent}
+
+REQUIREMENTS TO EVALUATE:
+${reqList}
+
+TASK: For EACH requirement above, assess how well the document addresses it. Return ONLY requirements that score 60% or higher (meaningful coverage).
+
+For each match, provide:
+- id: the requirement ID number
+- score: match percentage (60-100)
+- rationale: 1-2 sentences on what the document covers
+- recommendations: what would be needed to reach 100%
+
+Respond in exactly this JSON format (array of matches only, omit requirements below 60%):
+[{"id": <number>, "score": <number>, "rationale": "<string>", "recommendations": "<string>"}]
+
+If no requirements match at 60% or above, return an empty array: []`;
+
+        try {
+          const message = await anthropic.messages.create({
+            model: "claude-sonnet-4-5",
+            max_tokens: 4000,
+            messages: [{ role: "user", content: prompt }],
+          });
+
+          const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+          let parsed: any[] = [];
+          try {
+            const direct = JSON.parse(responseText);
+            if (Array.isArray(direct)) parsed = direct;
+          } catch {
+            const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+            if (jsonMatch) {
+              try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip malformed batch */ }
+            }
+          }
+
+          const batchIds = new Set(batch.map((r) => r.id));
+          for (const item of parsed) {
+            if (!item || typeof item !== "object") continue;
+            const reqId = Number(item.id);
+            const score = Math.min(100, Math.max(0, Math.round(Number(item.score) || 0)));
+            if (score >= 60 && batchIds.has(reqId)) {
+              newMappings.push({
+                requirementId: reqId,
+                score,
+                rationale: String(item.rationale || ""),
+                recommendations: String(item.recommendations || ""),
+              });
+            }
+          }
+        } catch (batchErr: any) {
+          console.error(`AI batch error:`, batchErr.message);
+        }
+      }
+
+      const createdMappings: any[] = [];
+      for (const match of newMappings) {
+        const coverageStatus = match.score >= 80 ? "Covered" : "Partially Covered";
+        const created = await storage.createRequirementMapping({
+          requirementId: match.requirementId,
+          documentId: docId,
+          coverageStatus,
+          rationale: match.rationale,
+        });
+        await db.update(requirementMappings)
+          .set({
+            aiMatchScore: match.score,
+            aiMatchRationale: match.rationale,
+            aiMatchRecommendations: match.recommendations,
+          })
+          .where(eq(requirementMappings.id, created.id));
+        createdMappings.push({ ...created, aiMatchScore: match.score, aiMatchRationale: match.rationale, aiMatchRecommendations: match.recommendations });
+      }
+
+      res.json({
+        matched: createdMappings.length,
+        total: unmappedRequirements.length,
+        mappings: createdMappings,
+      });
+    } catch (err: any) {
+      console.error("AI auto-map error:", err);
+      res.status(500).json({ message: err.message || "AI auto-map failed" });
+    }
+  });
+
   // === FINDINGS ===
   app.get(api.findings.list.path, async (_req, res) => {
     res.json(await storage.getFindings());

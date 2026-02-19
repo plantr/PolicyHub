@@ -75,6 +75,7 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -333,6 +334,39 @@ export default function DocumentDetail() {
       toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
     },
   });
+
+  const [aiAutoMapRunning, setAiAutoMapRunning] = useState(false);
+
+  const aiAutoMapMutation = useMutation({
+    mutationFn: async () => {
+      setAiAutoMapRunning(true);
+      const res = await fetch(`/api/documents/${id}/ai-map-controls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "AI auto-map failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data: { matched: number; total: number }) => {
+      setAiAutoMapRunning(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      toast({
+        title: "AI Auto-Map Complete",
+        description: `Matched ${data.matched} controls out of ${data.total} evaluated`,
+      });
+    },
+    onError: (err: Error) => {
+      setAiAutoMapRunning(false);
+      toast({ title: "AI Auto-Map Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const hasPublishedVersion = useMemo(() => {
+    return versions?.some((v) => v.status === "Published") ?? false;
+  }, [versions]);
 
   const uploadMutation = useMutation({
     mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
@@ -806,6 +840,20 @@ export default function DocumentDetail() {
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="icon" data-testid="button-settings">
                 <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-ai-auto-map"
+                disabled={aiAutoMapRunning || !hasPublishedVersion}
+                onClick={() => aiAutoMapMutation.mutate()}
+              >
+                {aiAutoMapRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1 text-purple-500 dark:text-purple-400" />
+                )}
+                {aiAutoMapRunning ? "Analysing..." : "AI Auto-Map"}
               </Button>
               <Button variant="outline" size="sm" data-testid="button-map-control" onClick={() => { setMapControlOpen(true); setMapSearch(""); setMapFrameworkFilter("all"); }}>
                 Map control
