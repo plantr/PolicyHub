@@ -9,14 +9,14 @@ import { build } from "esbuild";
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, cpSync, existsSync } from "fs";
 import { basename } from "path";
 
-const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
+// Only Node.js built-ins are external — all npm packages are bundled into each function
 const externals = [
-  ...Object.keys(pkg.dependencies || {}),
-  ...Object.keys(pkg.devDependencies || {}),
-  "http", "path", "fs", "crypto", "url", "stream", "events", "util", "os",
   "node:*",
-  // Exclude local dev-only modules (only used behind !process.env.VERCEL guard)
-  "./vite", "./static", "../vite.config",
+  // Also match bare specifiers for Node built-ins
+  "http", "https", "path", "fs", "crypto", "url", "stream", "events", "util", "os",
+  "net", "tls", "dns", "dgram", "child_process", "cluster", "module", "readline",
+  "zlib", "buffer", "string_decoder", "querystring", "assert", "perf_hooks",
+  "worker_threads", "async_hooks", "diagnostics_channel", "v8", "vm", "inspector",
 ];
 
 // Collect all api-src/*.ts files, excluding _shared/ subdirectory and files starting with _
@@ -41,6 +41,9 @@ await build({
   tsconfig: "tsconfig.json",
   sourcemap: false,
   logLevel: "info",
+  // Tree-shake to keep bundles as small as possible
+  treeShaking: true,
+  minify: true,
 });
 
 // Create .func directories for each function
