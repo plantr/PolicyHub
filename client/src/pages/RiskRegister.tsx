@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Risk, BusinessUnit, RiskCategory } from "@shared/schema";
@@ -108,13 +109,28 @@ export default function RiskRegister() {
   });
 
   const { data: risksList, isLoading: risksLoading } = useQuery<Risk[]>({
-    queryKey: ["/api/risks"],
+    queryKey: ["risks"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risks").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: riskCategories } = useQuery<RiskCategory[]>({
-    queryKey: ["/api/risk-categories"],
+    queryKey: ["risk-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risk_categories").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -128,8 +144,8 @@ export default function RiskRegister() {
       return apiRequest("POST", "/api/risks", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risks"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Risk created" });
       setDialogOpen(false);
       form.reset();
@@ -148,8 +164,8 @@ export default function RiskRegister() {
       return apiRequest("PUT", `/api/risks/${id}`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risks"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Risk updated" });
       setDialogOpen(false);
       setEditingRisk(null);
@@ -161,8 +177,8 @@ export default function RiskRegister() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/risks/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risks"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Risk deleted" });
       setDeleteConfirmOpen(false);
       setDeletingRisk(null);

@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Plus, Pencil, Trash2, BookOpen, Search, ArrowLeft, FileUp } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -104,10 +105,20 @@ export default function KnowledgeBase() {
   }, [form, toast]);
 
   const { data: articles, isLoading } = useQuery<KnowledgeBaseArticle[]>({
-    queryKey: ["/api/knowledge-base"],
+    queryKey: ["knowledge-base"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("knowledge_base_articles").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: docsList } = useQuery<Document[]>({
-    queryKey: ["/api/documents"],
+    queryKey: ["documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -120,8 +131,8 @@ export default function KnowledgeBase() {
       return apiRequest("POST", "/api/knowledge-base", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/knowledge-base"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Article created" });
       setDialogOpen(false);
       form.reset();
@@ -139,8 +150,8 @@ export default function KnowledgeBase() {
       return apiRequest("PUT", `/api/knowledge-base/${id}`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/knowledge-base"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Article updated" });
       setDialogOpen(false);
       setEditingArticle(null);
@@ -153,8 +164,8 @@ export default function KnowledgeBase() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/knowledge-base/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/knowledge-base"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Article deleted" });
       setDeleteConfirmOpen(false);
       setDeletingArticle(null);

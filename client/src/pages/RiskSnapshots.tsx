@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Camera, Trash2, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -20,7 +21,12 @@ export default function RiskSnapshots() {
   const { toast } = useToast();
 
   const { data: snapshots, isLoading } = useQuery<RiskSnapshot[]>({
-    queryKey: ["/api/risk-snapshots"],
+    queryKey: ["risk-snapshots"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risk_snapshots").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -29,7 +35,7 @@ export default function RiskSnapshots() {
       return apiRequest("POST", "/api/risk-snapshots", { name });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["risk-snapshots"] });
       toast({ title: "Snapshot created" });
     },
     onError: () => toast({ title: "Error creating snapshot", variant: "destructive" }),
@@ -38,7 +44,7 @@ export default function RiskSnapshots() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/risk-snapshots/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["risk-snapshots"] });
       toast({ title: "Snapshot deleted" });
       setDeleteConfirmOpen(false);
       setDeletingSnapshot(null);

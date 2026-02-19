@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Commitment, BusinessUnit } from "@shared/schema";
@@ -103,10 +104,20 @@ export default function Commitments() {
   });
 
   const { data: commitmentsList, isLoading: commitmentsLoading } = useQuery<Commitment[]>({
-    queryKey: ["/api/commitments"],
+    queryKey: ["commitments"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("commitments").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const createMutation = useMutation({
@@ -119,8 +130,8 @@ export default function Commitments() {
       return apiRequest("POST", "/api/commitments", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/commitments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["commitments"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Commitment created" });
       setDialogOpen(false);
       form.reset();
@@ -138,8 +149,8 @@ export default function Commitments() {
       return apiRequest("PUT", `/api/commitments/${id}`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/commitments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["commitments"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Commitment updated" });
       setDialogOpen(false);
       setEditingCommitment(null);
@@ -151,8 +162,8 @@ export default function Commitments() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/commitments/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/commitments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["commitments"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Commitment deleted" });
       setDeleteConfirmOpen(false);
       setDeletingCommitment(null);

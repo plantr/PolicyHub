@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { Plus, Pencil, Trash2, Library, ArrowRight, Shield } from "lucide-react";
 import type { RiskLibraryItem, RiskCategory } from "@shared/schema";
 import { insertRiskLibrarySchema } from "@shared/schema";
@@ -61,11 +62,21 @@ export default function RiskLibrary() {
   });
 
   const { data: templates, isLoading } = useQuery<RiskLibraryItem[]>({
-    queryKey: ["/api/risk-library"],
+    queryKey: ["risk-library"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risk_library").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: riskCategories } = useQuery<RiskCategory[]>({
-    queryKey: ["/api/risk-categories"],
+    queryKey: ["risk-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risk_categories").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const categories = riskCategories && riskCategories.length > 0
@@ -77,8 +88,8 @@ export default function RiskLibrary() {
       return apiRequest("POST", "/api/risk-library", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-library"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risk-library"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Template created" });
       setDialogOpen(false);
       form.reset();
@@ -91,8 +102,8 @@ export default function RiskLibrary() {
       return apiRequest("PUT", `/api/risk-library/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-library"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risk-library"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Template updated" });
       setDialogOpen(false);
       setEditingTemplate(null);
@@ -104,8 +115,8 @@ export default function RiskLibrary() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/risk-library/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-library"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risk-library"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Template deleted" });
       setDeleteConfirmOpen(false);
       setDeletingTemplate(null);
@@ -136,8 +147,8 @@ export default function RiskLibrary() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["risks"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Risk added to register" });
     },
     onError: () => toast({ title: "Error adding risk to register", variant: "destructive" }),

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,15 +58,30 @@ function formatDate(dateStr: string | null | undefined) {
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
-    queryKey: ["/api/stats"],
+    queryKey: ["stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
   });
 
   const { data: findings, isLoading: findingsLoading } = useQuery<Finding[]>({
-    queryKey: ["/api/findings"],
+    queryKey: ["findings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("findings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: businessUnits, isLoading: busLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const isLoading = statsLoading || findingsLoading || busLoading;

@@ -18,6 +18,7 @@ import type { RequirementMapping, Requirement, Document, BusinessUnit, Regulator
 import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 
 function getCoverageBadgeClass(status: string) {
   switch (status) {
@@ -105,19 +106,44 @@ export default function GapAnalysis() {
   const { toast } = useToast();
 
   const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+    queryKey: ["requirement-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirement_mappings").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: requirements, isLoading: reqLoading } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+    queryKey: ["requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("requirements").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: documents, isLoading: docLoading } = useQuery<Document[]>({
-    queryKey: ["/api/documents"],
+    queryKey: ["documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: businessUnits, isLoading: buLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["/api/business-units"],
+    queryKey: ["business-units"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_units").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: sources } = useQuery<RegulatorySource[]>({
-    queryKey: ["/api/regulatory-sources"],
+    queryKey: ["regulatory-sources"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_sources").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const autoMapMutation = useMutation({
@@ -131,7 +157,7 @@ export default function GapAnalysis() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
       toast({
         title: "Auto-mapping complete",
         description: `${data.created} new mappings created from ${data.docsAnalysed} documents. ${data.matched} controls matched, ${data.unmatched} unmatched.`,
@@ -150,7 +176,7 @@ export default function GapAnalysis() {
     },
     onSuccess: (data) => {
       setAnalysisResult(data);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
       const parts: string[] = [];
       if (data.summary.unmappedCount > 0) parts.push(`${data.summary.unmappedCount} unmapped`);
       if (data.summary.perBuGapCount > 0) parts.push(`${data.summary.perBuGapCount} per-entity gaps`);

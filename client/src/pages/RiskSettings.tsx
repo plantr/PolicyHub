@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { Plus, Pencil, Trash2, Settings2 } from "lucide-react";
 import type { RiskCategory, ImpactLevel, LikelihoodLevel } from "@shared/schema";
 
@@ -38,10 +39,10 @@ const levelFormSchema = z.object({
 type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 type LevelFormValues = z.infer<typeof levelFormSchema>;
 
-const TAB_CONFIG: Record<TabKey, { label: string; singular: string; apiBase: string; hasDescription: boolean; valueType: "text" | "number" }> = {
-  categories: { label: "Categories", singular: "Category", apiBase: "/api/risk-categories", hasDescription: false, valueType: "text" },
-  impact: { label: "Impact Levels", singular: "Impact Level", apiBase: "/api/impact-levels", hasDescription: true, valueType: "number" },
-  likelihood: { label: "Likelihood Levels", singular: "Likelihood Level", apiBase: "/api/likelihood-levels", hasDescription: true, valueType: "number" },
+const TAB_CONFIG: Record<TabKey, { label: string; singular: string; apiBase: string; table: string; queryKey: string; hasDescription: boolean; valueType: "text" | "number" }> = {
+  categories: { label: "Categories", singular: "Category", apiBase: "/api/risk-categories", table: "risk_categories", queryKey: "risk-categories", hasDescription: false, valueType: "text" },
+  impact: { label: "Impact Levels", singular: "Impact Level", apiBase: "/api/impact-levels", table: "impact_levels", queryKey: "impact-levels", hasDescription: true, valueType: "number" },
+  likelihood: { label: "Likelihood Levels", singular: "Likelihood Level", apiBase: "/api/likelihood-levels", table: "likelihood_levels", queryKey: "likelihood-levels", hasDescription: true, valueType: "number" },
 };
 
 function SettingsTable({ tabKey }: { tabKey: TabKey }) {
@@ -67,7 +68,12 @@ function SettingsTable({ tabKey }: { tabKey: TabKey }) {
   const form = isCategory ? categoryForm : levelForm;
 
   const { data: records, isLoading } = useQuery<(RiskCategory | ImpactLevel | LikelihoodLevel)[]>({
-    queryKey: [config.apiBase],
+    queryKey: [config.queryKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.from(config.table).select("*");
+      if (error) throw error;
+      return (data ?? []) as (RiskCategory | ImpactLevel | LikelihoodLevel)[];
+    },
   });
 
   const sorted = [...(records || [])].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -77,7 +83,7 @@ function SettingsTable({ tabKey }: { tabKey: TabKey }) {
       return apiRequest("POST", config.apiBase, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [config.apiBase] });
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
       toast({ title: `${config.singular} created` });
       closeDialog();
     },
@@ -89,7 +95,7 @@ function SettingsTable({ tabKey }: { tabKey: TabKey }) {
       return apiRequest("PUT", `${config.apiBase}/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [config.apiBase] });
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
       toast({ title: `${config.singular} updated` });
       closeDialog();
     },
@@ -99,7 +105,7 @@ function SettingsTable({ tabKey }: { tabKey: TabKey }) {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `${config.apiBase}/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [config.apiBase] });
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
       toast({ title: `${config.singular} deleted` });
       setDeleteConfirmOpen(false);
       setDeletingRecord(null);
@@ -112,7 +118,7 @@ function SettingsTable({ tabKey }: { tabKey: TabKey }) {
       return apiRequest("PUT", `${config.apiBase}/${id}`, { active });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [config.apiBase] });
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
     },
     onError: () => toast({ title: "Error updating status", variant: "destructive" }),
   });
