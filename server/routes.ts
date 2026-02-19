@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { api } from "@shared/routes";
+import { api } from "../shared/routes";
 import { z } from "zod";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -14,7 +14,7 @@ import {
   validateFileType, validateFileSize, ALLOWED_MIME_TYPES
 } from "./storage-supabase";
 import { supabaseAdmin } from "./lib/supabase-admin";
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -34,7 +34,7 @@ import {
   findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   aiJobs,
-} from "@shared/schema";
+} from "../shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,

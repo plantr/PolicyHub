@@ -28,7 +28,7 @@ import {
   type RiskAction, type CreateRiskActionRequest, type UpdateRiskActionRequest,
   type RiskSnapshot, type CreateRiskSnapshotRequest,
   type RiskCategory, type ImpactLevel, type LikelihoodLevel,
-} from "@shared/schema";
+} from "../shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {

@@ -1,6 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
 import { createServer } from "http";
 
 const app = express();
@@ -81,9 +80,8 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
 // Static serving and the local HTTP listener are only needed outside Vercel.
 if (!process.env.VERCEL) {
   if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
+    import("./static").then(({ serveStatic }) => serveStatic(app));
   } else {
-    // Dynamic import for Vite dev server — keeps the IIFE pattern isolated to local dev
     import("./vite").then(({ setupVite }) => setupVite(httpServer, app));
   }
 
