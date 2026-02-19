@@ -57,7 +57,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. AI analysis endpoints respond correctly under the Vercel Functions runtime with no timeout errors for typical analysis workloads
   3. Environment variables (Supabase URL, anon key, service role key, Anthropic key) are available in the correct context — VITE_ prefixed vars accessible client-side, secret vars server-side only
   4. Preview deployments are created automatically for each branch/PR
-**Plans**: TBD
+**Plans:** 3 plans
+- [ ] 03-01-PLAN.md — Vercel project configuration + Express server adaptation (vercel.json, vite.config.ts, server/index.ts, .env.example)
+- [ ] 03-02-PLAN.md — AI background job queue + polling infrastructure (ai_jobs table, dispatch-and-fire endpoints, useAiJob hook)
+- [ ] 03-03-PLAN.md — Build validation + Vercel deployment verification checkpoint
 
 ### Phase 4: Client Migration + Cleanup
 **Goal**: The React frontend reads data directly from Supabase, auth flows through Supabase Auth UI, and all Replit, Passport.js, and S3 legacy code is removed from the codebase
@@ -79,5 +82,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Supabase Foundation | 4/4 | Complete    | 2026-02-19 |
 | 2. Storage Migration | 1/2 | In Progress|  |
-| 3. Vercel Deployment | 0/TBD | Not started | - |
+| 3. Vercel Deployment | 0/3 | Not started | - |
 | 4. Client Migration + Cleanup | 0/TBD | Not started | - |
