@@ -927,23 +927,6 @@ export async function registerRoutes(
             reason: `Source "${src?.shortName ?? req.sourceId}" is not enabled in ${bu?.name ?? "this business unit"}'s regulatory profile`,
           });
         }
-      } else {
-        // Mapping has no BU context — check if source is enabled globally
-        if (!globalEnabledSourceIds.has(req.sourceId)) {
-          const doc = docMap.get(mapping.documentId);
-          const src = sourceMap.get(req.sourceId);
-          overStrictItems.push({
-            documentId: mapping.documentId,
-            documentTitle: doc?.title ?? `Doc #${mapping.documentId}`,
-            requirementId: req.id,
-            requirementCode: req.code,
-            requirementTitle: req.title,
-            sourceName: src?.shortName ?? `Source #${req.sourceId}`,
-            businessUnitId: null,
-            businessUnitName: "Group (no BU)",
-            reason: `Source "${src?.shortName ?? req.sourceId}" is not enabled in any regulatory profile`,
-          });
-        }
       }
     }
 
