@@ -1,7 +1,10 @@
-// Bundles each api/*.ts serverless function and produces Vercel Build Output API structure.
+// Bundles each api-src/*.ts serverless function and produces Vercel Build Output API structure.
 // Each function is fully bundled with esbuild (all npm packages included) so there are
 // no external dependencies to resolve at runtime. This avoids ESM module resolution
 // issues with Vercel's native TS runtime.
+//
+// Source files live in api-src/ (not api/) to prevent Vercel from auto-detecting them
+// as serverless functions and conflicting with our Build Output API.
 //
 // Output structure:
 //   .vercel/output/config.json          — routes config
@@ -11,10 +14,9 @@ import { build } from "esbuild";
 import { readdirSync, mkdirSync, writeFileSync, cpSync, existsSync, rmSync } from "fs";
 import { basename } from "path";
 
-// Clean any previous Build Output API artifacts to avoid conflicts
+// Clean any previous Build Output API artifacts
 if (existsSync(".vercel/output")) {
   rmSync(".vercel/output", { recursive: true, force: true });
-  console.log("Cleaned previous .vercel/output/");
 }
 
 // Only Node.js built-ins are external — all npm packages are bundled into each function
@@ -26,12 +28,12 @@ const externals = [
   "worker_threads", "async_hooks", "diagnostics_channel", "v8", "vm", "inspector",
 ];
 
-// Collect all api/*.ts files, excluding _shared/ subdirectory and files starting with _
-const entries = readdirSync("api")
+// Collect all api-src/*.ts files, excluding _shared/ subdirectory and files starting with _
+const entries = readdirSync("api-src")
   .filter(f => f.endsWith(".ts") && !f.startsWith("_"))
-  .map(f => `api/${f}`);
+  .map(f => `api-src/${f}`);
 
-console.log(`Building ${entries.length} serverless functions:`, entries.map(e => e.replace("api/", "")));
+console.log(`Building ${entries.length} serverless functions...`);
 
 // Bundle to a temp directory
 const tmpDir = ".vercel/output/functions/_tmp";
@@ -52,7 +54,7 @@ await build({
   minify: true,
 });
 
-// Create .func directories for each function
+// Create .func directories for each function (URL path stays /api/*)
 const funcBase = ".vercel/output/functions/api";
 const vcConfig = JSON.stringify({
   runtime: "nodejs22.x",
@@ -70,15 +72,6 @@ for (const entry of entries) {
 
 // Clean up temp
 rmSync(tmpDir, { recursive: true, force: true });
-
-// Remove api/*.ts source files so Vercel's post-build auto-detection
-// doesn't try to create duplicate serverless functions that conflict
-// with our Build Output API structure.
-for (const entry of entries) {
-  rmSync(entry, { force: true });
-}
-rmSync("api/_shared", { recursive: true, force: true });
-console.log("Removed api/*.ts source files to prevent auto-detection conflict");
 
 // Copy frontend static assets
 const staticDir = ".vercel/output/static";
