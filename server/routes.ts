@@ -1098,7 +1098,8 @@ ${truncatedContent}
 
 TASK: Analyse how well this document covers the regulatory requirement. Provide:
 1. A match percentage (0-100) representing how comprehensively the document addresses the requirement
-2. A brief rationale (2-3 sentences) explaining the score
+2. A brief rationale (2-3 sentences) explaining what the document DOES cover well
+3. Specific recommendations for what would need to be added or improved to reach 100% coverage. If already at 100%, say "No further action needed."
 
 Guidelines for scoring:
 - 80-100%: Document directly and comprehensively addresses the requirement with specific provisions
@@ -1108,34 +1109,38 @@ Guidelines for scoring:
 - 0-19%: Document has little to no relevance to the requirement
 
 Respond in exactly this JSON format:
-{"score": <number>, "rationale": "<string>"}`;
+{"score": <number>, "rationale": "<string>", "recommendations": "<string>"}`;
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 300,
+        max_tokens: 500,
         messages: [{ role: "user", content: prompt }],
       });
 
       const responseText = message.content[0].type === "text" ? message.content[0].text : "";
       let aiScore = 0;
       let aiRationale = "Unable to parse AI response";
+      let aiRecommendations = "";
 
       try {
         const parsed = JSON.parse(responseText);
         aiScore = Math.min(100, Math.max(0, Math.round(parsed.score)));
         aiRationale = parsed.rationale || "No rationale provided";
+        aiRecommendations = parsed.recommendations || "";
       } catch {
         const scoreMatch = responseText.match(/"score"\s*:\s*(\d+)/);
         const rationaleMatch = responseText.match(/"rationale"\s*:\s*"([^"]+)"/);
+        const recsMatch = responseText.match(/"recommendations"\s*:\s*"([^"]+)"/);
         if (scoreMatch) aiScore = Math.min(100, Math.max(0, parseInt(scoreMatch[1])));
         if (rationaleMatch) aiRationale = rationaleMatch[1];
+        if (recsMatch) aiRecommendations = recsMatch[1];
       }
 
       await db.update(requirementMappings)
-        .set({ aiMatchScore: aiScore, aiMatchRationale: aiRationale })
+        .set({ aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations })
         .where(eq(requirementMappings.id, mappingId));
 
-      res.json({ mappingId, aiMatchScore: aiScore, aiMatchRationale: aiRationale });
+      res.json({ mappingId, aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations });
     } catch (err: any) {
       console.error("AI match analysis error:", err);
       res.status(500).json({ message: err.message || "AI analysis failed" });

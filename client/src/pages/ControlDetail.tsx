@@ -147,7 +147,7 @@ export default function ControlDetail() {
       const res = await apiRequest("POST", `/api/gap-analysis/ai-match/${mappingId}`, {});
       return res.json();
     },
-    onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string }) => {
+    onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string; aiMatchRecommendations?: string }) => {
       setAiAnalysingId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
       toast({ title: "AI Analysis Complete", description: `Match score: ${data.aiMatchScore}%` });
@@ -404,6 +404,12 @@ export default function ControlDetail() {
                             </div>
                             {mapping.aiMatchRationale && (
                               <p className="text-xs text-muted-foreground ml-5">{mapping.aiMatchRationale}</p>
+                            )}
+                            {(mapping as any).aiMatchRecommendations && (
+                              <div className="ml-5 mt-1.5 rounded-md border border-purple-200 dark:border-purple-800/40 bg-purple-50/50 dark:bg-purple-950/20 p-2.5" data-testid={`ai-recommendations-${mapping.id}`}>
+                                <span className="text-xs font-medium text-purple-700 dark:text-purple-300">To reach 100%:</span>
+                                <p className="text-xs text-muted-foreground mt-0.5">{(mapping as any).aiMatchRecommendations}</p>
+                              </div>
                             )}
                           </div>
                         )}

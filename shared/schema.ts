@@ -190,6 +190,7 @@ export const requirementMappings = pgTable("requirement_mappings", {
   confirmedAt: timestamp("confirmed_at"),
   aiMatchScore: integer("ai_match_score"),
   aiMatchRationale: text("ai_match_rationale"),
+  aiMatchRecommendations: text("ai_match_recommendations"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
