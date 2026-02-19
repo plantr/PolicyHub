@@ -12,3 +12,6 @@ vite.config.ts.*
 .vercel
 .replit
 replit.nix
+.local/
+api/*.js
+api/*.js.map
