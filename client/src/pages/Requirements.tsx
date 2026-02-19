@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertRequirementSchema } from "@shared/schema";
@@ -92,12 +93,25 @@ function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, cente
 
 export { DonutChart };
 
+function ProgressBar({ value, max, className }: { value: number; max: number; className?: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${className}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs text-muted-foreground whitespace-nowrap">{pct}%</span>
+    </div>
+  );
+}
+
 export default function Requirements() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReq, setEditingReq] = useState<Requirement | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -141,6 +155,11 @@ export default function Requirements() {
     [sources]
   );
 
+  const docMap = useMemo(
+    () => new Map((allDocuments ?? []).map((d) => [d.id, d])),
+    [allDocuments]
+  );
+
   const categories = useMemo(
     () => Array.from(new Set((requirements ?? []).map((r) => r.category))).sort(),
     [requirements]
@@ -164,12 +183,67 @@ export default function Requirements() {
     return "Not Covered";
   }
 
-  const hasActiveFilters = frameworkFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all" || searchQuery.length > 0;
+  const stats = useMemo(() => {
+    const reqs = requirements ?? [];
+    const total = reqs.length;
+    let coveredCount = 0;
+    let partialCount = 0;
+    let notCoveredCount = 0;
+    let withDocsCount = 0;
+    const uniqueDocIds = new Set<number>();
+
+    for (const req of reqs) {
+      const status = getBestStatus(req.id);
+      if (status === "Covered") coveredCount++;
+      else if (status === "Partially Covered") partialCount++;
+      else notCoveredCount++;
+
+      const maps = mappingsByReq.get(req.id) || [];
+      if (maps.length > 0) withDocsCount++;
+      for (const m of maps) {
+        if (m.documentId) uniqueDocIds.add(m.documentId);
+      }
+    }
+
+    const passingCount = coveredCount + partialCount;
+    const passingPct = total > 0 ? Math.round((passingCount / total) * 100) : 0;
+    const docsCovering = uniqueDocIds.size;
+    const totalDocs = (allDocuments ?? []).length;
+
+    return {
+      total,
+      coveredCount,
+      partialCount,
+      notCoveredCount,
+      passingCount,
+      passingPct,
+      withDocsCount,
+      docsCovering,
+      totalDocs,
+    };
+  }, [requirements, allMappings, allDocuments, mappingsByReq]);
+
+  const owners = useMemo(() => {
+    const ownerSet = new Set<string>();
+    for (const req of requirements ?? []) {
+      const maps = mappingsByReq.get(req.id) || [];
+      for (const m of maps) {
+        if (m.documentId) {
+          const doc = docMap.get(m.documentId);
+          if (doc?.owner) ownerSet.add(doc.owner);
+        }
+      }
+    }
+    return Array.from(ownerSet).sort();
+  }, [requirements, mappingsByReq, docMap]);
+
+  const hasActiveFilters = frameworkFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all" || ownerFilter !== "all" || searchQuery.length > 0;
 
   function resetFilters() {
     setFrameworkFilter("all");
     setCategoryFilter("all");
     setStatusFilter("all");
+    setOwnerFilter("all");
     setSearchQuery("");
     setCurrentPage(1);
   }
@@ -184,13 +258,22 @@ export default function Requirements() {
         if (statusFilter === "partial" && status !== "Partially Covered") return false;
         if (statusFilter === "not_covered" && status !== "Not Covered") return false;
       }
+      if (ownerFilter !== "all") {
+        const maps = mappingsByReq.get(req.id) || [];
+        const hasOwner = maps.some((m) => {
+          if (!m.documentId) return false;
+          const doc = docMap.get(m.documentId);
+          return doc?.owner === ownerFilter;
+        });
+        if (!hasOwner) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (!req.title.toLowerCase().includes(q) && !req.code.toLowerCase().includes(q) && !(req.description && req.description.toLowerCase().includes(q))) return false;
       }
       return true;
     });
-  }, [requirements, frameworkFilter, categoryFilter, statusFilter, searchQuery, mappingsByReq]);
+  }, [requirements, frameworkFilter, categoryFilter, statusFilter, ownerFilter, searchQuery, mappingsByReq, docMap]);
 
   const totalResults = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
@@ -302,18 +385,113 @@ export default function Requirements() {
     <div className="space-y-4" data-testid="controls-page">
       <div className="flex flex-wrap items-center justify-between gap-3" data-testid="controls-header">
         <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
-        <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-control">
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          Add control
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-control">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add control
+          </Button>
+        </div>
       </div>
+
+      {!isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="summary-cards">
+          <Card data-testid="card-assignment">
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-semibold mb-4" data-testid="text-assignment-title">Assignment</h3>
+              <div className="flex items-center gap-6">
+                <DonutChart
+                  size={120}
+                  strokeWidth={20}
+                  centerLabel={`${stats.total > 0 ? Math.round(((stats.coveredCount + stats.partialCount) / stats.total) * 100) : 0}%`}
+                  centerSub="Assigned"
+                  segments={[
+                    { value: stats.coveredCount + stats.partialCount, className: "text-purple-500 dark:text-purple-400" },
+                    { value: stats.notCoveredCount, className: "text-muted" },
+                  ]}
+                />
+                <div className="space-y-2 text-sm" data-testid="assignment-legend">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-muted" />
+                    <span className="text-muted-foreground">Not Covered</span>
+                    <span className="ml-auto font-medium">{stats.notCoveredCount}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-purple-500 dark:bg-purple-400" />
+                    <span className="text-muted-foreground">Covered</span>
+                    <span className="ml-auto font-medium">{stats.coveredCount}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-amber-500 dark:bg-amber-400" />
+                    <span className="text-muted-foreground">Partial</span>
+                    <span className="ml-auto font-medium">{stats.partialCount}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-controls-summary">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between mb-3">
+                <h3 className="text-sm font-semibold" data-testid="text-controls-title">Controls</h3>
+              </div>
+              <div className="flex items-start gap-6">
+                <div className="space-y-2 min-w-[140px]">
+                  <p className="text-3xl font-bold" data-testid="text-passing-pct">{stats.passingPct}%</p>
+                  <p className="text-xs text-muted-foreground">Of controls have coverage</p>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-green-500 dark:bg-green-400 transition-all"
+                      style={{ width: `${stats.passingPct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{stats.passingCount} controls</span>
+                    <span>{stats.total} total</span>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-4 pt-1">
+                  <div data-testid="metric-mappings">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Settings2 className="h-3 w-3" />
+                        <span>Mappings</span>
+                      </div>
+                      <span className="text-xs font-medium">{stats.withDocsCount}/{stats.total}</span>
+                    </div>
+                    <ProgressBar
+                      value={stats.withDocsCount}
+                      max={stats.total}
+                      className="bg-green-500 dark:bg-green-400"
+                    />
+                  </div>
+                  <div data-testid="metric-documents">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <FileText className="h-3 w-3" />
+                        <span>Documents</span>
+                      </div>
+                      <span className="text-xs font-medium">{stats.docsCovering}/{stats.totalDocs}</span>
+                    </div>
+                    <ProgressBar
+                      value={stats.docsCovering}
+                      max={stats.totalDocs}
+                      className="bg-purple-500 dark:bg-purple-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2" data-testid="controls-filter-bar">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search"
-            className="pl-9 w-[160px]"
+            placeholder="Search controls"
+            className="pl-9 w-[180px]"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             data-testid="input-search-controls"
@@ -336,12 +514,26 @@ export default function Requirements() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
-              Category <ChevronDown className="h-3 w-3 ml-1" />
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-owner">
+              Owner <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All Categories</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setOwnerFilter("all"); setCurrentPage(1); }}>All Owners</DropdownMenuItem>
+            {owners.map((o) => (
+              <DropdownMenuItem key={o} onClick={() => { setOwnerFilter(o); setCurrentPage(1); }}>{o}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
+              Domain <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All Domains</DropdownMenuItem>
             {categories.map((c) => (
               <DropdownMenuItem key={c} onClick={() => { setCategoryFilter(c); setCurrentPage(1); }}>{c}</DropdownMenuItem>
             ))}
@@ -383,15 +575,16 @@ export default function Requirements() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-id">ID</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-control">Control</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[200px]" data-testid="th-owner">Owner</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-frameworks">Frameworks</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[180px]" data-testid="th-owner">Owner</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[180px]" data-testid="th-frameworks">Frameworks</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px]" data-testid="th-docs">Docs</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="th-actions"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedControls.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
                       No controls found.
                     </TableCell>
                   </TableRow>
@@ -399,14 +592,19 @@ export default function Requirements() {
                   paginatedControls.map((req) => {
                     const source = sourceMap.get(req.sourceId);
                     const maps = mappingsByReq.get(req.id) || [];
+                    const bestStatus = getBestStatus(req.id);
                     const ownerDoc = maps.length > 0 && maps[0].documentId
-                      ? (allDocuments ?? []).find((d) => d.id === maps[0].documentId)
+                      ? docMap.get(maps[0].documentId)
                       : null;
                     const ownerName = ownerDoc?.owner ?? "--";
+                    const ownerInitials = ownerName !== "--"
+                      ? ownerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+                      : "";
                     const frameworkLabel = source
                       ? `${source.shortName} · ${req.code}`
                       : req.code;
-                    const extraFrameworks = maps.length > 1 ? maps.length - 1 : 0;
+                    const docsLinked = new Set(maps.filter((m) => m.documentId).map((m) => m.documentId)).size;
+                    const coveredDocs = maps.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
                     return (
                       <TableRow
                         key={req.id}
@@ -414,24 +612,43 @@ export default function Requirements() {
                         onClick={() => navigate(`/controls/${req.id}`)}
                         data-testid={`row-control-${req.id}`}
                       >
-                        <TableCell className="font-mono text-xs text-muted-foreground" data-testid={`text-id-${req.id}`}>
+                        <TableCell className="font-mono text-xs text-muted-foreground align-top pt-4" data-testid={`text-id-${req.id}`}>
                           {req.code}
                         </TableCell>
-                        <TableCell data-testid={`text-control-${req.id}`}>
-                          <span className="text-sm">{req.title}</span>
-                        </TableCell>
-                        <TableCell className="text-sm" data-testid={`text-owner-${req.id}`}>
-                          {ownerName}
-                        </TableCell>
-                        <TableCell data-testid={`text-framework-${req.id}`}>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">{frameworkLabel}</span>
-                            {extraFrameworks > 0 && (
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">+{extraFrameworks}</span>
+                        <TableCell className="align-top pt-4" data-testid={`text-control-${req.id}`}>
+                          <div>
+                            <span className="text-sm font-medium">{req.title}</span>
+                            {req.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 max-w-lg">{req.description}</p>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell data-testid={`text-actions-${req.id}`}>
+                        <TableCell className="align-top pt-4" data-testid={`text-owner-${req.id}`}>
+                          {ownerName !== "--" ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-medium text-muted-foreground">{ownerInitials}</span>
+                              </div>
+                              <span className="text-sm truncate">{ownerName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">--</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top pt-4" data-testid={`text-framework-${req.id}`}>
+                          <span className="text-xs text-muted-foreground">{frameworkLabel}</span>
+                        </TableCell>
+                        <TableCell className="align-top pt-4" data-testid={`text-docs-${req.id}`}>
+                          {docsLinked > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className={`h-4 w-4 ${bestStatus === "Covered" ? "text-green-500 dark:text-green-400" : bestStatus === "Partially Covered" ? "text-amber-500 dark:text-amber-400" : "text-muted-foreground"}`} />
+                              <span className="text-sm font-medium">{coveredDocs}/{docsLinked}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">--</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top pt-4" data-testid={`text-actions-${req.id}`}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -555,7 +772,7 @@ export default function Requirements() {
                     <FormItem>
                       <FormLabel>Code</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. CTL-001" {...field} data-testid="input-control-code" />
+                        <Input placeholder="e.g. FCA-1.1" {...field} data-testid="input-code" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -566,9 +783,9 @@ export default function Requirements() {
                   name="category"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category</FormLabel>
+                      <FormLabel>Domain</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. AML/KYC" {...field} data-testid="input-control-category" />
+                        <Input placeholder="e.g. Governance" {...field} data-testid="input-category" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -582,7 +799,7 @@ export default function Requirements() {
                   <FormItem>
                     <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Control title" {...field} data-testid="input-control-title" />
+                      <Input placeholder="Control title" {...field} data-testid="input-title" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -595,12 +812,7 @@ export default function Requirements() {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Describe the control"
-                        className="resize-none"
-                        {...field}
-                        data-testid="input-control-description"
-                      />
+                      <Textarea placeholder="Control description" {...field} data-testid="input-description" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -611,29 +823,22 @@ export default function Requirements() {
                 name="article"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Article</FormLabel>
+                    <FormLabel>Article (optional)</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g. Art. 5(1)"
-                        {...field}
-                        value={field.value ?? ""}
-                        data-testid="input-control-article"
-                      />
+                      <Input placeholder="e.g. Article 5" {...field} value={field.value ?? ""} data-testid="input-article" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeDialog} data-testid="button-cancel-control">
+                <Button type="button" variant="ghost" onClick={closeDialog} data-testid="button-cancel">
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  data-testid="button-save-control"
-                >
-                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-submit">
+                  {editingReq
+                    ? updateMutation.isPending ? "Saving..." : "Save changes"
+                    : createMutation.isPending ? "Creating..." : "Create control"}
                 </Button>
               </DialogFooter>
             </form>
@@ -642,7 +847,7 @@ export default function Requirements() {
       </Dialog>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent data-testid="dialog-delete-control">
+        <DialogContent className="sm:max-w-[400px]" data-testid="dialog-delete-confirm">
           <DialogHeader>
             <DialogTitle>Delete Control</DialogTitle>
             <DialogDescription>
@@ -650,14 +855,14 @@ export default function Requirements() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete-control">
+            <Button type="button" variant="ghost" onClick={() => setDeleteConfirmOpen(false)} data-testid="button-cancel-delete">
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={() => deletingReq && deleteMutation.mutate(deletingReq.id)}
               disabled={deleteMutation.isPending}
-              data-testid="button-confirm-delete-control"
+              data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
