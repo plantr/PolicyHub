@@ -21,17 +21,17 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 - [ ] **AUTH-02**: User receives email confirmation after signup
 - [ ] **AUTH-03**: User can reset password via email link
 - [ ] **AUTH-04**: User session persists across browser refresh via Supabase JS auto-refresh
-- [ ] **AUTH-05**: Custom Access Token Hook injects business unit IDs and role into JWT from `app_metadata`
+- [x] **AUTH-05**: Custom Access Token Hook injects business unit IDs and role into JWT from `app_metadata`
 - [ ] **AUTH-06**: Admin can assign users to business units with specific roles (admin/editor/viewer)
 
 ### Authorization (RLS)
 
-- [ ] **RLS-01**: Row Level Security enabled on all database tables (27+)
+- [x] **RLS-01**: Row Level Security enabled on all database tables (27+)
 - [ ] **RLS-02**: RLS policies scope data access by business unit using JWT claims from `app_metadata`
 - [ ] **RLS-03**: Anonymous (unauthenticated) access blocked on all tables
 - [ ] **RLS-04**: Service role bypass available for serverless functions (AI endpoints, admin operations)
 - [ ] **RLS-05**: RLS policies use inverted query pattern to avoid N+1 performance degradation
-- [ ] **RLS-06**: All tables verified via `pg_tables WHERE rowsecurity = false` query returns zero rows
+- [x] **RLS-06**: All tables verified via `pg_tables WHERE rowsecurity = false` query returns zero rows
 
 ### Storage
 
@@ -108,14 +108,14 @@ Deferred to future release. Tracked but not in current roadmap.
 | AUTH-02 | Phase 1 | Pending |
 | AUTH-03 | Phase 1 | Pending |
 | AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Pending |
-| RLS-01 | Phase 1 | Pending |
+| RLS-01 | Phase 1 | Complete |
 | RLS-02 | Phase 1 | Pending |
 | RLS-03 | Phase 1 | Pending |
 | RLS-04 | Phase 1 | Pending |
 | RLS-05 | Phase 1 | Pending |
-| RLS-06 | Phase 1 | Pending |
+| RLS-06 | Phase 1 | Complete |
 | STOR-01 | Phase 2 | Pending |
 | STOR-02 | Phase 2 | Pending |
 | STOR-03 | Phase 2 | Pending |

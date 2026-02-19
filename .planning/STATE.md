@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 1 of 4 (Supabase Foundation)
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-19 — Completed Plan 01-01 (database schema + postgres.js driver)
+Last activity: 2026-02-19 — Completed Plan 01-02 (RLS enablement + Custom Access Token Hook)
 
-Progress: [█░░░░░░░░░] 6%
+Progress: [██░░░░░░░░] 13%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 3 min
-- Total execution time: 3 min
+- Total plans completed: 2
+- Average duration: 2.5 min
+- Total execution time: 5 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-supabase-foundation | 1/4 | 3 min | 3 min |
+| 01-supabase-foundation | 2/4 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min
+- Last 5 plans: 3 min, 2 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -51,10 +51,14 @@ Recent decisions affecting current work:
 - 01-01: postgres.js chosen over node-postgres — Supabase transaction-mode pooler requires prepare:false which postgres.js supports natively
 - 01-01: drizzle.config.ts env guard removed from module-level — drizzle-kit generate reads schema only, no DB connection needed
 - 01-01: userBusinessUnits.userId stored as text (not FK) — auth.users in Supabase's internal auth schema, cross-schema FK not enforceable via Drizzle
+- 01-02: supabase_auth_admin needs both GRANT SELECT and CREATE POLICY to read user_business_units when RLS is enabled — GRANT alone is insufficient
+- 01-02: Custom Access Token Hook declared STABLE (reads DB, does not write) — correct volatility for Postgres optimization
+- 01-02: Hook uses COALESCE to empty array — users with no BU memberships get [] not NULL to prevent downstream null-pointer errors in RLS policies
 
 ### Pending Todos
 
-- Apply migration to Supabase: set DATABASE_URL and DATABASE_URL_DIRECT, run `npx drizzle-kit migrate`
+- Apply migrations to Supabase: set DATABASE_URL and DATABASE_URL_DIRECT, run `npx drizzle-kit migrate`, then apply supabase/migrations/0001_enable_rls.sql and 0002_auth_hook.sql
+- Enable Custom Access Token Hook in Supabase Dashboard: Authentication > Hooks > Custom Access Token > select `public.custom_access_token_hook`
 
 ### Blockers/Concerns
 
@@ -66,5 +70,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 01-01-PLAN.md (database schema + postgres.js driver + SQL migration generated)
-Resume file: .planning/phases/01-supabase-foundation/01-02-PLAN.md
+Stopped at: Completed 01-02-PLAN.md (RLS enablement migration + Custom Access Token Hook migration)
+Resume file: .planning/phases/01-supabase-foundation/01-03-PLAN.md
