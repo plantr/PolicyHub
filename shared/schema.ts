@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -417,8 +417,23 @@ export const users = pgTable("users", {
   status: text("status").notNull().default("Active"),
   phone: text("phone"),
   notes: text("notes"),
+  authUserId: text("auth_user_id"),  // Links to auth.users.id (UUID)
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// =============================================
+// USER BUSINESS UNITS (Junction table for RBAC)
+// =============================================
+
+export const userBusinessUnits = pgTable("user_business_units", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),        // auth.users.id (UUID as text)
+  businessUnitId: integer("business_unit_id").notNull().references(() => businessUnits.id),
+  role: text("role").notNull(),              // 'admin' | 'editor' | 'viewer'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  uniq: unique().on(t.userId, t.businessUnitId),
+}));
 
 // =============================================
 // ADMINISTRATION REFERENCE TABLES
@@ -505,6 +520,7 @@ export const insertRiskSnapshotSchema = createInsertSchema(riskSnapshots).omit({
 export const insertRiskCategorySchema = createInsertSchema(riskCategories).omit({ id: true });
 export const insertImpactLevelSchema = createInsertSchema(impactLevels).omit({ id: true });
 export const insertLikelihoodLevelSchema = createInsertSchema(likelihoodLevels).omit({ id: true });
+export const insertUserBusinessUnitSchema = createInsertSchema(userBusinessUnits).omit({ id: true, createdAt: true });
 
 // =============================================
 // SELECT TYPES
@@ -541,6 +557,7 @@ export type RiskSnapshot = typeof riskSnapshots.$inferSelect;
 export type RiskCategory = typeof riskCategories.$inferSelect;
 export type ImpactLevel = typeof impactLevels.$inferSelect;
 export type LikelihoodLevel = typeof likelihoodLevels.$inferSelect;
+export type UserBusinessUnit = typeof userBusinessUnits.$inferSelect;
 export type AdminRecord = EntityType | Role | Jurisdiction | DocumentCategory | FindingSeverity;
 
 // =============================================
