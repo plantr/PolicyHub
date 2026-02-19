@@ -62,7 +62,7 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 
 - [x] **CLNT-01**: Supabase JS client initialized as singleton with anon key for frontend queries
 - [ ] **CLNT-02**: Read operations (list/get) migrated from API calls to direct Supabase client queries
-- [ ] **CLNT-03**: Write operations with business logic validation use serverless functions
+- [x] **CLNT-03**: Write operations with business logic validation use serverless functions
 - [x] **CLNT-04**: React Query cache invalidation updated for Supabase auth state changes
 - [x] **CLNT-05**: Login/signup/password reset UI components built using Supabase Auth
 
@@ -71,7 +71,7 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 - [ ] **CLNP-01**: Replit-specific code removed (`.replit`, `server/replit_integrations/`, Vite plugins)
 - [ ] **CLNP-02**: Passport.js and express-session packages and configuration removed
 - [ ] **CLNP-03**: AWS S3 integration (`server/s3.ts`, multer config) removed
-- [ ] **CLNP-04**: Express server entry point (`server/index.ts`) refactored or removed
+- [x] **CLNP-04**: Express server entry point (`server/index.ts`) refactored or removed
 - [ ] **CLNP-05**: Hardcoded port 5000 and Replit-specific environment detection removed
 - [ ] **CLNP-06**: Node.js engine pinned to 22.x in package.json (Vercel compatibility)
 
@@ -134,13 +134,13 @@ Deferred to future release. Tracked but not in current roadmap.
 | FUNC-04 | Phase 3 | Complete |
 | CLNT-01 | Phase 4 | Complete |
 | CLNT-02 | Phase 4 | Pending |
-| CLNT-03 | Phase 4 | Pending |
+| CLNT-03 | Phase 4 | Complete |
 | CLNT-04 | Phase 4 | Complete |
 | CLNT-05 | Phase 4 | Complete |
 | CLNP-01 | Phase 4 | Pending |
 | CLNP-02 | Phase 4 | Pending |
 | CLNP-03 | Phase 4 | Pending |
-| CLNP-04 | Phase 4 | Pending |
+| CLNP-04 | Phase 4 | Complete |
 | CLNP-05 | Phase 4 | Pending |
 | CLNP-06 | Phase 4 | Pending |
 

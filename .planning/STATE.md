@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 4 of 4 (Client Migration + Cleanup)
-Plan: 2 of 4 (04-01 complete)
+Plan: 4 of 4 (04-03 complete)
 Status: Executing Phase 4
-Last activity: 2026-02-19 — 04-01 complete (auth foundation: landing page, login page, useAuth hook, ProtectedRoute, UserMenu)
+Last activity: 2026-02-19 — 04-03 complete (Express monolith split into 21 individual Vercel serverless functions)
 
-Progress: [█████████░] 82%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -37,6 +37,7 @@ Progress: [█████████░] 82%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 04 P03 | 9 | 2 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - 04-01: queryClient.clear() wrapped in setTimeout(0) to avoid Supabase auth callback deadlock
 - 04-01: Default queryFn on401 changed from throw to returnNull — ProtectedRoute handles redirect gracefully
 - 04-01: Dashboard moved from / to /dashboard — / is now the public landing page
+- [Phase 04]: 04-03: Query param routing for serverless functions — Vercel functions use req.query for id, action, resource sub-operations since function file is selected by path not query params
+- [Phase 04]: 04-03: multer removed from serverless functions — TUS signed URL flow (upload-url + upload-confirm) replaces direct file upload; serverless functions cannot buffer large streams
+- [Phase 04]: 04-03: AI processors co-located in dispatch function files — processAiMatchJob in gap-analysis.ts, processAiCoverageJob and processAiMapControlsJob in ai-jobs.ts; fire-and-forget pattern preserved
 
 ### Pending Todos
 
@@ -93,5 +97,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 04-01 (auth foundation)
-Resume file: .planning/phases/04-client-migration-cleanup/04-02-PLAN.md
+Stopped at: Completed 04-03 (Express monolith to individual serverless functions)
+Resume file: .planning/phases/04-client-migration-cleanup/04-04-PLAN.md
