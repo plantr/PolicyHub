@@ -129,6 +129,17 @@ This creates the `ai_jobs` table with indexes and RLS policies required for the 
 - Client components calling AI endpoints need to be updated to handle `{ jobId, status }` response shape and use `useAiJob` hook for progress display — this is explicitly Phase 4 work
 - The `ai_jobs` table migration must be applied to the Supabase project before deployment
 
+## Self-Check: PASSED
+
+- FOUND: shared/schema.ts (aiJobs table + insertAiJobSchema)
+- FOUND: supabase/migrations/0006_ai_jobs.sql
+- FOUND: server/routes.ts (polling endpoint + 3 processor functions + dispatch pattern)
+- FOUND: client/src/hooks/use-ai-job.ts (polling hook)
+- FOUND: .planning/phases/03-vercel-deployment/03-02-SUMMARY.md
+- FOUND commit: 477dbde (feat(03-02): add ai_jobs table schema and SQL migration)
+- FOUND commit: 746b81d (feat(03-02): refactor AI endpoints to dispatch-and-fire + polling)
+- FOUND commit: 275b2e0 (docs(03-02): complete AI background job queue plan)
+
 ---
 *Phase: 03-vercel-deployment*
 *Completed: 2026-02-19*
