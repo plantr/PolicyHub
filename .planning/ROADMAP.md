@@ -71,7 +71,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Login, signup, and password reset UI components work end-to-end using Supabase Auth
   3. The codebase contains no references to `.replit`, `server/replit_integrations/`, `passport`, `express-session`, `server/s3.ts`, or multer for file uploads
   4. The Express server entry point is removed or refactored — `npm run dev` starts via Vercel CLI or Vite directly, not via `server/index.ts`
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 - [ ] 04-01-PLAN.md — Auth UI + route protection + session management
 - [ ] 04-02-PLAN.md — Migrate read operations to direct Supabase client queries
 - [ ] 04-03-PLAN.md — Break Express into individual Vercel serverless functions
@@ -87,4 +87,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Supabase Foundation | 4/4 | Complete    | 2026-02-19 |
 | 2. Storage Migration | 1/2 | In Progress|  |
 | 3. Vercel Deployment | 3/3 | Complete | 2026-02-19 |
-| 4. Client Migration + Cleanup | 0/4 | Not started | - |
+| 4. Client Migration + Cleanup | 1/4 | In Progress|  |

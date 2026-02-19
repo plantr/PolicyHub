@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 4 of 4 (Client Migration + Cleanup)
-Plan: Not yet planned
-Status: Phase 3 complete, Phase 4 not started
-Last activity: 2026-02-19 — Phase 3 verified and approved (SPA live at policy-hub-lovat.vercel.app, API returning JSON, env vars configured)
+Plan: 2 of 4 (04-01 complete)
+Status: Executing Phase 4
+Last activity: 2026-02-19 — 04-01 complete (auth foundation: landing page, login page, useAuth hook, ProtectedRoute, UserMenu)
 
-Progress: [█████████░] 75%
+Progress: [█████████░] 82%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 7 min
-- Total execution time: 56 min
+- Total plans completed: 10
+- Average duration: 6 min
+- Total execution time: 59 min
 
 **By Phase:**
 
@@ -30,6 +30,7 @@ Progress: [█████████░] 75%
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
 | 03-vercel-deployment | 3/3 | 31 min | 10 min |
+| 04-client-migration-cleanup | 1/4 | 3 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -75,6 +76,10 @@ Recent decisions affecting current work:
 - 03-02: AI processor functions defined as nested async functions inside registerRoutes — co-located with routes, avoids hoisting issues
 - 03-02: ai_jobs SELECT policy uses USING (true) — short-lived operational records, not BU-scoped; all writes via service role
 - 03-02: Document versions sorted by createdAt instead of versionNumber (non-existent field) — pre-existing silent bug fixed during refactor
+- 04-01: ThemeSupa imported from @supabase/auth-ui-shared (separate package, not auth-ui-react)
+- 04-01: queryClient.clear() wrapped in setTimeout(0) to avoid Supabase auth callback deadlock
+- 04-01: Default queryFn on401 changed from throw to returnNull — ProtectedRoute handles redirect gracefully
+- 04-01: Dashboard moved from / to /dashboard — / is now the public landing page
 
 ### Pending Todos
 
@@ -88,5 +93,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-client-migration-cleanup/04-CONTEXT.md
+Stopped at: Completed 04-01 (auth foundation)
+Resume file: .planning/phases/04-client-migration-cleanup/04-02-PLAN.md
