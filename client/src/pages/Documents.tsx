@@ -54,6 +54,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { uploadFileToStorage } from "@/lib/storage";
 
 type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
 const REVIEW_FREQUENCIES = ["Annual", "Semi-Annual", "Quarterly", "Monthly"];
@@ -428,31 +429,62 @@ export default function Documents() {
         .map((t) => t.trim())
         .filter(Boolean);
 
-      const formData = new FormData();
-      if (data.documentReference) formData.append("documentReference", data.documentReference);
-      formData.append("title", data.title);
-      formData.append("docType", data.docType);
-      formData.append("taxonomy", data.taxonomy);
-      formData.append("owner", data.owner);
-      if (data.reviewFrequency) formData.append("reviewFrequency", data.reviewFrequency);
-      if (data.nextReviewDate) formData.append("nextReviewDate", data.nextReviewDate);
-      formData.append("businessUnitId", data.businessUnitId ? String(data.businessUnitId) : "null");
-      formData.append("tags", JSON.stringify(tags));
-      if (selectedFile) formData.append("pdf", selectedFile);
-
-      const res = await fetch("/api/documents", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
+      // Step 1: Create document record via JSON (metadata only)
+      const docRes = await apiRequest("POST", "/api/documents", {
+        documentReference: data.documentReference || null,
+        title: data.title,
+        docType: data.docType,
+        taxonomy: data.taxonomy,
+        owner: data.owner,
+        reviewFrequency: data.reviewFrequency || null,
+        nextReviewDate: data.nextReviewDate || null,
+        businessUnitId: data.businessUnitId || null,
+        tags,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Upload failed" }));
-        throw new Error(err.message || "Upload failed");
+      const doc = await docRes.json();
+
+      // Step 2: If a file is selected, create a version and upload via TUS signed-URL flow
+      if (selectedFile) {
+        // Create initial draft version
+        const verRes = await apiRequest("POST", "/api/document-versions", {
+          documentId: doc.id,
+          version: "1.0",
+          status: "Draft",
+          createdBy: data.owner,
+          content: "No content",
+        });
+        const version = await verRes.json();
+
+        // Get signed upload URL
+        const urlRes = await apiRequest(
+          "POST",
+          `/api/document-versions?id=${version.id}&action=upload-url`,
+          { fileName: selectedFile.name, mimeType: selectedFile.type, fileSize: selectedFile.size }
+        );
+        const { signedUrl, token, path: objectPath, bucketId } = await urlRes.json();
+
+        // Upload via TUS
+        await uploadFileToStorage({
+          file: selectedFile,
+          signedUrl,
+          token,
+          bucketId,
+          objectPath,
+        });
+
+        // Confirm upload
+        await apiRequest(
+          "POST",
+          `/api/document-versions?id=${version.id}&action=upload-confirm`,
+          { storagePath: objectPath, fileName: selectedFile.name, fileSize: selectedFile.size }
+        );
       }
-      return res.json();
+
+      return doc;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document-versions"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Document created" });
       closeDialog();

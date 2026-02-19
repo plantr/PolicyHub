@@ -82,8 +82,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
+import { uploadFileToStorage } from "@/lib/storage";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -401,16 +402,11 @@ export default function DocumentDetail() {
 
   const addMappingMutation = useMutation({
     mutationFn: async (requirementId: number) => {
-      const res = await fetch("/api/requirement-mappings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requirementId,
-          documentId: Number(id),
-          coverageStatus: "Not Covered",
-        }),
+      const res = await apiRequest("POST", "/api/requirement-mappings", {
+        requirementId,
+        documentId: Number(id),
+        coverageStatus: "Not Covered",
       });
-      if (!res.ok) throw new Error("Failed to add mapping");
       return res.json();
     },
     onSuccess: () => {
@@ -423,8 +419,7 @@ export default function DocumentDetail() {
 
   const removeMappingMutation = useMutation({
     mutationFn: async (mappingId: number) => {
-      const res = await fetch(`/api/requirement-mappings/${mappingId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to remove mapping");
+      await apiRequest("DELETE", `/api/requirement-mappings?id=${mappingId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
@@ -439,14 +434,7 @@ export default function DocumentDetail() {
   const aiAutoMapMutation = useMutation({
     mutationFn: async () => {
       setAiAutoMapRunning(true);
-      const res = await fetch(`/api/documents/${id}/ai-map-controls`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "AI auto-map failed");
-      }
+      const res = await apiRequest("POST", `/api/ai-jobs?action=map-controls&documentId=${id}`);
       return res.json();
     },
     onSuccess: (data: { matched: number; total: number; removed?: number }) => {
@@ -470,17 +458,24 @@ export default function DocumentDetail() {
 
   const uploadMutation = useMutation({
     mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
-      const formData = new FormData();
-      formData.append("pdf", file);
-      const res = await fetch(`/api/document-versions/${versionId}/pdf`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Upload failed");
-      }
-      return res.json();
+      // Get signed upload URL
+      const urlRes = await apiRequest(
+        "POST",
+        `/api/document-versions?id=${versionId}&action=upload-url`,
+        { fileName: file.name, mimeType: file.type, fileSize: file.size }
+      );
+      const { signedUrl, token, path: objectPath, bucketId } = await urlRes.json();
+
+      // Upload via TUS
+      await uploadFileToStorage({ file, signedUrl, token, bucketId, objectPath });
+
+      // Confirm upload
+      const confirmRes = await apiRequest(
+        "POST",
+        `/api/document-versions?id=${versionId}&action=upload-confirm`,
+        { storagePath: objectPath, fileName: file.name, fileSize: file.size }
+      );
+      return confirmRes.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
@@ -495,21 +490,20 @@ export default function DocumentDetail() {
 
   const downloadMutation = useMutation({
     mutationFn: async (versionId: number) => {
-      const res = await fetch(`/api/document-versions/${versionId}/pdf/download`);
+      // Get signed download URL (JSON mode)
+      const res = await fetch(`/api/document-versions?id=${versionId}&action=download&mode=download`, {
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Download failed");
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition?.match(/filename="(.+)"/);
-      const fileName = match?.[1] || "policy.pdf";
-      const url = URL.createObjectURL(blob);
+      const { url: signedUrl } = await res.json();
       const a = window.document.createElement("a");
-      a.href = url;
-      a.download = fileName;
+      a.href = signedUrl;
+      a.target = "_blank";
       a.click();
-      URL.revokeObjectURL(url);
     },
     onSuccess: () => {},
     onError: (err: Error) => {
@@ -519,11 +513,10 @@ export default function DocumentDetail() {
 
   const deletePdfMutation = useMutation({
     mutationFn: async (versionId: number) => {
-      const res = await fetch(`/api/document-versions/${versionId}/pdf`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Delete failed");
-      }
+      const res = await apiRequest(
+        "DELETE",
+        `/api/document-versions?id=${versionId}&action=pdf`
+      );
       return res.json();
     },
     onSuccess: () => {
@@ -569,24 +562,37 @@ export default function DocumentDetail() {
 
   const createVersionMutation = useMutation({
     mutationFn: async (data: AddVersionValues) => {
-      const formData = new FormData();
-      formData.append("documentId", id!);
-      formData.append("version", data.version);
-      formData.append("status", data.status);
-      if (data.changeReason) formData.append("changeReason", data.changeReason);
-      formData.append("createdBy", data.createdBy);
-      if (data.effectiveDate) formData.append("effectiveDate", data.effectiveDate);
-      if (versionFile) formData.append("pdf", versionFile);
-      const res = await fetch(`/api/documents/${id}/versions`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
+      // Step 1: Create version record via JSON (metadata only)
+      const verRes = await apiRequest("POST", "/api/document-versions", {
+        documentId: Number(id),
+        version: data.version,
+        status: data.status,
+        changeReason: data.changeReason || null,
+        createdBy: data.createdBy,
+        effectiveDate: data.effectiveDate || null,
+        content: "No content",
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to create version" }));
-        throw new Error(err.message || "Failed to create version");
+      const version = await verRes.json();
+
+      // Step 2: If a file is attached, upload via TUS signed-URL flow
+      if (versionFile) {
+        const urlRes = await apiRequest(
+          "POST",
+          `/api/document-versions?id=${version.id}&action=upload-url`,
+          { fileName: versionFile.name, mimeType: versionFile.type, fileSize: versionFile.size }
+        );
+        const { signedUrl, token, path: objectPath, bucketId } = await urlRes.json();
+
+        await uploadFileToStorage({ file: versionFile, signedUrl, token, bucketId, objectPath });
+
+        await apiRequest(
+          "POST",
+          `/api/document-versions?id=${version.id}&action=upload-confirm`,
+          { storagePath: objectPath, fileName: versionFile.name, fileSize: versionFile.size }
+        );
       }
-      return res.json();
+
+      return version;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-versions", id] });

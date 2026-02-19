@@ -33,6 +33,7 @@ import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp } 
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
+import { uploadFileToStorage } from "@/lib/storage";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -124,7 +125,7 @@ export default function VersionDetail() {
 
   const pdfToMarkdownMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("GET", `/api/document-versions/${verId}/pdf/to-markdown`);
+      const res = await apiRequest("GET", `/api/document-versions?id=${verId}&action=to-markdown`);
       return res.json() as Promise<{ markdown: string }>;
     },
     onSuccess: (data) => {
@@ -154,23 +155,14 @@ export default function VersionDetail() {
   const saveMutation = useMutation({
     mutationFn: async (data: EditVersionValues) => {
       const currentMarkDown = form.getValues("markDown");
-      const res = await fetch(`/api/document-versions/${verId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          version: data.version,
-          status: data.status,
-          changeReason: data.changeReason || null,
-          createdBy: data.createdBy,
-          effectiveDate: data.effectiveDate || null,
-          markDown: currentMarkDown || null,
-        }),
-        credentials: "include",
+      const res = await apiRequest("PUT", `/api/document-versions?id=${verId}`, {
+        version: data.version,
+        status: data.status,
+        changeReason: data.changeReason || null,
+        createdBy: data.createdBy,
+        effectiveDate: data.effectiveDate || null,
+        markDown: currentMarkDown || null,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to update version" }));
-        throw new Error(err.message || "Failed to update version");
-      }
       return res.json();
     },
     onSuccess: () => {
@@ -184,17 +176,24 @@ export default function VersionDetail() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("pdf", file);
-      const res = await fetch(`/api/document-versions/${verId}/pdf`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Upload failed");
-      }
-      return res.json();
+      // Get signed upload URL
+      const urlRes = await apiRequest(
+        "POST",
+        `/api/document-versions?id=${verId}&action=upload-url`,
+        { fileName: file.name, mimeType: file.type, fileSize: file.size }
+      );
+      const { signedUrl, token, path: objectPath, bucketId } = await urlRes.json();
+
+      // Upload via TUS
+      await uploadFileToStorage({ file, signedUrl, token, bucketId, objectPath });
+
+      // Confirm upload
+      const confirmRes = await apiRequest(
+        "POST",
+        `/api/document-versions?id=${verId}&action=upload-confirm`,
+        { storagePath: objectPath, fileName: file.name, fileSize: file.size }
+      );
+      return confirmRes.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
@@ -207,21 +206,20 @@ export default function VersionDetail() {
 
   const downloadMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/document-versions/${verId}/pdf/download`);
+      // Get signed download URL (JSON mode)
+      const res = await fetch(`/api/document-versions?id=${verId}&action=download&mode=download`, {
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Download failed");
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition?.match(/filename="(.+)"/);
-      const fileName = match?.[1] || "policy.pdf";
-      const url = URL.createObjectURL(blob);
+      const { url: signedUrl } = await res.json();
       const a = window.document.createElement("a");
-      a.href = url;
-      a.download = fileName;
+      a.href = signedUrl;
+      a.target = "_blank";
       a.click();
-      URL.revokeObjectURL(url);
     },
     onSuccess: () => {},
     onError: (err: Error) => {
@@ -231,11 +229,7 @@ export default function VersionDetail() {
 
   const deletePdfMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/document-versions/${verId}/pdf`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Delete failed");
-      }
+      const res = await apiRequest("DELETE", `/api/document-versions?id=${verId}&action=pdf`);
       return res.json();
     },
     onSuccess: () => {
