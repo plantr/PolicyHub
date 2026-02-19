@@ -81,7 +81,7 @@ Each task was committed atomically:
 1. **Task 1: Template A policies — BU-scoped tables (18 tables)** - `b1726b2` (feat)
 2. **Task 2: Template B, C, D policies — reference, special, and audit tables** - `b1726b2` (feat — included in same commit; single file written atomically)
 
-**Plan metadata:** TBD after SUMMARY commit
+**Plan metadata:** `e05df94` (docs: complete RLS policies plan)
 
 ## Files Created/Modified
 
