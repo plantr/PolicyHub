@@ -1165,9 +1165,14 @@ Respond in exactly this JSON format:
       }
 
       const docSummaries: string[] = [];
+      let maxIndividualScore = 0;
       for (const mapping of controlMappings) {
         const document = await storage.getDocument(mapping.documentId!);
         if (!document) continue;
+
+        if (mapping.aiMatchScore !== null && mapping.aiMatchScore !== undefined && mapping.aiMatchScore > maxIndividualScore) {
+          maxIndividualScore = mapping.aiMatchScore;
+        }
 
         const versions = await db.select().from(documentVersions)
           .where(eq(documentVersions.documentId, mapping.documentId!));
@@ -1175,7 +1180,9 @@ Respond in exactly this JSON format:
         const docContent = latestVersion?.markDown || "";
         const truncated = docContent.slice(0, 4000);
 
-        docSummaries.push(`--- DOCUMENT: ${document.title} (${document.docType}) ---\n${truncated || "(No content available)"}`);
+        const scoreNote = mapping.aiMatchScore !== null && mapping.aiMatchScore !== undefined
+          ? ` [Individual AI score: ${mapping.aiMatchScore}%]` : "";
+        docSummaries.push(`--- DOCUMENT: ${document.title} (${document.docType})${scoreNote} ---\n${truncated || "(No content available)"}`);
       }
 
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
@@ -1183,6 +1190,10 @@ Respond in exactly this JSON format:
         apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
         baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
       });
+
+      const floorNote = maxIndividualScore > 0
+        ? `\n\nCRITICAL SCORING RULE: The highest individual document score is ${maxIndividualScore}%. Your combined score MUST be at least ${maxIndividualScore}%. The combined score can only be EQUAL TO or HIGHER than the best individual document score — never lower. Additional documents can only ADD coverage on top of the best document, they cannot reduce it.`
+        : "";
 
       const prompt = `You are a compliance analyst assessing the COMBINED coverage of a regulatory requirement across multiple policy documents.
 
@@ -1195,7 +1206,9 @@ REGULATORY REQUIREMENT:
 LINKED POLICY DOCUMENTS (${controlMappings.length} total):
 ${docSummaries.join("\n\n")}
 
-TASK: Assess how well ALL these documents TOGETHER cover the regulatory requirement. Different documents may cover different aspects, so consider their combined coverage holistically. Provide:
+TASK: Assess how well ALL these documents TOGETHER cover the regulatory requirement. The combined score should reflect the ADDITIVE coverage — each document may cover different aspects of the requirement. Start from the best individual document's coverage and determine if other documents fill any remaining gaps.${floorNote}
+
+Provide:
 1. A combined match percentage (0-100) representing how comprehensively ALL documents together address the requirement
 2. A brief rationale (2-3 sentences) explaining what aspects are well covered across the documents
 3. Specific recommendations for what gaps remain. If fully covered, say "No further action needed."
@@ -1233,6 +1246,10 @@ Respond in exactly this JSON format:
         if (scoreMatch) aiScore = Math.min(100, Math.max(0, parseInt(scoreMatch[1])));
         if (rationaleMatch) aiRationale = rationaleMatch[1];
         if (recsMatch) aiRecommendations = recsMatch[1];
+      }
+
+      if (maxIndividualScore > 0 && aiScore < maxIndividualScore) {
+        aiScore = maxIndividualScore;
       }
 
       await db.update(requirements)
