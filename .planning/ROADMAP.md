@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. An admin can assign a user to a business unit with a specific role (admin/editor/viewer) and that assignment appears in the user's JWT claims on next login
   4. All 27+ database tables have Row Level Security enabled — the query `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = false` returns zero rows
   5. A user in business unit A cannot read, write, or delete records belonging to business unit B
-**Plans:** 4/4 plans executed — COMPLETE
+**Plans:** 4/4 plans complete
 - [x] 01-01-PLAN.md — Schema migration + Drizzle driver switch (postgres.js with prepare:false)
 - [x] 01-02-PLAN.md — Enable RLS on all 33 tables + Custom Access Token Hook
 - [x] 01-03-PLAN.md — RLS policies for all 33 tables (BU-scoped, reference, special, audit)
@@ -75,7 +75,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Supabase Foundation | 4/4 | Complete | 2026-02-19 |
+| 1. Supabase Foundation | 4/4 | Complete    | 2026-02-19 |
 | 2. Storage Migration | 0/TBD | Not started | - |
 | 3. Vercel Deployment | 0/TBD | Not started | - |
 | 4. Client Migration + Cleanup | 0/TBD | Not started | - |
