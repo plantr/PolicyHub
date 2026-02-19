@@ -19,12 +19,12 @@ const externals = [
   "./vite", "./static", "../vite.config",
 ];
 
-// Collect all api/*.ts files, excluding _shared/ subdirectory and files starting with _
-const entries = readdirSync("api")
+// Collect all api-src/*.ts files, excluding _shared/ subdirectory and files starting with _
+const entries = readdirSync("api-src")
   .filter(f => f.endsWith(".ts") && !f.startsWith("_"))
-  .map(f => `api/${f}`);
+  .map(f => `api-src/${f}`);
 
-console.log(`Building ${entries.length} serverless functions:`, entries.map(e => e.replace("api/", "")));
+console.log(`Building ${entries.length} serverless functions:`, entries.map(e => e.replace("api-src/", "")));
 
 // Bundle to a temp directory
 const tmpDir = ".vercel/output/functions/_tmp";

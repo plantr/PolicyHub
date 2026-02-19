@@ -1,7 +1,6 @@
 node_modules
 dist
-api/*.js
-api/*.js.map
+api/
 .DS_Store
 server/public
 vite.config.ts.*
