@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from "lucide-react";
+import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
@@ -99,6 +99,8 @@ export default function Documents() {
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
+  const [sortColumn, setSortColumn] = useState<string>("version");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -297,8 +299,66 @@ export default function Documents() {
       }
       return true;
     });
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case "name":
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case "status": {
+          const sa = getOverallStatus(a);
+          const sb = getOverallStatus(b);
+          cmp = sa.localeCompare(sb);
+          break;
+        }
+        case "renew": {
+          const da = a.nextReviewDate ? new Date(a.nextReviewDate).getTime() : 0;
+          const db = b.nextReviewDate ? new Date(b.nextReviewDate).getTime() : 0;
+          cmp = da - db;
+          break;
+        }
+        case "version": {
+          const va = latestVersionMap.get(a.id);
+          const vb = latestVersionMap.get(b.id);
+          const na = va ? parseFloat(va.version) || 0 : 0;
+          const nb = vb ? parseFloat(vb.version) || 0 : 0;
+          cmp = na - nb;
+          break;
+        }
+        case "controls": {
+          const ca = docControlsCountMap.get(a.id) ?? 0;
+          const cb = docControlsCountMap.get(b.id) ?? 0;
+          cmp = ca - cb;
+          break;
+        }
+        case "framework": {
+          const fa = (docFrameworkMap.get(a.id) ?? []).join(", ");
+          const fb = (docFrameworkMap.get(b.id) ?? []).join(", ");
+          cmp = fa.localeCompare(fb);
+          break;
+        }
+        default:
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
     return filtered;
-  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap]);
+  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap]);
+
+  function toggleSort(col: string) {
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortColumn !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  }
 
   const totalResults = filteredDocuments.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
@@ -621,12 +681,18 @@ export default function Documents() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-name">Name</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-status">
-                    <span className="flex items-center gap-1">Overall status</span>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-name" onClick={() => toggleSort("name")}>
+                    <span className="flex items-center">Name<SortIcon col="name" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-renew">Renew by</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-version">Latest version</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-status" onClick={() => toggleSort("status")}>
+                    <span className="flex items-center">Overall status<SortIcon col="status" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-renew" onClick={() => toggleSort("renew")}>
+                    <span className="flex items-center">Renew by<SortIcon col="renew" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-version" onClick={() => toggleSort("version")}>
+                    <span className="flex items-center">Latest version<SortIcon col="version" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-approver">
                     <Tooltip>
                       <TooltipTrigger asChild><span className="cursor-default">Appr...</span></TooltipTrigger>
@@ -645,8 +711,12 @@ export default function Documents() {
                       <TooltipContent>Personnel assigned</TooltipContent>
                     </Tooltip>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls Covered</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-framework">Framework</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-controls" onClick={() => toggleSort("controls")}>
+                    <span className="flex items-center">Controls Covered<SortIcon col="controls" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-framework" onClick={() => toggleSort("framework")}>
+                    <span className="flex items-center">Framework<SortIcon col="framework" /></span>
+                  </TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
               </TableHeader>
