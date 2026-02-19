@@ -207,6 +207,23 @@ export default function Documents() {
     return map;
   }, [approvalsData]);
 
+  const publishedVersionMap = useMemo(() => {
+    const map = new Map<number, string>();
+    (versions ?? []).forEach((v) => {
+      if (v.status === "Published") map.set(v.documentId, v.version);
+    });
+    return map;
+  }, [versions]);
+
+  const docControlsCountMap = useMemo(() => {
+    const map = new Map<number, number>();
+    (mappings ?? []).forEach((m) => {
+      if (m.documentId == null) return;
+      map.set(m.documentId, (map.get(m.documentId) ?? 0) + 1);
+    });
+    return map;
+  }, [mappings]);
+
   const docFrameworkMap = useMemo(() => {
     const map = new Map<number, string[]>();
     const reqMap = new Map<number, Requirement>();
@@ -628,6 +645,8 @@ export default function Documents() {
                       <TooltipContent>Personnel assigned</TooltipContent>
                     </Tooltip>
                   </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-published">Published</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-controls">Controls</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-framework">Framework</TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
@@ -635,7 +654,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -707,6 +726,20 @@ export default function Documents() {
                         </TableCell>
                         <TableCell data-testid={`text-personnel-${doc.id}`}>
                           <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                        </TableCell>
+                        <TableCell data-testid={`text-published-${doc.id}`}>
+                          {publishedVersionMap.has(doc.id) ? (
+                            <Badge variant="secondary" className="text-xs">v{publishedVersionMap.get(doc.id)}</Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
+                        <TableCell data-testid={`text-controls-${doc.id}`}>
+                          {(docControlsCountMap.get(doc.id) ?? 0) > 0 ? (
+                            <span className="text-sm">{docControlsCountMap.get(doc.id)}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
                         </TableCell>
                         <TableCell data-testid={`text-framework-${doc.id}`}>
                           {frameworks.length > 0 ? (
