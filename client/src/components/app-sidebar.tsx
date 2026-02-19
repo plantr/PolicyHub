@@ -47,7 +47,7 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { title: "Dashboard", icon: LayoutDashboard, path: "/" },
+      { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     ],
   },
   {
@@ -146,8 +146,8 @@ export function AppSidebar() {
                   <SidebarMenu>
                     {group.items.map((item) => {
                       const isActive =
-                        item.path === "/"
-                          ? location === "/"
+                        item.path === "/dashboard"
+                          ? location === "/dashboard"
                           : item.path === "/risk-management"
                             ? location === "/risk-management"
                             : location.startsWith(item.path);
