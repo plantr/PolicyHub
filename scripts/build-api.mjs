@@ -71,6 +71,15 @@ for (const entry of entries) {
 // Clean up temp
 rmSync(tmpDir, { recursive: true, force: true });
 
+// Remove api/*.ts source files so Vercel's post-build auto-detection
+// doesn't try to create duplicate serverless functions that conflict
+// with our Build Output API structure.
+for (const entry of entries) {
+  rmSync(entry, { force: true });
+}
+rmSync("api/_shared", { recursive: true, force: true });
+console.log("Removed api/*.ts source files to prevent auto-detection conflict");
+
 // Copy frontend static assets
 const staticDir = ".vercel/output/static";
 if (existsSync("dist/public")) {
