@@ -34,7 +34,7 @@ await build({
   entryPoints: entries,
   bundle: true,
   platform: "node",
-  format: "esm",
+  format: "cjs",
   outdir: tmpDir,
   outExtension: { ".js": ".js" },
   external: externals,
@@ -50,7 +50,7 @@ await build({
 const funcBase = ".vercel/output/functions/api";
 const vcConfig = JSON.stringify({
   runtime: "nodejs22.x",
-  handler: "index.mjs",
+  handler: "index.js",
   launcherType: "Nodejs",
 }, null, 2);
 
@@ -58,8 +58,7 @@ for (const entry of entries) {
   const name = basename(entry, ".ts");
   const funcDir = `${funcBase}/${name}.func`;
   mkdirSync(funcDir, { recursive: true });
-  // Copy bundled JS as index.mjs (ESM)
-  cpSync(`${tmpDir}/${name}.js`, `${funcDir}/index.mjs`);
+  cpSync(`${tmpDir}/${name}.js`, `${funcDir}/index.js`);
   writeFileSync(`${funcDir}/.vc-config.json`, vcConfig);
 }
 
