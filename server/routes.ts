@@ -33,6 +33,7 @@ import {
   approvals, auditLog, reviewHistory, requirementMappings,
   findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  aiJobs,
 } from "@shared/schema";
 
 export async function registerRoutes(
@@ -1165,7 +1166,16 @@ export async function registerRoutes(
     res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems, contentAnalysis });
   });
 
-  // === AI MATCH ANALYSIS (single mapping) ===
+  // === AI JOB POLLING ===
+  app.get("/api/ai-jobs/:jobId", async (req, res) => {
+    const job = await db.select().from(schema.aiJobs)
+      .where(eq(schema.aiJobs.id, req.params.jobId))
+      .then(r => r[0]);
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    res.json(job);
+  });
+
+  // === AI MATCH ANALYSIS (single mapping) — dispatch-and-fire ===
   app.post("/api/gap-analysis/ai-match/:mappingId", async (req, res) => {
     try {
       const mappingId = Number(req.params.mappingId);
@@ -1181,20 +1191,148 @@ export async function registerRoutes(
 
       const versions = await db.select().from(documentVersions)
         .where(eq(documentVersions.documentId, mapping.documentId));
-      const latestVersion = versions.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+      const latestVersion = versions.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
       const docContent = latestVersion?.markDown || "";
 
       if (!docContent || docContent.length < 20) {
         return res.status(400).json({ message: "Document has no content to analyse" });
       }
 
+      // Create job record
+      const [job] = await db.insert(schema.aiJobs).values({
+        jobType: 'ai-match',
+        entityId: mappingId,
+        status: 'pending',
+        progressMessage: 'Queued for analysis...',
+      }).returning();
+
+      // Fire-and-forget — do NOT await
+      processAiMatchJob(job.id, mappingId).catch(err => {
+        console.error('AI match job processing error:', err);
+      });
+
+      res.json({ jobId: job.id, status: 'pending' });
+    } catch (err: any) {
+      console.error("AI match analysis error:", err);
+      res.status(500).json({ message: err.message || "AI analysis failed" });
+    }
+  });
+
+  // === AI COMBINED COVERAGE ANALYSIS (all linked documents for a control) — dispatch-and-fire ===
+  app.post("/api/requirements/:id/ai-coverage", async (req, res) => {
+    try {
+      const requirementId = Number(req.params.id);
+      const requirement = await storage.getRequirement(requirementId);
+      if (!requirement) return res.status(404).json({ message: "Requirement not found" });
+
+      const allMappings = await storage.getRequirementMappings();
+      const controlMappings = allMappings.filter((m) => m.requirementId === requirementId && m.documentId);
+
+      if (controlMappings.length === 0) {
+        return res.status(400).json({ message: "No documents linked to this control" });
+      }
+
+      // Create job record
+      const [job] = await db.insert(schema.aiJobs).values({
+        jobType: 'ai-coverage',
+        entityId: requirementId,
+        status: 'pending',
+        progressMessage: 'Queued for analysis...',
+      }).returning();
+
+      // Fire-and-forget — do NOT await
+      processAiCoverageJob(job.id, requirementId).catch(err => {
+        console.error('AI coverage job processing error:', err);
+      });
+
+      res.json({ jobId: job.id, status: 'pending' });
+    } catch (err: any) {
+      console.error("AI combined coverage error:", err);
+      res.status(500).json({ message: err.message || "AI analysis failed" });
+    }
+  });
+
+  // === AI AUTO-MAP DOCUMENT TO CONTROLS — dispatch-and-fire ===
+  app.post("/api/documents/:id/ai-map-controls", async (req, res) => {
+    try {
+      const docId = Number(req.params.id);
+      const document = await storage.getDocument(docId);
+      if (!document) return res.status(404).json({ message: "Document not found" });
+
+      const allVersions = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, docId));
+      const publishedVersion = allVersions.find((v) => v.status === "Published");
+      if (!publishedVersion) return res.status(400).json({ message: "No published version found" });
+
+      const docContent = publishedVersion.markDown || "";
+      if (!docContent || docContent.length < 20) {
+        return res.status(400).json({ message: "Published version has no content to analyse" });
+      }
+
+      const allRequirements = await storage.getRequirements();
+      const existingMappings = await storage.getRequirementMappings();
+      const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
+      const aiVerifiedIds = new Set(
+        existingDocMappings.filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60).map((m) => m.requirementId)
+      );
+      const unmappedRequirements = allRequirements.filter((r) => !aiVerifiedIds.has(r.id));
+
+      if (unmappedRequirements.length === 0) {
+        return res.json({ message: "All controls are already mapped", matched: 0, total: 0, mappings: [] });
+      }
+
+      // Create job record
+      const [job] = await db.insert(schema.aiJobs).values({
+        jobType: 'ai-map-controls',
+        entityId: docId,
+        status: 'pending',
+        progressMessage: 'Queued for analysis...',
+      }).returning();
+
+      // Fire-and-forget — do NOT await
+      processAiMapControlsJob(job.id, docId).catch(err => {
+        console.error('AI map-controls job processing error:', err);
+      });
+
+      res.json({ jobId: job.id, status: 'pending' });
+    } catch (err: any) {
+      console.error("AI auto-map error:", err);
+      res.status(500).json({ message: err.message || "AI auto-map failed" });
+    }
+  });
+
+  // ============================================================
+  // AI PROCESSOR FUNCTIONS (fire-and-forget background workers)
+  // ============================================================
+
+  async function processAiMatchJob(jobId: string, mappingId: number) {
+    try {
+      await db.update(schema.aiJobs).set({
+        status: 'processing',
+        progressMessage: 'Analyzing requirement-document match...',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
+
+      const mapping = await db.select().from(requirementMappings).where(eq(requirementMappings.id, mappingId)).then(r => r[0]);
+      if (!mapping || !mapping.documentId) throw new Error("Mapping not found or has no document");
+
+      const requirement = await storage.getRequirement(mapping.requirementId);
+      if (!requirement) throw new Error("Requirement not found");
+
+      const document = await storage.getDocument(mapping.documentId);
+      if (!document) throw new Error("Document not found");
+
+      const versions = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, mapping.documentId));
+      const latestVersion = versions.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
+      const docContent = latestVersion?.markDown || "";
+      const truncatedContent = docContent.slice(0, 8000);
+
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
       const anthropic = new Anthropic({
         apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
         baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
       });
-
-      const truncatedContent = docContent.slice(0, 8000);
 
       const prompt = `You are a compliance analyst reviewing whether a policy document adequately covers a regulatory requirement.
 
@@ -1254,26 +1392,41 @@ Respond in exactly this JSON format:
         .set({ aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations })
         .where(eq(requirementMappings.id, mappingId));
 
-      res.json({ mappingId, aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations });
+      await db.update(schema.aiJobs).set({
+        status: 'completed',
+        result: { aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations },
+        progressMessage: 'Analysis complete',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     } catch (err: any) {
-      console.error("AI match analysis error:", err);
-      res.status(500).json({ message: err.message || "AI analysis failed" });
+      await db.update(schema.aiJobs).set({
+        status: 'failed',
+        errorMessage: err.message || 'AI match analysis failed',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     }
-  });
+  }
 
-  // === AI COMBINED COVERAGE ANALYSIS (all linked documents for a control) ===
-  app.post("/api/requirements/:id/ai-coverage", async (req, res) => {
+  async function processAiCoverageJob(jobId: string, requirementId: number) {
     try {
-      const requirementId = Number(req.params.id);
+      await db.update(schema.aiJobs).set({
+        status: 'processing',
+        progressMessage: 'Gathering linked documents...',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
+
       const requirement = await storage.getRequirement(requirementId);
-      if (!requirement) return res.status(404).json({ message: "Requirement not found" });
+      if (!requirement) throw new Error("Requirement not found");
 
       const allMappings = await storage.getRequirementMappings();
       const controlMappings = allMappings.filter((m) => m.requirementId === requirementId && m.documentId);
 
-      if (controlMappings.length === 0) {
-        return res.status(400).json({ message: "No documents linked to this control" });
-      }
+      if (controlMappings.length === 0) throw new Error("No documents linked to this control");
+
+      await db.update(schema.aiJobs).set({
+        progressMessage: 'Analyzing coverage across all linked documents...',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
 
       const docSummaries: string[] = [];
       let maxIndividualScore = 0;
@@ -1287,7 +1440,7 @@ Respond in exactly this JSON format:
 
         const versions = await db.select().from(documentVersions)
           .where(eq(documentVersions.documentId, mapping.documentId!));
-        const latestVersion = versions.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+        const latestVersion = versions.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
         const docContent = latestVersion?.markDown || "";
         const truncated = docContent.slice(0, 4000);
 
@@ -1367,29 +1520,39 @@ Respond in exactly this JSON format:
         .set({ combinedAiScore: aiScore, combinedAiRationale: aiRationale, combinedAiRecommendations: aiRecommendations })
         .where(eq(requirements.id, requirementId));
 
-      res.json({ requirementId, combinedAiScore: aiScore, combinedAiRationale: aiRationale, combinedAiRecommendations: aiRecommendations });
+      await db.update(schema.aiJobs).set({
+        status: 'completed',
+        result: { requirementId, combinedAiScore: aiScore, combinedAiRationale: aiRationale, combinedAiRecommendations: aiRecommendations },
+        progressMessage: 'Analysis complete',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     } catch (err: any) {
-      console.error("AI combined coverage error:", err);
-      res.status(500).json({ message: err.message || "AI analysis failed" });
+      await db.update(schema.aiJobs).set({
+        status: 'failed',
+        errorMessage: err.message || 'AI coverage analysis failed',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     }
-  });
+  }
 
-  // === AI AUTO-MAP DOCUMENT TO CONTROLS ===
-  app.post("/api/documents/:id/ai-map-controls", async (req, res) => {
+  async function processAiMapControlsJob(jobId: string, docId: number) {
     try {
-      const docId = Number(req.params.id);
+      await db.update(schema.aiJobs).set({
+        status: 'processing',
+        progressMessage: 'Loading document and requirements...',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
+
       const document = await storage.getDocument(docId);
-      if (!document) return res.status(404).json({ message: "Document not found" });
+      if (!document) throw new Error("Document not found");
 
       const allVersions = await db.select().from(documentVersions)
         .where(eq(documentVersions.documentId, docId));
       const publishedVersion = allVersions.find((v) => v.status === "Published");
-      if (!publishedVersion) return res.status(400).json({ message: "No published version found" });
+      if (!publishedVersion) throw new Error("No published version found");
 
       const docContent = publishedVersion.markDown || "";
-      if (!docContent || docContent.length < 20) {
-        return res.status(400).json({ message: "Published version has no content to analyse" });
-      }
+      if (!docContent || docContent.length < 20) throw new Error("Published version has no content to analyse");
 
       const allRequirements = await storage.getRequirements();
       const existingMappings = await storage.getRequirementMappings();
@@ -1400,7 +1563,13 @@ Respond in exactly this JSON format:
       const unmappedRequirements = allRequirements.filter((r) => !aiVerifiedIds.has(r.id));
 
       if (unmappedRequirements.length === 0) {
-        return res.json({ message: "All controls are already mapped", matched: 0, total: 0, mappings: [] });
+        await db.update(schema.aiJobs).set({
+          status: 'completed',
+          result: { message: "All controls are already mapped", matched: 0, total: 0, mappings: [] },
+          progressMessage: 'All controls already mapped',
+          updatedAt: new Date(),
+        }).where(eq(schema.aiJobs.id, jobId));
+        return;
       }
 
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
@@ -1418,7 +1587,15 @@ Respond in exactly this JSON format:
 
       const newMappings: Array<{ requirementId: number; score: number; rationale: string; recommendations: string }> = [];
 
-      for (const batch of batches) {
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+
+        // Update progress per batch
+        await db.update(schema.aiJobs).set({
+          progressMessage: `Analyzing batch ${i + 1} of ${batches.length}...`,
+          updatedAt: new Date(),
+        }).where(eq(schema.aiJobs.id, jobId));
+
         const reqList = batch.map((r) =>
           `ID:${r.id} | Code:${r.code} | Title:${r.title} | Description:${(r.description || "N/A").slice(0, 200)}`
         ).join("\n");
@@ -1530,17 +1707,25 @@ If no requirements match at 60% or above, return an empty array: []`;
         }
       }
 
-      res.json({
-        matched: resultMappings.length,
-        total: unmappedRequirements.length,
-        removed: removedCount,
-        mappings: resultMappings,
-      });
+      await db.update(schema.aiJobs).set({
+        status: 'completed',
+        result: {
+          matched: resultMappings.length,
+          total: unmappedRequirements.length,
+          removed: removedCount,
+          mappings: resultMappings,
+        },
+        progressMessage: `Mapped ${resultMappings.length} controls`,
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     } catch (err: any) {
-      console.error("AI auto-map error:", err);
-      res.status(500).json({ message: err.message || "AI auto-map failed" });
+      await db.update(schema.aiJobs).set({
+        status: 'failed',
+        errorMessage: err.message || 'AI auto-map failed',
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
     }
-  });
+  }
 
   // === FINDINGS ===
   app.get(api.findings.list.path, async (_req, res) => {
