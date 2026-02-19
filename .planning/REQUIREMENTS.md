@@ -54,8 +54,8 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 ### Serverless Functions
 
 - [x] **FUNC-01**: AI analysis endpoints migrated to Vercel Serverless Functions (Node 22.x runtime)
-- [ ] **FUNC-02**: `maxDuration` configured for long-running AI calls (Anthropic API)
-- [ ] **FUNC-03**: Serverless functions use Supabase service role client for database access
+- [x] **FUNC-02**: `maxDuration` configured for long-running AI calls (Anthropic API)
+- [x] **FUNC-03**: Serverless functions use Supabase service role client for database access
 - [x] **FUNC-04**: Serverless functions use pooled connection string (port 6543) for Drizzle queries
 
 ### Client Migration
@@ -129,8 +129,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | DEPL-05 | Phase 3 | Complete |
 | DEPL-06 | Phase 3 | Complete |
 | FUNC-01 | Phase 3 | Complete |
-| FUNC-02 | Phase 3 | Pending |
-| FUNC-03 | Phase 3 | Pending |
+| FUNC-02 | Phase 3 | Complete |
+| FUNC-03 | Phase 3 | Complete |
 | FUNC-04 | Phase 3 | Complete |
 | CLNT-01 | Phase 4 | Pending |
 | CLNT-02 | Phase 4 | Pending |

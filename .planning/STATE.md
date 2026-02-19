@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 3 of 4 (Vercel Deployment)
-Plan: 1 of 3 in current phase — COMPLETE
-Status: Phase 3 in progress (1/3 plans complete)
-Last activity: 2026-02-19 — Completed Plan 03-01 (Vercel project config, Express default export, Replit plugin isolation, env documentation)
+Plan: 2 of 3 in current phase — COMPLETE
+Status: Phase 3 in progress (2/3 plans complete)
+Last activity: 2026-02-19 — Completed Plan 03-02 (AI background job queue with fire-and-forget dispatch pattern, ai_jobs Supabase table, polling endpoint, useAiJob hook)
 
-Progress: [█████████░] 50%
+Progress: [█████████░] 58%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 4 min
-- Total execution time: 25 min
+- Total execution time: 29 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [█████████░] 50%
 |-------|-------|-------|----------|
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
-| 03-vercel-deployment | 1/3 | 2 min | 2 min |
+| 03-vercel-deployment | 2/3 | 6 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -72,6 +72,9 @@ Recent decisions affecting current work:
 - 03-01: SPA rewrite uses negative lookahead /((?!api/).*) — excludes /api/* from catch-all so Vercel Express handles API routes
 - 03-01: registerRoutes() Promise intentionally ignored — async declaration is vestigial, registration is synchronous
 - 03-01: All Replit Vite plugins isolated behind REPL_ID guard with dynamic imports — prevents build failures outside Replit
+- 03-02: AI processor functions defined as nested async functions inside registerRoutes — co-located with routes, avoids hoisting issues
+- 03-02: ai_jobs SELECT policy uses USING (true) — short-lived operational records, not BU-scoped; all writes via service role
+- 03-02: Document versions sorted by createdAt instead of versionNumber (non-existent field) — pre-existing silent bug fixed during refactor
 
 ### Pending Todos
 
@@ -79,10 +82,10 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- [Research]: Batch AI auto-mapping endpoint timeout budget unknown — validate against real deployment before committing to streaming vs async job queue architecture
+None
 
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 03-01-PLAN.md — Vercel project config, Express default export, Replit plugin isolation, env documentation
-Resume file: .planning/phases/03-vercel-deployment/03-02-PLAN.md
+Stopped at: Completed 03-02-PLAN.md — AI background job queue with fire-and-forget dispatch pattern, ai_jobs Supabase table, polling endpoint, useAiJob hook
+Resume file: .planning/phases/03-vercel-deployment/03-03-PLAN.md
