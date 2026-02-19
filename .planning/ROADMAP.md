@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Supabase Foundation** - Provision Supabase, migrate schema, wire up email/password auth, deploy RLS policies on all 27+ tables
 - [ ] **Phase 2: Storage Migration** - Create private PDF bucket, write storage.objects RLS policies, implement signed upload/download URLs
-- [ ] **Phase 3: Vercel Deployment** - Deploy SPA and serverless functions to Vercel, configure connection pooling, AI timeouts, and environment variables
+- [x] **Phase 3: Vercel Deployment** - Deploy SPA and serverless functions to Vercel, configure connection pooling, AI timeouts, and environment variables
 - [ ] **Phase 4: Client Migration + Cleanup** - Replace Express API calls with Supabase client reads, build auth UI, remove all Replit/Passport/S3 legacy code
 
 ## Phase Details
@@ -57,10 +57,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. AI analysis endpoints respond correctly under the Vercel Functions runtime with no timeout errors for typical analysis workloads
   3. Environment variables (Supabase URL, anon key, service role key, Anthropic key) are available in the correct context — VITE_ prefixed vars accessible client-side, secret vars server-side only
   4. Preview deployments are created automatically for each branch/PR
-**Plans:** 3 plans
-- [ ] 03-01-PLAN.md — Vercel project configuration + Express server adaptation (vercel.json, vite.config.ts, server/index.ts, .env.example)
-- [ ] 03-02-PLAN.md — AI background job queue + polling infrastructure (ai_jobs table, dispatch-and-fire endpoints, useAiJob hook)
-- [ ] 03-03-PLAN.md — Build validation + Vercel deployment verification checkpoint
+**Plans:** 3/3 plans complete
+- [x] 03-01-PLAN.md — Vercel project configuration + Express server adaptation (vercel.json, vite.config.ts, server/index.ts, .env.example)
+- [x] 03-02-PLAN.md — AI background job queue + polling infrastructure (ai_jobs table, dispatch-and-fire endpoints, useAiJob hook)
+- [x] 03-03-PLAN.md — Build validation + Vercel deployment verification checkpoint
 
 ### Phase 4: Client Migration + Cleanup
 **Goal**: The React frontend reads data directly from Supabase, auth flows through Supabase Auth UI, and all Replit, Passport.js, and S3 legacy code is removed from the codebase
@@ -82,5 +82,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Supabase Foundation | 4/4 | Complete    | 2026-02-19 |
 | 2. Storage Migration | 1/2 | In Progress|  |
-| 3. Vercel Deployment | 0/3 | Not started | - |
+| 3. Vercel Deployment | 3/3 | Complete | 2026-02-19 |
 | 4. Client Migration + Cleanup | 0/TBD | Not started | - |

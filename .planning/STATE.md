@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Get Policy Hub running on Supabase + Vercel with business-unit-scoped access control
-**Current focus:** Phase 3 — Vercel Deployment
+**Current focus:** Phase 4 — Client Migration + Cleanup
 
 ## Current Position
 
-Phase: 3 of 4 (Vercel Deployment)
-Plan: 2 of 3 in current phase — COMPLETE
-Status: Phase 3 in progress (2/3 plans complete)
-Last activity: 2026-02-19 — Completed Plan 03-02 (AI background job queue with fire-and-forget dispatch pattern, ai_jobs Supabase table, polling endpoint, useAiJob hook)
+Phase: 4 of 4 (Client Migration + Cleanup)
+Plan: Not yet planned
+Status: Phase 3 complete, Phase 4 not started
+Last activity: 2026-02-19 — Phase 3 verified and approved (SPA live at policy-hub-lovat.vercel.app, API returning JSON, env vars configured)
 
-Progress: [█████████░] 58%
+Progress: [█████████░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 4 min
-- Total execution time: 29 min
+- Total plans completed: 9
+- Average duration: 7 min
+- Total execution time: 56 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [█████████░] 58%
 |-------|-------|-------|----------|
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
 | 02-storage-migration | 2/4 | 5 min | 3 min |
-| 03-vercel-deployment | 2/3 | 6 min | 3 min |
+| 03-vercel-deployment | 3/3 | 31 min | 10 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -79,6 +79,7 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Configure custom SMTP before Phase 2: Supabase Dashboard > Project Settings > Auth > SMTP > Enable Custom SMTP (required for invite and password-reset email delivery)
+- Connect GitHub repo to Vercel for automatic preview deployments (DEPL-05 — platform config, not code gap)
 
 ### Blockers/Concerns
 
@@ -87,5 +88,5 @@ None
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 03-02-PLAN.md — AI background job queue with fire-and-forget dispatch pattern, ai_jobs Supabase table, polling endpoint, useAiJob hook
-Resume file: .planning/phases/03-vercel-deployment/03-03-PLAN.md
+Stopped at: Phase 3 complete — Vercel deployment verified and approved
+Resume file: Phase 4 — run /gsd:plan-phase 4
