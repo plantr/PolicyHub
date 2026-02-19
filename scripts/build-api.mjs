@@ -62,12 +62,16 @@ const vcConfig = JSON.stringify({
   launcherType: "Nodejs",
 }, null, 2);
 
+// Override project root "type": "module" so Node.js treats our CJS bundles correctly
+const pkgJson = JSON.stringify({ "type": "commonjs" });
+
 for (const entry of entries) {
   const name = basename(entry, ".ts");
   const funcDir = `${funcBase}/${name}.func`;
   mkdirSync(funcDir, { recursive: true });
   cpSync(`${tmpDir}/${name}.js`, `${funcDir}/index.js`);
   writeFileSync(`${funcDir}/.vc-config.json`, vcConfig);
+  writeFileSync(`${funcDir}/package.json`, pkgJson);
 }
 
 // Clean up temp
