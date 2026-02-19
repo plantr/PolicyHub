@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, unique, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -487,6 +487,22 @@ export const documentStatuses = pgTable("document_statuses", {
 });
 
 // =============================================
+// AI JOB QUEUE
+// =============================================
+
+export const aiJobs = pgTable("ai_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  jobType: text("job_type").notNull(),  // 'ai-match', 'ai-coverage', 'ai-map-controls'
+  entityId: integer("entity_id").notNull(),  // mappingId, requirementId, or documentId
+  status: text("status").notNull().default("pending"),  // 'pending', 'processing', 'completed', 'failed'
+  progressMessage: text("progress_message"),
+  result: jsonb("result"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// =============================================
 // INSERT SCHEMAS
 // =============================================
 
@@ -521,6 +537,7 @@ export const insertRiskCategorySchema = createInsertSchema(riskCategories).omit(
 export const insertImpactLevelSchema = createInsertSchema(impactLevels).omit({ id: true });
 export const insertLikelihoodLevelSchema = createInsertSchema(likelihoodLevels).omit({ id: true });
 export const insertUserBusinessUnitSchema = createInsertSchema(userBusinessUnits).omit({ id: true, createdAt: true });
+export const insertAiJobSchema = createInsertSchema(aiJobs);
 
 // =============================================
 // SELECT TYPES
