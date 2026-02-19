@@ -76,6 +76,9 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Sparkles,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -217,6 +220,8 @@ export default function DocumentDetail() {
   const [mappedCodeFilter, setMappedCodeFilter] = useState("all");
   const [mappedPage, setMappedPage] = useState(1);
   const [mappedPageSize, setMappedPageSize] = useState(5);
+  const [mappedSortCol, setMappedSortCol] = useState<string>("aiMatch");
+  const [mappedSortDir, setMappedSortDir] = useState<"asc" | "desc">("desc");
 
   const [mapControlOpen, setMapControlOpen] = useState(false);
   const [mapSearch, setMapSearch] = useState("");
@@ -243,9 +248,47 @@ export default function DocumentDetail() {
     });
   }, [docMappings, reqMap, sourceMap, mappedFrameworkFilter, mappedCodeFilter, mappedSearch]);
 
-  const mappedTotal = filteredMappings.length;
+  const sortedMappings = useMemo(() => {
+    const sorted = [...filteredMappings];
+    sorted.sort((a, b) => {
+      let va: any, vb: any;
+      const reqA = reqMap.get(a.requirementId);
+      const reqB = reqMap.get(b.requirementId);
+      switch (mappedSortCol) {
+        case "control":
+          va = (reqA?.title ?? "").toLowerCase();
+          vb = (reqB?.title ?? "").toLowerCase();
+          break;
+        case "framework":
+          va = (reqA ? sourceMap.get(reqA.sourceId)?.shortName ?? "" : "").toLowerCase();
+          vb = (reqB ? sourceMap.get(reqB.sourceId)?.shortName ?? "" : "").toLowerCase();
+          break;
+        case "aiMatch":
+          va = a.aiMatchScore ?? -1;
+          vb = b.aiMatchScore ?? -1;
+          break;
+        case "rationale":
+          va = (a.rationale ?? "").toLowerCase();
+          vb = (b.rationale ?? "").toLowerCase();
+          break;
+        case "coverage":
+          const order: Record<string, number> = { "Covered": 0, "Partially Covered": 1, "Not Covered": 2 };
+          va = order[a.coverageStatus] ?? 3;
+          vb = order[b.coverageStatus] ?? 3;
+          break;
+        default:
+          return 0;
+      }
+      if (va < vb) return mappedSortDir === "asc" ? -1 : 1;
+      if (va > vb) return mappedSortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [filteredMappings, mappedSortCol, mappedSortDir, reqMap, sourceMap]);
+
+  const mappedTotal = sortedMappings.length;
   const mappedTotalPages = Math.max(1, Math.ceil(mappedTotal / mappedPageSize));
-  const mappedPaginated = filteredMappings.slice((mappedPage - 1) * mappedPageSize, mappedPage * mappedPageSize);
+  const mappedPaginated = sortedMappings.slice((mappedPage - 1) * mappedPageSize, mappedPage * mappedPageSize);
   const mappedStart = mappedTotal === 0 ? 0 : (mappedPage - 1) * mappedPageSize + 1;
   const mappedEnd = Math.min(mappedPage * mappedPageSize, mappedTotal);
 
@@ -275,6 +318,21 @@ export default function DocumentDetail() {
     setMappedFrameworkFilter("all");
     setMappedCodeFilter("all");
     setMappedPage(1);
+  }
+
+  function toggleMappedSort(col: string) {
+    if (mappedSortCol === col) {
+      setMappedSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setMappedSortCol(col);
+      setMappedSortDir(col === "aiMatch" ? "desc" : "asc");
+    }
+    setMappedPage(1);
+  }
+
+  function MappedSortIcon({ col }: { col: string }) {
+    if (mappedSortCol !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return mappedSortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
   }
 
   const alreadyMappedReqIds = useMemo(() => {
@@ -866,11 +924,21 @@ export default function DocumentDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-control">Control</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-frameworks">Frameworks</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-ai-match">AI Match</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-rationale">Rationale</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-coverage">Coverage</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-control" onClick={() => toggleMappedSort("control")}>
+                    <span className="inline-flex items-center">Control<MappedSortIcon col="control" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-frameworks" onClick={() => toggleMappedSort("framework")}>
+                    <span className="inline-flex items-center">Frameworks<MappedSortIcon col="framework" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-ai-match" onClick={() => toggleMappedSort("aiMatch")}>
+                    <span className="inline-flex items-center">AI Match<MappedSortIcon col="aiMatch" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-rationale" onClick={() => toggleMappedSort("rationale")}>
+                    <span className="inline-flex items-center">Rationale<MappedSortIcon col="rationale" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-coverage" onClick={() => toggleMappedSort("coverage")}>
+                    <span className="inline-flex items-center">Coverage<MappedSortIcon col="coverage" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
