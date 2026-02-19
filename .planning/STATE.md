@@ -10,25 +10,25 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 2 of 4 (Storage Migration)
-Plan: 1 of 4 in current phase — COMPLETE
-Status: Phase 2 in progress (1/4 plans complete)
-Last activity: 2026-02-19 — Completed Plan 02-01 (Storage buckets SQL migrations + TypeScript service module)
+Plan: 2 of 4 in current phase — COMPLETE
+Status: Phase 2 in progress (2/4 plans complete)
+Last activity: 2026-02-19 — Completed Plan 02-02 (Route migration to Supabase Storage signed URLs + client TUS upload utility)
 
-Progress: [███████░░░] 31%
+Progress: [████████░░] 38%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 4 min
-- Total execution time: 21 min
+- Total execution time: 25 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-supabase-foundation | 4/4 | 20 min | 5 min |
-| 02-storage-migration | 1/4 | 1 min | 1 min |
+| 02-storage-migration | 2/4 | 5 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min, 2 min, 3 min, 20 min (with human checkpoint), 1 min
@@ -64,6 +64,9 @@ Recent decisions affecting current work:
 - 02-01: No UPDATE policy on storage.objects — files are immutable; version suffix pattern handles updates as new uploads
 - 02-01: SIGNED_URL_EXPIRY = 3600s (1 hour) — sufficient for a reading/review session
 - 02-01: resolveFilename uses prefix listing rather than error-based retry for conflict detection
+- 02-02: Legacy inline multer upload routes retained during Phase 2/3 transition — Phase 4 switches clients to signed URL TUS flow
+- 02-02: Download route uses Accept header for backward compatibility — JSON clients get { url, expiresIn }; legacy clients get 302 redirect
+- 02-02: BU creation wraps bucket provisioning in try/catch with warn-on-fail — BU record creation not blocked by storage failures
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 02-01-PLAN.md — Storage foundation (buckets + RLS migrations + TypeScript service module)
-Resume file: .planning/phases/02-storage-migration/02-02-PLAN.md
+Stopped at: Completed 02-02-PLAN.md — Route migration to Supabase Storage signed URLs + client TUS upload utility
+Resume file: .planning/phases/02-storage-migration/02-03-PLAN.md

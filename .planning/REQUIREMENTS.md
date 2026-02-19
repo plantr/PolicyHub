@@ -39,8 +39,8 @@ Requirements for initial deployment to Supabase + Vercel. Each maps to roadmap p
 - [x] **STOR-02**: Server-generated signed upload URLs allow client to upload PDFs directly to Supabase Storage
 - [x] **STOR-03**: Signed download URLs generated for authenticated PDF access
 - [x] **STOR-04**: RLS policies on `storage.objects` scope PDF access by business unit
-- [ ] **STOR-05**: Resumable uploads via TUS protocol enabled for PDFs over 6 MB
-- [ ] **STOR-06**: Existing S3 upload/download code in `server/s3.ts` replaced with Supabase Storage equivalents
+- [x] **STOR-05**: Resumable uploads via TUS protocol enabled for PDFs over 6 MB
+- [x] **STOR-06**: Existing S3 upload/download code in `server/s3.ts` replaced with Supabase Storage equivalents
 
 ### Deployment
 
@@ -120,8 +120,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | STOR-02 | Phase 2 | Complete |
 | STOR-03 | Phase 2 | Complete |
 | STOR-04 | Phase 2 | Complete |
-| STOR-05 | Phase 2 | Pending |
-| STOR-06 | Phase 2 | Pending |
+| STOR-05 | Phase 2 | Complete |
+| STOR-06 | Phase 2 | Complete |
 | DEPL-01 | Phase 3 | Pending |
 | DEPL-02 | Phase 3 | Pending |
 | DEPL-03 | Phase 3 | Pending |
