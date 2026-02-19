@@ -405,7 +405,8 @@ export default function Requirements() {
                   centerLabel={`${stats.total > 0 ? Math.round(((stats.coveredCount + stats.partialCount) / stats.total) * 100) : 0}%`}
                   centerSub="Assigned"
                   segments={[
-                    { value: stats.coveredCount + stats.partialCount, className: "text-purple-500 dark:text-purple-400" },
+                    { value: stats.coveredCount, className: "text-purple-500 dark:text-purple-400" },
+                    { value: stats.partialCount, className: "text-amber-500 dark:text-amber-400" },
                     { value: stats.notCoveredCount, className: "text-muted" },
                   ]}
                 />
