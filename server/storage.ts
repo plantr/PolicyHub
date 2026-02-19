@@ -58,6 +58,7 @@ export interface IStorage {
   updateDocument(id: number, doc: UpdateDocumentRequest): Promise<Document | undefined>;
   deleteDocument(id: number): Promise<void>;
 
+  getAllDocumentVersions(): Promise<DocumentVersion[]>;
   getDocumentVersions(documentId: number): Promise<DocumentVersion[]>;
   getDocumentVersion(id: number): Promise<DocumentVersion | undefined>;
   createDocumentVersion(version: CreateDocumentVersionRequest): Promise<DocumentVersion>;
@@ -246,6 +247,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(documents).where(eq(documents.id, id));
   }
 
+  async getAllDocumentVersions(): Promise<DocumentVersion[]> {
+    return await db.select().from(documentVersions);
+  }
   async getDocumentVersions(documentId: number): Promise<DocumentVersion[]> {
     return await db.select().from(documentVersions).where(eq(documentVersions.documentId, documentId));
   }

@@ -695,8 +695,13 @@ export default function Documents() {
                         <TableCell data-testid={`text-version-${doc.id}`}>
                           {latestVer ? (
                             <span className="flex items-center gap-1.5 text-sm">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-                              <span className="text-emerald-600 dark:text-emerald-400">{latestVer.status}</span>
+                              {latestVer.status === "Published" ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                              ) : null}
+                              <span className={latestVer.status === "Published" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                                v{latestVer.version}
+                              </span>
+                              <span className="text-xs text-muted-foreground">({latestVer.status})</span>
                             </span>
                           ) : (
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>

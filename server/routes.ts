@@ -257,6 +257,9 @@ export async function registerRoutes(
   });
 
   // === DOCUMENT VERSIONS ===
+  app.get("/api/document-versions", async (_req, res) => {
+    res.json(await storage.getAllDocumentVersions());
+  });
   app.get(api.documentVersions.list.path, async (req, res) => {
     res.json(await storage.getDocumentVersions(Number(req.params.documentId)));
   });
