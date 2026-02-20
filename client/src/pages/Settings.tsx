@@ -53,7 +53,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
   const config = ADMIN_CATEGORIES[slug];
   const pageTitle = config?.label ?? slug;
   const singular = config?.singular ?? "Item";
-  const apiBase = `/api/admin/${slug}`;
+  const apiBase = `/api/admin?table=${slug}`;
   const tableName = SLUG_TO_TABLE[slug] ?? slug.replace(/-/g, "_");
   const hasValue = !TABLES_WITHOUT_VALUE.includes(slug);
 
@@ -103,7 +103,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<AdminFormValues> }) => {
       const payload = hasValue ? data : { label: data.label, sortOrder: data.sortOrder, active: data.active };
-      const res = await apiRequest("PUT", `${apiBase}/${id}`, payload);
+      const res = await apiRequest("PUT", `${apiBase}&id=${id}`, payload);
       return res.json();
     },
     onSuccess: () => {
@@ -118,7 +118,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `${apiBase}/${id}`);
+      await apiRequest("DELETE", `${apiBase}&id=${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", slug] });
@@ -133,7 +133,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
 
   const reorderMutation = useMutation({
     mutationFn: async (orderedIds: number[]) => {
-      const res = await apiRequest("POST", `${apiBase}/reorder`, { orderedIds });
+      const res = await apiRequest("POST", `${apiBase}&action=reorder`, { orderedIds });
       return res.json();
     },
     onSuccess: () => {
