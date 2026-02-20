@@ -3,9 +3,6 @@
  *
  * Creates the SOC 2 regulatory source and all associated controls.
  * Run with: npx tsx --env-file=.env scripts/seed-soc2-controls.ts
- *
- * Note: The DB table is still "requirements" with column "article"
- * (pre-rename), so we use raw SQL instead of Drizzle ORM schema.
  */
 import postgres from 'postgres';
 
@@ -1121,13 +1118,13 @@ async function seed() {
     },
   ];
 
-  // 3. Insert all controls (DB table is "requirements", column is "article" not "evidence_status")
+  // 3. Insert all controls
   console.log(`Inserting ${allControls.length} controls...`);
 
   let inserted = 0;
   for (const ctrl of allControls) {
     await sql`
-      INSERT INTO requirements (source_id, code, title, description, category, article, owner, status)
+      INSERT INTO controls (source_id, code, title, description, category, evidence_status, owner, status)
       VALUES (${sourceId}, ${ctrl.code}, ${ctrl.title}, ${ctrl.description}, ${ctrl.category}, ${ctrl.evidenceStatus}, ${ctrl.owner}, ${ctrl.status})
     `;
     inserted++;
