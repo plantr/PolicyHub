@@ -28,7 +28,7 @@ export const regulatoryProfiles = pgTable("regulatory_profiles", {
 });
 
 // =============================================
-// REGULATORY SOURCES & REQUIREMENTS
+// REGULATORY SOURCES & CONTROLS
 // =============================================
 
 export const regulatorySources = pgTable("regulatory_sources", {
@@ -42,14 +42,14 @@ export const regulatorySources = pgTable("regulatory_sources", {
   description: text("description"),
 });
 
-export const requirements = pgTable("requirements", {
+export const controls = pgTable("controls", {
   id: serial("id").primaryKey(),
   sourceId: integer("source_id").notNull(),
   code: text("code").notNull(),
   title: text("title").notNull(),
   description: text("description").notNull(),
   category: text("category").notNull(),
-  article: text("article"),
+  evidenceStatus: text("evidence_status"),
   evidence: text("evidence"),
   owner: text("owner"),
   status: text("status"),
@@ -176,12 +176,12 @@ export const reviewHistory = pgTable("review_history", {
 });
 
 // =============================================
-// REQUIREMENT MAPPINGS (Policy ↔ Requirement)
+// CONTROL MAPPINGS (Policy ↔ Control)
 // =============================================
 
-export const requirementMappings = pgTable("requirement_mappings", {
+export const controlMappings = pgTable("control_mappings", {
   id: serial("id").primaryKey(),
-  requirementId: integer("requirement_id").notNull(),
+  controlId: integer("control_id").notNull(),
   documentId: integer("document_id"),
   versionId: integer("version_id"),
   businessUnitId: integer("business_unit_id"),
@@ -208,7 +208,7 @@ export const findings = pgTable("findings", {
   severity: text("severity").notNull(),
   status: text("status").notNull(),
   businessUnitId: integer("business_unit_id").notNull(),
-  requirementId: integer("requirement_id"),
+  controlId: integer("control_id"),
   documentId: integer("document_id"),
   description: text("description"),
   rootCause: text("root_cause"),
@@ -314,7 +314,7 @@ export const risks = pgTable("risks", {
   category: text("category").notNull(),
   status: text("status").notNull().default("Identified"),
   businessUnitId: integer("business_unit_id"),
-  requirementId: integer("requirement_id"),
+  controlId: integer("control_id"),
   owner: text("owner").notNull(),
   inherentLikelihood: integer("inherent_likelihood").notNull().default(3),
   inherentImpact: integer("inherent_impact").notNull().default(3),
@@ -493,7 +493,7 @@ export const documentStatuses = pgTable("document_statuses", {
 export const aiJobs = pgTable("ai_jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   jobType: text("job_type").notNull(),  // 'ai-match', 'ai-coverage', 'ai-map-controls'
-  entityId: integer("entity_id").notNull(),  // mappingId, requirementId, or documentId
+  entityId: integer("entity_id").notNull(),  // mappingId, controlId, or documentId
   status: text("status").notNull().default("pending"),  // 'pending', 'processing', 'completed', 'failed'
   progressMessage: text("progress_message"),
   result: jsonb("result"),
@@ -509,13 +509,13 @@ export const aiJobs = pgTable("ai_jobs", {
 export const insertBusinessUnitSchema = createInsertSchema(businessUnits).omit({ id: true });
 export const insertRegulatoryProfileSchema = createInsertSchema(regulatoryProfiles).omit({ id: true });
 export const insertRegulatorySourceSchema = createInsertSchema(regulatorySources).omit({ id: true });
-export const insertRequirementSchema = createInsertSchema(requirements).omit({ id: true });
+export const insertControlSchema = createInsertSchema(controls).omit({ id: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
 export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({ id: true, createdAt: true });
 export const insertAddendumSchema = createInsertSchema(addenda).omit({ id: true, createdAt: true });
 export const insertApprovalSchema = createInsertSchema(approvals).omit({ id: true, createdAt: true });
 export const insertReviewHistorySchema = createInsertSchema(reviewHistory).omit({ id: true, reviewedAt: true });
-export const insertRequirementMappingSchema = createInsertSchema(requirementMappings).omit({ id: true, createdAt: true });
+export const insertControlMappingSchema = createInsertSchema(controlMappings).omit({ id: true, createdAt: true });
 export const insertFindingSchema = createInsertSchema(findings).omit({ id: true, createdAt: true, closedAt: true });
 export const insertFindingEvidenceSchema = createInsertSchema(findingEvidence).omit({ id: true, uploadedAt: true });
 export const insertPolicyLinkSchema = createInsertSchema(policyLinks).omit({ id: true });
@@ -546,7 +546,7 @@ export const insertAiJobSchema = createInsertSchema(aiJobs);
 export type BusinessUnit = typeof businessUnits.$inferSelect;
 export type RegulatoryProfile = typeof regulatoryProfiles.$inferSelect;
 export type RegulatorySource = typeof regulatorySources.$inferSelect;
-export type Requirement = typeof requirements.$inferSelect;
+export type Control = typeof controls.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type Addendum = typeof addenda.$inferSelect;
@@ -554,7 +554,7 @@ export type EffectivePolicy = typeof effectivePolicies.$inferSelect;
 export type Approval = typeof approvals.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type ReviewHistoryEntry = typeof reviewHistory.$inferSelect;
-export type RequirementMapping = typeof requirementMappings.$inferSelect;
+export type ControlMapping = typeof controlMappings.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type FindingEvidence = typeof findingEvidence.$inferSelect;
 export type PolicyLink = typeof policyLinks.$inferSelect;
@@ -592,16 +592,16 @@ export type CreateAddendumRequest = z.infer<typeof insertAddendumSchema>;
 export type CreateApprovalRequest = z.infer<typeof insertApprovalSchema>;
 export type CreateFindingRequest = z.infer<typeof insertFindingSchema>;
 export type UpdateFindingRequest = Partial<CreateFindingRequest>;
-export type CreateRequirementMappingRequest = z.infer<typeof insertRequirementMappingSchema>;
-export type UpdateRequirementMappingRequest = Partial<CreateRequirementMappingRequest>;
+export type CreateControlMappingRequest = z.infer<typeof insertControlMappingSchema>;
+export type UpdateControlMappingRequest = Partial<CreateControlMappingRequest>;
 export type CreateAuditRequest = z.infer<typeof insertAuditSchema>;
 export type UpdateAuditRequest = Partial<CreateAuditRequest>;
 export type CreateUserRequest = z.infer<typeof insertUserSchema>;
 export type UpdateUserRequest = Partial<CreateUserRequest>;
 export type CreateRegulatorySourceRequest = z.infer<typeof insertRegulatorySourceSchema>;
 export type UpdateRegulatorySourceRequest = Partial<CreateRegulatorySourceRequest>;
-export type CreateRequirementRequest = z.infer<typeof insertRequirementSchema>;
-export type UpdateRequirementRequest = Partial<CreateRequirementRequest>;
+export type CreateControlRequest = z.infer<typeof insertControlSchema>;
+export type UpdateControlRequest = Partial<CreateControlRequest>;
 export type CreateCommitmentRequest = z.infer<typeof insertCommitmentSchema>;
 export type UpdateCommitmentRequest = Partial<CreateCommitmentRequest>;
 export type CreateKnowledgeBaseArticleRequest = z.infer<typeof insertKnowledgeBaseArticleSchema>;

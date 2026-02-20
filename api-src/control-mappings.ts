@@ -1,12 +1,12 @@
 /**
- * Serverless function: /api/requirement-mappings
- * Handles CRUD for requirement mappings.
+ * Serverless function: /api/control-mappings
+ * Handles CRUD for control mappings.
  *
  * URL convention:
- *   GET    /api/requirement-mappings          → list all
- *   POST   /api/requirement-mappings          → create
- *   PUT    /api/requirement-mappings?id=N     → update
- *   DELETE /api/requirement-mappings?id=N     → delete
+ *   GET    /api/control-mappings          → list all
+ *   POST   /api/control-mappings          → create
+ *   PUT    /api/control-mappings?id=N     → update
+ *   DELETE /api/control-mappings?id=N     → delete
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handleCors } from "./_shared/cors";
@@ -20,26 +20,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     switch (req.method) {
       case "GET": {
-        return res.json(await storage.getRequirementMappings());
+        return res.json(await storage.getControlMappings());
       }
 
       case "POST": {
-        const input = api.requirementMappings.create.input.parse(req.body);
-        const mapping = await storage.createRequirementMapping(input);
+        const input = api.controlMappings.create.input.parse(req.body);
+        const mapping = await storage.createControlMapping(input);
         return res.status(201).json(mapping);
       }
 
       case "PUT": {
         const id = getIdParam(req);
-        const input = api.requirementMappings.update.input.parse(req.body);
-        const mapping = await storage.updateRequirementMapping(id, input);
+        const input = api.controlMappings.update.input.parse(req.body);
+        const mapping = await storage.updateControlMapping(id, input);
         if (!mapping) return res.status(404).json({ message: "Mapping not found" });
         return res.json(mapping);
       }
 
       case "DELETE": {
         const id = getIdParam(req);
-        await storage.deleteRequirementMapping(id);
+        await storage.deleteControlMapping(id);
         return res.status(204).end();
       }
 

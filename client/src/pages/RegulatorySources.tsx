@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, ExternalLink, LayoutGrid, List, Search, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
-import type { RegulatorySource, Requirement, RequirementMapping } from "@shared/schema";
+import type { RegulatorySource, Control, ControlMapping } from "@shared/schema";
 import { insertRegulatorySourceSchema } from "@shared/schema";
 
 const sourceFormSchema = insertRegulatorySourceSchema.extend({
@@ -92,7 +92,7 @@ function CompletionRing({ percent, size = 28, strokeWidth = 3 }: { percent: numb
 }
 
 interface FrameworkMetrics {
-  totalRequirements: number;
+  totalControls: number;
   coveredCount: number;
   partiallyCoveredCount: number;
   notCoveredCount: number;
@@ -102,33 +102,33 @@ interface FrameworkMetrics {
 
 function computeMetrics(
   sourceId: number,
-  requirements: Requirement[],
-  mappings: RequirementMapping[]
+  controls: Control[],
+  mappings: ControlMapping[]
 ): FrameworkMetrics {
-  const sourceReqs = requirements.filter((r) => r.sourceId === sourceId);
-  const totalRequirements = sourceReqs.length;
-  if (totalRequirements === 0) {
-    return { totalRequirements: 0, coveredCount: 0, partiallyCoveredCount: 0, notCoveredCount: 0, coveragePercent: 0, mappedPercent: 0 };
+  const sourceReqs = controls.filter((r) => r.sourceId === sourceId);
+  const totalControls = sourceReqs.length;
+  if (totalControls === 0) {
+    return { totalControls: 0, coveredCount: 0, partiallyCoveredCount: 0, notCoveredCount: 0, coveragePercent: 0, mappedPercent: 0 };
   }
   const reqIds = new Set(sourceReqs.map((r) => r.id));
-  const relevantMappings = mappings.filter((m) => reqIds.has(m.requirementId));
+  const relevantMappings = mappings.filter((m) => reqIds.has(m.controlId));
 
   const coveredReqIds = new Set<number>();
   const partialReqIds = new Set<number>();
   for (const m of relevantMappings) {
     if (m.coverageStatus === "Covered") {
-      coveredReqIds.add(m.requirementId);
+      coveredReqIds.add(m.controlId);
     } else if (m.coverageStatus === "Partially Covered") {
-      partialReqIds.add(m.requirementId);
+      partialReqIds.add(m.controlId);
     }
   }
   const coveredCount = coveredReqIds.size;
   const partiallyCoveredCount = Array.from(partialReqIds).filter((id) => !coveredReqIds.has(id)).length;
-  const notCoveredCount = totalRequirements - coveredCount - partiallyCoveredCount;
-  const coveragePercent = Math.round(((coveredCount + partiallyCoveredCount * 0.5) / totalRequirements) * 100);
-  const mappedPercent = Math.round(((coveredCount + partiallyCoveredCount) / totalRequirements) * 100);
+  const notCoveredCount = totalControls - coveredCount - partiallyCoveredCount;
+  const coveragePercent = Math.round(((coveredCount + partiallyCoveredCount * 0.5) / totalControls) * 100);
+  const mappedPercent = Math.round(((coveredCount + partiallyCoveredCount) / totalControls) * 100);
 
-  return { totalRequirements, coveredCount, partiallyCoveredCount, notCoveredCount, coveragePercent, mappedPercent };
+  return { totalControls, coveredCount, partiallyCoveredCount, notCoveredCount, coveragePercent, mappedPercent };
 }
 
 export default function RegulatorySources() {
@@ -160,12 +160,12 @@ export default function RegulatorySources() {
     queryKey: ["/api/regulatory-sources"],
   });
 
-  const { data: requirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: requirements } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
-  const { data: mappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: mappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
   const createMutation = useMutation({
@@ -193,7 +193,7 @@ export default function RegulatorySources() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: SourceFormValues }) => {
-      const res = await apiRequest("PUT", `/api/regulatory-sources/${id}`, {
+      const res = await apiRequest("PUT", `/api/regulatory-sources?id=${id}`, {
         name: data.name,
         shortName: data.shortName,
         jurisdiction: data.jurisdiction,
@@ -215,7 +215,7 @@ export default function RegulatorySources() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/regulatory-sources/${id}`);
+      await apiRequest("DELETE", `/api/regulatory-sources?id=${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources"] });
@@ -392,7 +392,7 @@ export default function RegulatorySources() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[250px]">Framework name</TableHead>
-                    <TableHead>Requirements</TableHead>
+                    <TableHead>Controls</TableHead>
                     <TableHead>Coverage</TableHead>
                     <TableHead>Mapped</TableHead>
                     <TableHead>Category</TableHead>
@@ -419,17 +419,17 @@ export default function RegulatorySources() {
                           </div>
                         </TableCell>
                         <TableCell data-testid={`text-framework-reqs-${source.id}`}>
-                          <span className="text-sm">{metrics?.totalRequirements ?? 0}</span>
+                          <span className="text-sm">{metrics?.totalControls ?? 0}</span>
                         </TableCell>
                         <TableCell data-testid={`text-framework-coverage-${source.id}`}>
-                          {metrics && metrics.totalRequirements > 0 ? (
+                          {metrics && metrics.totalControls > 0 ? (
                             <CompletionRing percent={metrics.coveragePercent} />
                           ) : (
                             <span className="text-sm text-muted-foreground">&mdash;</span>
                           )}
                         </TableCell>
                         <TableCell data-testid={`text-framework-mapped-${source.id}`}>
-                          {metrics && metrics.totalRequirements > 0 ? (
+                          {metrics && metrics.totalControls > 0 ? (
                             <CompletionRing percent={metrics.mappedPercent} />
                           ) : (
                             <span className="text-sm text-muted-foreground">&mdash;</span>
@@ -553,7 +553,7 @@ export default function RegulatorySources() {
                             {source.description}
                           </p>
                         )}
-                        {metrics && metrics.totalRequirements > 0 && (
+                        {metrics && metrics.totalControls > 0 && (
                           <div className="flex items-center gap-4 text-sm">
                             <div className="flex items-center gap-2">
                               <span className="text-muted-foreground">Coverage:</span>
@@ -563,7 +563,7 @@ export default function RegulatorySources() {
                               <span className="text-muted-foreground">Mapped:</span>
                               <CompletionRing percent={metrics.mappedPercent} />
                             </div>
-                            <span className="text-muted-foreground">{metrics.totalRequirements} req.</span>
+                            <span className="text-muted-foreground">{metrics.totalControls} controls</span>
                           </div>
                         )}
                         {source.url && (
@@ -708,7 +708,7 @@ export default function RegulatorySources() {
           <DialogHeader>
             <DialogTitle>Delete Framework</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deletingSource?.name}"? This may affect linked requirements and regulatory profiles.
+              Are you sure you want to delete "{deletingSource?.name}"? This may affect linked controls and regulatory profiles.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

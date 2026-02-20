@@ -1,16 +1,16 @@
 import { db } from "./db";
 import {
-  businessUnits, regulatoryProfiles, regulatorySources, requirements,
+  businessUnits, regulatoryProfiles, regulatorySources, controls,
   documents, documentVersions, addenda, effectivePolicies,
-  approvals, auditLog, reviewHistory, requirementMappings,
+  approvals, auditLog, reviewHistory, controlMappings,
   findings, findingEvidence, policyLinks, audits, users,
   entityTypes, roles, jurisdictions, documentCategories, findingSeverities, documentStatuses,
   commitments, knowledgeBaseArticles,
   risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
-  type Requirement, type Document, type DocumentVersion, type Addendum,
+  type Control, type Document, type DocumentVersion, type Addendum,
   type EffectivePolicy, type Approval, type AuditLogEntry, type ReviewHistoryEntry,
-  type RequirementMapping, type Finding, type FindingEvidence, type PolicyLink,
+  type ControlMapping, type Finding, type FindingEvidence, type PolicyLink,
   type Audit, type CreateAuditRequest, type UpdateAuditRequest,
   type User, type CreateUserRequest, type UpdateUserRequest,
   type AdminRecord, type CreateAdminRecordRequest, type UpdateAdminRecordRequest,
@@ -18,9 +18,9 @@ import {
   type CreateDocumentRequest, type UpdateDocumentRequest,
   type CreateDocumentVersionRequest, type CreateAddendumRequest, type CreateApprovalRequest,
   type CreateFindingRequest, type UpdateFindingRequest,
-  type CreateRequirementMappingRequest, type UpdateRequirementMappingRequest,
+  type CreateControlMappingRequest, type UpdateControlMappingRequest,
   type CreateRegulatorySourceRequest, type UpdateRegulatorySourceRequest,
-  type CreateRequirementRequest, type UpdateRequirementRequest,
+  type CreateControlRequest, type UpdateControlRequest,
   type Commitment, type CreateCommitmentRequest, type UpdateCommitmentRequest,
   type KnowledgeBaseArticle, type CreateKnowledgeBaseArticleRequest, type UpdateKnowledgeBaseArticleRequest,
   type Risk, type CreateRiskRequest, type UpdateRiskRequest,
@@ -46,11 +46,11 @@ export interface IStorage {
   updateRegulatorySource(id: number, source: UpdateRegulatorySourceRequest): Promise<RegulatorySource | undefined>;
   deleteRegulatorySource(id: number): Promise<void>;
 
-  getRequirements(): Promise<Requirement[]>;
-  getRequirement(id: number): Promise<Requirement | undefined>;
-  createRequirement(req: CreateRequirementRequest): Promise<Requirement>;
-  updateRequirement(id: number, req: UpdateRequirementRequest): Promise<Requirement | undefined>;
-  deleteRequirement(id: number): Promise<void>;
+  getControls(): Promise<Control[]>;
+  getControl(id: number): Promise<Control | undefined>;
+  createControl(req: CreateControlRequest): Promise<Control>;
+  updateControl(id: number, req: UpdateControlRequest): Promise<Control | undefined>;
+  deleteControl(id: number): Promise<void>;
 
   getDocuments(): Promise<Document[]>;
   getDocument(id: number): Promise<Document | undefined>;
@@ -81,10 +81,10 @@ export interface IStorage {
   getReviewHistory(documentId: number): Promise<ReviewHistoryEntry[]>;
   createReviewHistory(review: any): Promise<ReviewHistoryEntry>;
 
-  getRequirementMappings(): Promise<RequirementMapping[]>;
-  createRequirementMapping(mapping: CreateRequirementMappingRequest): Promise<RequirementMapping>;
-  updateRequirementMapping(id: number, mapping: UpdateRequirementMappingRequest): Promise<RequirementMapping>;
-  deleteRequirementMapping(id: number): Promise<void>;
+  getControlMappings(): Promise<ControlMapping[]>;
+  createControlMapping(mapping: CreateControlMappingRequest): Promise<ControlMapping>;
+  updateControlMapping(id: number, mapping: UpdateControlMappingRequest): Promise<ControlMapping>;
+  deleteControlMapping(id: number): Promise<void>;
 
   getFindings(): Promise<Finding[]>;
   getFinding(id: number): Promise<Finding | undefined>;
@@ -209,23 +209,23 @@ export class DatabaseStorage implements IStorage {
     await db.delete(regulatorySources).where(eq(regulatorySources.id, id));
   }
 
-  async getRequirements(): Promise<Requirement[]> {
-    return await db.select().from(requirements);
+  async getControls(): Promise<Control[]> {
+    return await db.select().from(controls);
   }
-  async getRequirement(id: number): Promise<Requirement | undefined> {
-    const [req] = await db.select().from(requirements).where(eq(requirements.id, id));
+  async getControl(id: number): Promise<Control | undefined> {
+    const [req] = await db.select().from(controls).where(eq(controls.id, id));
     return req;
   }
-  async createRequirement(req: CreateRequirementRequest): Promise<Requirement> {
-    const [created] = await db.insert(requirements).values(req).returning();
+  async createControl(req: CreateControlRequest): Promise<Control> {
+    const [created] = await db.insert(controls).values(req).returning();
     return created;
   }
-  async updateRequirement(id: number, req: UpdateRequirementRequest): Promise<Requirement | undefined> {
-    const [updated] = await db.update(requirements).set(req).where(eq(requirements.id, id)).returning();
+  async updateControl(id: number, req: UpdateControlRequest): Promise<Control | undefined> {
+    const [updated] = await db.update(controls).set(req).where(eq(controls.id, id)).returning();
     return updated;
   }
-  async deleteRequirement(id: number): Promise<void> {
-    await db.delete(requirements).where(eq(requirements.id, id));
+  async deleteControl(id: number): Promise<void> {
+    await db.delete(controls).where(eq(controls.id, id));
   }
 
   async getDocuments(): Promise<Document[]> {
@@ -316,19 +316,19 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getRequirementMappings(): Promise<RequirementMapping[]> {
-    return await db.select().from(requirementMappings);
+  async getControlMappings(): Promise<ControlMapping[]> {
+    return await db.select().from(controlMappings);
   }
-  async createRequirementMapping(mapping: CreateRequirementMappingRequest): Promise<RequirementMapping> {
-    const [created] = await db.insert(requirementMappings).values(mapping).returning();
+  async createControlMapping(mapping: CreateControlMappingRequest): Promise<ControlMapping> {
+    const [created] = await db.insert(controlMappings).values(mapping).returning();
     return created;
   }
-  async updateRequirementMapping(id: number, mapping: UpdateRequirementMappingRequest): Promise<RequirementMapping> {
-    const [updated] = await db.update(requirementMappings).set(mapping).where(eq(requirementMappings.id, id)).returning();
+  async updateControlMapping(id: number, mapping: UpdateControlMappingRequest): Promise<ControlMapping> {
+    const [updated] = await db.update(controlMappings).set(mapping).where(eq(controlMappings.id, id)).returning();
     return updated;
   }
-  async deleteRequirementMapping(id: number): Promise<void> {
-    await db.delete(requirementMappings).where(eq(requirementMappings.id, id));
+  async deleteControlMapping(id: number): Promise<void> {
+    await db.delete(controlMappings).where(eq(controlMappings.id, id));
   }
 
   async getFindings(): Promise<Finding[]> {

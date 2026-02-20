@@ -54,7 +54,7 @@ const navGroups = [
     label: "Policy Estate",
     items: [
       { title: "Frameworks", icon: Scale, path: "/sources" },
-      { title: "Controls", icon: BookOpen, path: "/requirements" },
+      { title: "Controls", icon: BookOpen, path: "/controls" },
       { title: "Documents", icon: FileText, path: "/documents" },
     ],
   },

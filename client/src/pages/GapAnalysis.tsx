@@ -14,8 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { RequirementMapping, Requirement, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
-import { RefreshCw, Search, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Wand2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
+import type { ControlMapping, Control, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
+import { Search, ChevronDown, ChevronLeft, ChevronRight, Wand2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -32,71 +32,10 @@ function getCoverageBadgeClass(status: string) {
   }
 }
 
-interface ContentAnalysisItem {
-  mappingId: number;
-  requirementId: number;
-  requirementCode: string;
-  requirementTitle: string;
-  documentId: number;
-  documentTitle: string;
-  previousStatus: string;
-  newStatus: string;
-  matchScore: number;
-  matchedTerms: string[];
-  totalTerms: number;
-  hasMarkdown: boolean;
-}
-
-interface GapAnalysisResult {
-  summary: {
-    totalRequirements: number;
-    applicableRequirements: number;
-    totalMapped: number;
-    unmappedCount: number;
-    perBuGapCount: number;
-    overStrictCount: number;
-    coveredCount: number;
-    partiallyCoveredCount: number;
-    notCoveredCount: number;
-    contentAnalysisCount?: number;
-    contentUpdatedCount?: number;
-  };
-  unmappedRequirements: Array<{
-    requirementId: number;
-    code: string;
-    title: string;
-    category: string;
-    sourceId: number;
-    sourceName: string;
-    article: string | null;
-  }>;
-  perBuGaps: Array<{
-    businessUnitId: number;
-    businessUnitName: string;
-    requirementId: number;
-    code: string;
-    title: string;
-    sourceName: string;
-  }>;
-  overStrictItems: Array<{
-    documentId: number;
-    documentTitle: string;
-    requirementId: number;
-    requirementCode: string;
-    requirementTitle: string;
-    sourceName: string;
-    businessUnitId: number | null;
-    businessUnitName: string;
-    reason: string;
-  }>;
-  contentAnalysis?: ContentAnalysisItem[];
-}
-
 export default function GapAnalysis() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [buFilter, setBuFilter] = useState("all");
-  const [analysisResult, setAnalysisResult] = useState<GapAnalysisResult | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortColumn, setSortColumn] = useState<string | null>("aiMatch");
@@ -104,11 +43,11 @@ export default function GapAnalysis() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: mappings, isLoading: mappingsLoading } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
-  const { data: requirements, isLoading: reqLoading } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: requirements, isLoading: reqLoading } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
   const { data: documents, isLoading: docLoading } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
@@ -131,34 +70,10 @@ export default function GapAnalysis() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       toast({
         title: "Auto-mapping complete",
         description: `${data.created} new mappings created from ${data.docsAnalysed} documents. ${data.matched} controls matched, ${data.unmatched} unmatched.`,
-      });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const refreshMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/gap-analysis/refresh");
-      if (!res.ok) throw new Error("Failed to run gap analysis");
-      return res.json() as Promise<GapAnalysisResult>;
-    },
-    onSuccess: (data) => {
-      setAnalysisResult(data);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
-      const parts: string[] = [];
-      if (data.summary.unmappedCount > 0) parts.push(`${data.summary.unmappedCount} unmapped`);
-      if (data.summary.perBuGapCount > 0) parts.push(`${data.summary.perBuGapCount} per-entity gaps`);
-      if (data.summary.overStrictCount > 0) parts.push(`${data.summary.overStrictCount} over-strict`);
-      if (data.summary.contentUpdatedCount && data.summary.contentUpdatedCount > 0) parts.push(`${data.summary.contentUpdatedCount} statuses updated from content`);
-      toast({
-        title: "Gap analysis complete",
-        description: parts.length > 0 ? `Found ${parts.join(", ")}.` : "No gaps or over-strict items detected.",
       });
     },
     onError: (err: Error) => {
@@ -183,7 +98,7 @@ export default function GapAnalysis() {
       if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const req = reqMap.get(m.requirementId);
+        const req = reqMap.get(m.controlId);
         const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
         const code = (req?.code ?? "").toLowerCase();
         const title = (req?.title ?? "").toLowerCase();
@@ -219,13 +134,13 @@ export default function GapAnalysis() {
       let vb: string | number = "";
       switch (sortColumn) {
         case "code": {
-          va = (reqMap.get(a.requirementId)?.code ?? "").toLowerCase();
-          vb = (reqMap.get(b.requirementId)?.code ?? "").toLowerCase();
+          va = (reqMap.get(a.controlId)?.code ?? "").toLowerCase();
+          vb = (reqMap.get(b.controlId)?.code ?? "").toLowerCase();
           break;
         }
         case "title": {
-          va = (reqMap.get(a.requirementId)?.title ?? "").toLowerCase();
-          vb = (reqMap.get(b.requirementId)?.title ?? "").toLowerCase();
+          va = (reqMap.get(a.controlId)?.title ?? "").toLowerCase();
+          vb = (reqMap.get(b.controlId)?.title ?? "").toLowerCase();
           break;
         }
         case "document": {
@@ -352,14 +267,6 @@ export default function GapAnalysis() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending}
-            data-testid="button-refresh-gap-analysis"
-          >
-            <RefreshCw className={`h-4 w-4 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-            {refreshMutation.isPending ? "Analysing..." : "Refresh Analysis"}
-          </Button>
         </div>
       </div>
 
@@ -376,24 +283,6 @@ export default function GapAnalysis() {
               <TabsTrigger value="mappings" data-testid="tab-mappings">
                 Mappings ({allMappings.filter((m) => m.documentId != null).length})
               </TabsTrigger>
-              {analysisResult && (
-                <>
-                  <TabsTrigger value="unmapped" data-testid="tab-unmapped">
-                    Unmapped ({analysisResult.summary.unmappedCount})
-                  </TabsTrigger>
-                  <TabsTrigger value="bu-gaps" data-testid="tab-bu-gaps">
-                    Per-Entity Gaps ({analysisResult.summary.perBuGapCount})
-                  </TabsTrigger>
-                  <TabsTrigger value="over-strict" data-testid="tab-over-strict">
-                    Over-Strict ({analysisResult.summary.overStrictCount})
-                  </TabsTrigger>
-                  {analysisResult.contentAnalysis && (
-                    <TabsTrigger value="content-match" data-testid="tab-content-match">
-                      Content Match ({analysisResult.contentAnalysis.length})
-                    </TabsTrigger>
-                  )}
-                </>
-              )}
             </TabsList>
 
             <TabsContent value="mappings" className="space-y-4">
@@ -401,8 +290,8 @@ export default function GapAnalysis() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("code")} data-testid="th-req-code">Requirement Code<SortIcon col="code" /></TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("title")} data-testid="th-req-title">Requirement Title<SortIcon col="title" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("code")} data-testid="th-req-code">Control Code<SortIcon col="code" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("title")} data-testid="th-req-title">Control Title<SortIcon col="title" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("document")} data-testid="th-document">Document<SortIcon col="document" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("bu")} data-testid="th-bu">Business Unit<SortIcon col="bu" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("coverage")} data-testid="th-coverage">Coverage<SortIcon col="coverage" /></TableHead>
@@ -420,15 +309,15 @@ export default function GapAnalysis() {
                       </TableRow>
                     ) : (
                       paginatedMappings.map((m) => {
-                        const req = reqMap.get(m.requirementId);
+                        const req = reqMap.get(m.controlId);
                         const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
                         const bu = m.businessUnitId ? buMap.get(m.businessUnitId) : null;
                         const pctMatch = m.rationale?.match(/\((\d+)%\)/);
                         const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
                         return (
-                          <TableRow key={m.id} className="cursor-pointer" onClick={() => navigate(`/controls/${m.requirementId}`)} data-testid={`row-mapping-${m.id}`}>
+                          <TableRow key={m.id} className="cursor-pointer" onClick={() => navigate(`/controls/${m.controlId}`)} data-testid={`row-mapping-${m.id}`}>
                             <TableCell className="font-mono text-sm font-medium" data-testid={`text-req-code-${m.id}`}>
-                              {req?.code ?? `REQ-${m.requirementId}`}
+                              {req?.code ?? `CTRL-${m.controlId}`}
                             </TableCell>
                             <TableCell className="font-medium" data-testid={`text-req-title-${m.id}`}>
                               {req?.title ?? "--"}
@@ -537,218 +426,6 @@ export default function GapAnalysis() {
                 </div>
               </div>
             </TabsContent>
-
-            {analysisResult && (
-              <>
-                <TabsContent value="unmapped" className="space-y-4">
-                  <div className="border rounded-md" data-testid="unmapped-table">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-code">Code</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-title">Title</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-category">Category</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-source">Source</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-unmapped-article">Article</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {analysisResult.unmappedRequirements.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="h-32 text-center text-muted-foreground" data-testid="text-no-unmapped">
-                              All applicable requirements are mapped. No gaps detected.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          analysisResult.unmappedRequirements.map((r) => (
-                            <TableRow key={r.requirementId} data-testid={`row-unmapped-${r.requirementId}`}>
-                              <TableCell className="font-mono text-sm font-medium" data-testid={`text-unmapped-code-${r.requirementId}`}>
-                                {r.code}
-                              </TableCell>
-                              <TableCell className="font-medium" data-testid={`text-unmapped-title-${r.requirementId}`}>
-                                {r.title}
-                              </TableCell>
-                              <TableCell data-testid={`badge-unmapped-category-${r.requirementId}`}>
-                                <Badge variant="outline">{r.category}</Badge>
-                              </TableCell>
-                              <TableCell className="text-sm" data-testid={`text-unmapped-source-${r.requirementId}`}>
-                                {r.sourceName}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground" data-testid={`text-unmapped-article-${r.requirementId}`}>
-                                {r.article ?? "--"}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="bu-gaps" className="space-y-4">
-                  <div className="border rounded-md" data-testid="bu-gaps-table">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-bu">Business Unit</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-code">Requirement Code</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-title">Requirement Title</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-bugap-source">Source</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {analysisResult.perBuGaps.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="h-32 text-center text-muted-foreground" data-testid="text-no-bu-gaps">
-                              No per-entity gaps detected. All applicable requirements are covered.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          analysisResult.perBuGaps.map((g, idx) => (
-                            <TableRow key={`${g.businessUnitId}-${g.requirementId}`} data-testid={`row-bugap-${idx}`}>
-                              <TableCell className="text-sm font-medium" data-testid={`text-bugap-bu-${idx}`}>
-                                {g.businessUnitName}
-                              </TableCell>
-                              <TableCell className="font-mono text-sm" data-testid={`text-bugap-code-${idx}`}>
-                                {g.code}
-                              </TableCell>
-                              <TableCell className="font-medium" data-testid={`text-bugap-title-${idx}`}>
-                                {g.title}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground" data-testid={`text-bugap-source-${idx}`}>
-                                {g.sourceName}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="over-strict" className="space-y-4">
-                  <div className="border rounded-md" data-testid="over-strict-table">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-req-code">Requirement Code</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-req-title">Requirement Title</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-document">Document</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-bu">Business Unit</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-source">Source</TableHead>
-                          <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-strict-reason">Reason</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {analysisResult.overStrictItems.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-over-strict">
-                              No over-strict implementations detected.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          analysisResult.overStrictItems.map((item, idx) => (
-                            <TableRow key={`${item.requirementId}-${item.documentId}-${idx}`} data-testid={`row-strict-${idx}`}>
-                              <TableCell className="font-mono text-sm font-medium" data-testid={`text-strict-code-${idx}`}>
-                                {item.requirementCode}
-                              </TableCell>
-                              <TableCell className="font-medium" data-testid={`text-strict-title-${idx}`}>
-                                {item.requirementTitle}
-                              </TableCell>
-                              <TableCell className="text-sm" data-testid={`text-strict-document-${idx}`}>
-                                {item.documentTitle}
-                              </TableCell>
-                              <TableCell className="text-sm" data-testid={`text-strict-bu-${idx}`}>
-                                {item.businessUnitName}
-                              </TableCell>
-                              <TableCell className="text-sm" data-testid={`text-strict-source-${idx}`}>
-                                {item.sourceName}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground max-w-[300px]" data-testid={`text-strict-reason-${idx}`}>
-                                {item.reason}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-
-                {analysisResult.contentAnalysis && (
-                  <TabsContent value="content-match" className="space-y-4">
-                    <p className="text-sm text-muted-foreground" data-testid="text-content-match-info">
-                      Document markdown content was analysed against requirement keywords. Mappings with a score {"\u2265"}60% are marked Covered, {"\u2265"}30% Partially Covered, below 30% Not Covered.
-                      {analysisResult.summary.contentUpdatedCount ? ` ${analysisResult.summary.contentUpdatedCount} mapping status(es) were updated.` : ""}
-                    </p>
-                    <div className="border rounded-md" data-testid="content-match-table">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-code">Requirement</TableHead>
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-document">Document</TableHead>
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-score">Score</TableHead>
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-prev">Previous</TableHead>
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-new">New Status</TableHead>
-                            <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-cm-terms">Matched Terms</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {analysisResult.contentAnalysis.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-content-match">
-                                No mappings to analyse.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            analysisResult.contentAnalysis.map((item, idx) => (
-                              <TableRow key={`${item.mappingId}-${idx}`} data-testid={`row-cm-${idx}`}>
-                                <TableCell data-testid={`text-cm-code-${idx}`}>
-                                  <div className="font-mono text-sm font-medium">{item.requirementCode}</div>
-                                  <div className="text-xs text-muted-foreground truncate max-w-[200px]">{item.requirementTitle}</div>
-                                </TableCell>
-                                <TableCell className="text-sm" data-testid={`text-cm-doc-${idx}`}>
-                                  {item.hasMarkdown ? item.documentTitle : (
-                                    <span className="text-muted-foreground italic">{item.documentTitle} (no markdown)</span>
-                                  )}
-                                </TableCell>
-                                <TableCell data-testid={`text-cm-score-${idx}`}>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-                                      <div
-                                        className={`h-full rounded-full ${item.matchScore >= 60 ? "bg-green-500 dark:bg-green-400" : item.matchScore >= 30 ? "bg-amber-500 dark:bg-amber-400" : "bg-red-500 dark:bg-red-400"}`}
-                                        style={{ width: `${item.matchScore}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-xs font-medium">{item.matchScore}%</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell data-testid={`text-cm-prev-${idx}`}>
-                                  <Badge className={`${getCoverageBadgeClass(item.previousStatus)} no-default-hover-elevate no-default-active-elevate`}>
-                                    {item.previousStatus}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell data-testid={`text-cm-new-${idx}`}>
-                                  <Badge className={`${getCoverageBadgeClass(item.newStatus)} no-default-hover-elevate no-default-active-elevate`}>
-                                    {item.newStatus}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-xs text-muted-foreground max-w-[250px]" data-testid={`text-cm-terms-${idx}`}>
-                                  {item.matchedTerms.length > 0
-                                    ? item.matchedTerms.slice(0, 10).join(", ") + (item.matchedTerms.length > 10 ? ` +${item.matchedTerms.length - 10} more` : "")
-                                    : "—"
-                                  }
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </TabsContent>
-                )}
-              </>
-            )}
           </Tabs>
         </>
       )}

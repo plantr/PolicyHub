@@ -17,10 +17,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (req.method) {
       case "GET": {
         const allDocs = await storage.getDocuments();
-        const allReqs = await storage.getRequirements();
+        const allReqs = await storage.getControls();
         const allSources = await storage.getRegulatorySources();
         const allBUs = await storage.getBusinessUnits();
-        const allMappings = await storage.getRequirementMappings();
+        const allMappings = await storage.getControlMappings();
         const allFindings = await storage.getFindings();
         const allApprovals = await storage.getApprovals();
 
@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return res.json({
           totalDocuments: allDocs.length,
-          totalRequirements: allReqs.length,
+          totalControls: allReqs.length,
           totalSources: allSources.length,
           businessUnits: allBUs.length,
           coveredCount,

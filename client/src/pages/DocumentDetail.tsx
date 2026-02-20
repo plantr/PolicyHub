@@ -10,8 +10,8 @@ import type {
   DocumentVersion,
   BusinessUnit,
   User,
-  RequirementMapping,
-  Requirement,
+  ControlMapping,
+  Control,
   RegulatorySource,
   Audit,
 } from "@shared/schema";
@@ -146,12 +146,12 @@ export default function DocumentDetail() {
     queryKey: ["/api/users"],
   });
 
-  const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: allMappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
-  const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: allRequirements } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
   const { data: allSources } = useQuery<RegulatorySource[]>({
@@ -174,7 +174,7 @@ export default function DocumentDetail() {
   }, [businessUnits]);
 
   const reqMap = useMemo(() => {
-    const map = new Map<number, Requirement>();
+    const map = new Map<number, Control>();
     allRequirements?.forEach((r) => map.set(r.id, r));
     return map;
   }, [allRequirements]);
@@ -194,7 +194,7 @@ export default function DocumentDetail() {
   const linkedFrameworks = useMemo(() => {
     const frameworkIds = new Set<number>();
     docMappings.forEach((m) => {
-      const req = reqMap.get(m.requirementId);
+      const req = reqMap.get(m.controlId);
       if (req) frameworkIds.add(req.sourceId);
     });
     return Array.from(frameworkIds)
@@ -242,7 +242,7 @@ export default function DocumentDetail() {
 
   const filteredMappings = useMemo(() => {
     return docMappings.filter((m) => {
-      const req = reqMap.get(m.requirementId);
+      const req = reqMap.get(m.controlId);
       if (!req) return false;
       const source = sourceMap.get(req.sourceId);
       if (mappedFrameworkFilter !== "all" && source?.shortName !== mappedFrameworkFilter) return false;
@@ -263,8 +263,8 @@ export default function DocumentDetail() {
     const sorted = [...filteredMappings];
     sorted.sort((a, b) => {
       let va: any, vb: any;
-      const reqA = reqMap.get(a.requirementId);
-      const reqB = reqMap.get(b.requirementId);
+      const reqA = reqMap.get(a.controlId);
+      const reqB = reqMap.get(b.controlId);
       switch (mappedSortCol) {
         case "control":
           va = (reqA?.title ?? "").toLowerCase();
@@ -306,7 +306,7 @@ export default function DocumentDetail() {
   const frameworkOptions = useMemo(() => {
     const set = new Set<string>();
     docMappings.forEach((m) => {
-      const req = reqMap.get(m.requirementId);
+      const req = reqMap.get(m.controlId);
       if (req) {
         const src = sourceMap.get(req.sourceId);
         if (src) set.add(src.shortName);
@@ -318,7 +318,7 @@ export default function DocumentDetail() {
   const codeOptions = useMemo(() => {
     const codes = new Set<string>();
     docMappings.forEach((m) => {
-      const req = reqMap.get(m.requirementId);
+      const req = reqMap.get(m.controlId);
       if (req) codes.add(req.code);
     });
     return Array.from(codes).sort();
@@ -347,7 +347,7 @@ export default function DocumentDetail() {
   }
 
   const alreadyMappedReqIds = useMemo(() => {
-    return new Set(docMappings.map((m) => m.requirementId));
+    return new Set(docMappings.map((m) => m.controlId));
   }, [docMappings]);
 
   const allFrameworkOptions = useMemo(() => {
@@ -370,16 +370,16 @@ export default function DocumentDetail() {
   }, [allRequirements, sourceMap, mapFrameworkFilter, mapSearch]);
 
   const addMappingMutation = useMutation({
-    mutationFn: async (requirementId: number) => {
-      const res = await apiRequest("POST", "/api/requirement-mappings", {
-        requirementId,
+    mutationFn: async (controlId: number) => {
+      const res = await apiRequest("POST", "/api/control-mappings", {
+        controlId,
         documentId: Number(id),
         coverageStatus: "Not Covered",
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to add mapping", description: err.message, variant: "destructive" });
@@ -388,10 +388,10 @@ export default function DocumentDetail() {
 
   const removeMappingMutation = useMutation({
     mutationFn: async (mappingId: number) => {
-      await apiRequest("DELETE", `/api/requirement-mappings?id=${mappingId}`);
+      await apiRequest("DELETE", `/api/control-mappings?id=${mappingId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
@@ -408,7 +408,7 @@ export default function DocumentDetail() {
     },
     onSuccess: (data: { matched: number; total: number; removed?: number }) => {
       setAiAutoMapRunning(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       const removedMsg = data.removed ? `, removed ${data.removed} low-quality mappings` : "";
       toast({
         title: "AI Auto-Map Complete",
@@ -967,14 +967,14 @@ export default function DocumentDetail() {
                   </TableRow>
                 ) : (
                   mappedPaginated.map((mapping) => {
-                    const req = reqMap.get(mapping.requirementId);
+                    const req = reqMap.get(mapping.controlId);
                     const source = req ? sourceMap.get(req.sourceId) : null;
                     return (
                       <TableRow key={mapping.id} className="group" data-testid={`row-mapping-${mapping.id}`}>
                         <TableCell className="max-w-[280px]">
                           <div>
                             <span className="font-medium text-sm" data-testid={`text-control-title-${mapping.id}`}>
-                              {req?.title ?? `Control #${mapping.requirementId}`}
+                              {req?.title ?? `Control #${mapping.controlId}`}
                             </span>
                             {req?.description && (
                               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2" data-testid={`text-control-desc-${mapping.id}`}>
@@ -1280,7 +1280,7 @@ export default function DocumentDetail() {
           <DialogHeader>
             <DialogTitle>Map Controls to Document</DialogTitle>
             <DialogDescription>
-              Search and select framework requirements to map to this document. Already mapped controls can be removed.
+              Search and select framework controls to map to this document. Already mapped controls can be removed.
             </DialogDescription>
           </DialogHeader>
 
@@ -1288,7 +1288,7 @@ export default function DocumentDetail() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search requirements..."
+                placeholder="Search controls..."
                 value={mapSearch}
                 onChange={(e) => setMapSearch(e.target.value)}
                 className="pl-9"
@@ -1322,14 +1322,14 @@ export default function DocumentDetail() {
                 {mapControlRequirements.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="h-32 text-center text-muted-foreground" data-testid="text-no-map-results">
-                      No requirements found
+                      No controls found
                     </TableCell>
                   </TableRow>
                 ) : (
                   mapControlRequirements.slice(0, 50).map((r) => {
                     const source = sourceMap.get(r.sourceId);
                     const isMapped = alreadyMappedReqIds.has(r.id);
-                    const existingMapping = isMapped ? docMappings.find((m) => m.requirementId === r.id) : null;
+                    const existingMapping = isMapped ? docMappings.find((m) => m.controlId === r.id) : null;
                     return (
                       <TableRow key={r.id} data-testid={`row-map-req-${r.id}`}>
                         <TableCell className="font-mono text-sm font-medium" data-testid={`text-map-code-${r.id}`}>

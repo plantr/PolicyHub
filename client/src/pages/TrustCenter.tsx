@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Shield, FileText, AlertTriangle, CheckCircle, Clock, XCircle, BookOpen, Target } from "lucide-react";
-import type { Document, Finding, Commitment, KnowledgeBaseArticle, BusinessUnit, RequirementMapping } from "@shared/schema";
+import type { Document, Finding, Commitment, KnowledgeBaseArticle, BusinessUnit, ControlMapping } from "@shared/schema";
 
 function StatCard({ title, value, icon: Icon, description }: { title: string; value: string | number; icon: React.ElementType; description?: string }) {
   return (
@@ -50,8 +50,8 @@ export default function TrustCenter() {
   const { data: businessUnits, isLoading: buLoading } = useQuery<BusinessUnit[]>({
     queryKey: ["/api/business-units"],
   });
-  const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: mappings, isLoading: mappingsLoading } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
   const isLoading = docsLoading || findingsLoading || commitmentsLoading || articlesLoading || buLoading || mappingsLoading;
@@ -112,7 +112,7 @@ export default function TrustCenter() {
           </CardHeader>
           <CardContent className="space-y-4">
             <ComplianceGauge label="Review-Current Policies" current={docsReviewCurrent.length} total={totalDocs} />
-            <ComplianceGauge label="Requirement Mappings Covered" current={coveredMappings.length} total={(mappings || []).length} />
+            <ComplianceGauge label="Control Mappings Covered" current={coveredMappings.length} total={(mappings || []).length} />
             <ComplianceGauge label="Commitments Completed" current={completedCommitments.length} total={(commitmentsList || []).length} />
           </CardContent>
         </Card>

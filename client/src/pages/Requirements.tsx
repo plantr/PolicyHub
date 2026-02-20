@@ -23,16 +23,16 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2 } from "lucide-react";
 import { useLocation } from "wouter";
-import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
-import { insertRequirementSchema } from "@shared/schema";
+import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
+import { insertControlSchema } from "@shared/schema";
 
-const reqFormSchema = insertRequirementSchema.extend({
+const reqFormSchema = insertControlSchema.extend({
   sourceId: z.coerce.number().min(1, "Source is required"),
   code: z.string().min(1, "Code is required"),
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
   category: z.string().min(1, "Category is required"),
-  article: z.string().nullable().default(null),
+  evidenceStatus: z.string().nullable().default(null),
 });
 
 type ReqFormValues = z.infer<typeof reqFormSchema>;
@@ -113,9 +113,9 @@ export default function Requirements() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingReq, setEditingReq] = useState<Requirement | null>(null);
+  const [editingReq, setEditingReq] = useState<Control | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingReq, setDeletingReq] = useState<Requirement | null>(null);
+  const [deletingReq, setDeletingReq] = useState<Control | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const { toast } = useToast();
@@ -128,20 +128,20 @@ export default function Requirements() {
       title: "",
       description: "",
       category: "",
-      article: null,
+      evidenceStatus: null,
     },
   });
 
-  const { data: requirements, isLoading: reqLoading } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: requirements, isLoading: reqLoading } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
   const { data: sources, isLoading: srcLoading } = useQuery<RegulatorySource[]>({
     queryKey: ["/api/regulatory-sources"],
   });
 
-  const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: allMappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
@@ -166,11 +166,11 @@ export default function Requirements() {
   );
 
   const mappingsByReq = useMemo(() => {
-    const lookup = new Map<number, RequirementMapping[]>();
+    const lookup = new Map<number, ControlMapping[]>();
     for (const m of allMappings ?? []) {
-      const list = lookup.get(m.requirementId) || [];
+      const list = lookup.get(m.controlId) || [];
       list.push(m);
-      lookup.set(m.requirementId, list);
+      lookup.set(m.controlId, list);
     }
     return lookup;
   }, [allMappings]);
@@ -283,18 +283,18 @@ export default function Requirements() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ReqFormValues) => {
-      const res = await apiRequest("POST", "/api/requirements", {
+      const res = await apiRequest("POST", "/api/controls", {
         sourceId: data.sourceId,
         code: data.code,
         title: data.title,
         description: data.description,
         category: data.category,
-        article: data.article || null,
+        evidenceStatus: data.evidenceStatus || null,
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Control created" });
       closeDialog();
@@ -306,18 +306,18 @@ export default function Requirements() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: ReqFormValues }) => {
-      const res = await apiRequest("PUT", `/api/requirements/${id}`, {
+      const res = await apiRequest("PUT", `/api/controls/${id}`, {
         sourceId: data.sourceId,
         code: data.code,
         title: data.title,
         description: data.description,
         category: data.category,
-        article: data.article || null,
+        evidenceStatus: data.evidenceStatus || null,
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
       toast({ title: "Control updated" });
       closeDialog();
     },
@@ -328,10 +328,10 @@ export default function Requirements() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/requirements/${id}`);
+      await apiRequest("DELETE", `/api/controls/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Control deleted" });
       setDeleteConfirmOpen(false);
@@ -350,12 +350,12 @@ export default function Requirements() {
       title: "",
       description: "",
       category: "",
-      article: null,
+      evidenceStatus: null,
     });
     setDialogOpen(true);
   }
 
-  function openEditDialog(req: Requirement) {
+  function openEditDialog(req: Control) {
     setEditingReq(req);
     form.reset({
       sourceId: req.sourceId,
@@ -363,7 +363,7 @@ export default function Requirements() {
       title: req.title,
       description: req.description,
       category: req.category,
-      article: req.article ?? null,
+      evidenceStatus: req.evidenceStatus ?? null,
     });
     setDialogOpen(true);
   }
@@ -574,38 +574,32 @@ export default function Requirements() {
             <Table data-testid="controls-table">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-id">ID</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-control">Control</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[180px]" data-testid="th-owner">Owner</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[180px]" data-testid="th-frameworks">Frameworks</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px]" data-testid="th-docs">Docs</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-framework">Framework</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-title">Title</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px]" data-testid="th-id">ID</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[250px]" data-testid="th-description">Description</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-evidence-status">Evidence Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px]" data-testid="th-domain">Domain</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px]" data-testid="th-owner">Owner</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="th-actions"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedControls.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
                       No controls found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedControls.map((req) => {
                     const source = sourceMap.get(req.sourceId);
-                    const maps = mappingsByReq.get(req.id) || [];
-                    const bestStatus = getBestStatus(req.id);
-                    const ownerDoc = maps.length > 0 && maps[0].documentId
-                      ? docMap.get(maps[0].documentId)
-                      : null;
-                    const ownerName = ownerDoc?.owner ?? "--";
-                    const ownerInitials = ownerName !== "--"
-                      ? ownerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
-                      : "";
-                    const frameworkLabel = source
-                      ? `${source.shortName} · ${req.code}`
-                      : req.code;
-                    const docsLinked = new Set(maps.filter((m) => m.documentId).map((m) => m.documentId)).size;
-                    const coveredDocs = maps.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
+                    const ownerName = req.owner ?? "--";
+                    const evidenceStatusColor = req.evidenceStatus === "Complete"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      : req.evidenceStatus === "In Progress"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                        : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
                     return (
                       <TableRow
                         key={req.id}
@@ -613,41 +607,32 @@ export default function Requirements() {
                         onClick={() => navigate(`/controls/${req.id}`)}
                         data-testid={`row-control-${req.id}`}
                       >
+                        <TableCell className="text-xs text-muted-foreground align-top pt-4" data-testid={`text-framework-${req.id}`}>
+                          {source?.shortName ?? "--"}
+                        </TableCell>
+                        <TableCell className="align-top pt-4" data-testid={`text-title-${req.id}`}>
+                          <span className="text-sm font-medium">{req.title}</span>
+                        </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground align-top pt-4" data-testid={`text-id-${req.id}`}>
                           {req.code}
                         </TableCell>
-                        <TableCell className="align-top pt-4" data-testid={`text-control-${req.id}`}>
-                          <div>
-                            <span className="text-sm font-medium">{req.title}</span>
-                            {req.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 max-w-lg">{req.description}</p>
-                            )}
-                          </div>
+                        <TableCell className="align-top pt-4" data-testid={`text-description-${req.id}`}>
+                          <p className="text-xs text-muted-foreground line-clamp-2 max-w-[250px]">{req.description || "--"}</p>
                         </TableCell>
-                        <TableCell className="align-top pt-4" data-testid={`text-owner-${req.id}`}>
-                          {ownerName !== "--" ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
-                                <span className="text-[10px] font-medium text-muted-foreground">{ownerInitials}</span>
-                              </div>
-                              <span className="text-sm truncate">{ownerName}</span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">--</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="align-top pt-4" data-testid={`text-framework-${req.id}`}>
-                          <span className="text-xs text-muted-foreground">{frameworkLabel}</span>
-                        </TableCell>
-                        <TableCell className="align-top pt-4" data-testid={`text-docs-${req.id}`}>
-                          {docsLinked > 0 ? (
-                            <div className="flex items-center gap-1.5">
-                              <CheckCircle2 className={`h-4 w-4 ${bestStatus === "Covered" ? "text-green-500 dark:text-green-400" : bestStatus === "Partially Covered" ? "text-amber-500 dark:text-amber-400" : "text-muted-foreground"}`} />
-                              <span className="text-sm font-medium">{coveredDocs}/{docsLinked}</span>
-                            </div>
+                        <TableCell className="align-top pt-4" data-testid={`text-evidence-status-${req.id}`}>
+                          {req.evidenceStatus ? (
+                            <Badge variant="secondary" className={`border-0 text-xs ${evidenceStatusColor}`}>
+                              {req.evidenceStatus}
+                            </Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">--</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-sm align-top pt-4" data-testid={`text-domain-${req.id}`}>
+                          {req.category}
+                        </TableCell>
+                        <TableCell className="text-sm align-top pt-4" data-testid={`text-owner-${req.id}`}>
+                          {ownerName}
                         </TableCell>
                         <TableCell className="align-top pt-4" data-testid={`text-actions-${req.id}`}>
                           <DropdownMenu>
@@ -821,13 +806,25 @@ export default function Requirements() {
               />
               <FormField
                 control={form.control}
-                name="article"
+                name="evidenceStatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Article (optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Article 5" {...field} value={field.value ?? ""} data-testid="input-article" />
-                    </FormControl>
+                    <FormLabel>Evidence Status</FormLabel>
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={(val) => field.onChange(val || null)}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-evidence-status">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Not Started">Not Started</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Complete">Complete</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

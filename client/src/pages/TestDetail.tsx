@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { X, CheckCircle2, XCircle, FileText, Save, MoreHorizontal, Share2, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import type { RequirementMapping, Requirement, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
+import type { ControlMapping, Control, Document as PolicyDocument, RegulatorySource } from "@shared/schema";
 
 const createTestSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -28,13 +28,13 @@ type CreateTestValues = z.infer<typeof createTestSchema>;
 function EvidenceTestCriteria({
   mapping,
   document,
-  requirement,
+  control,
   source,
   isPassing,
 }: {
-  mapping: RequirementMapping;
+  mapping: ControlMapping;
   document: PolicyDocument | null;
-  requirement: Requirement | null;
+  control: Control | null;
   source: RegulatorySource | null;
   isPassing: boolean;
 }) {
@@ -46,12 +46,12 @@ function EvidenceTestCriteria({
 
   const saveLogicMutation = useMutation({
     mutationFn: async (newLogic: string) => {
-      await apiRequest("PUT", `/api/requirement-mappings/${mapping.id}`, {
+      await apiRequest("PUT", `/api/control-mappings/${mapping.id}`, {
         testLogic: newLogic,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       setIsEditingLogic(false);
       toast({ title: "Test logic saved" });
     },
@@ -214,7 +214,7 @@ function EvidenceTestCriteria({
                       <div className="space-y-3">
                         <p className="text-muted-foreground">This test evaluates the following conditions:</p>
                         <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                          <li>Document exists and is mapped to this requirement</li>
+                          <li>Document exists and is mapped to this control</li>
                           <li>Coverage status is set to "Covered"</li>
                           {document && <li>Document status is "Approved" or "Published"</li>}
                         </ul>
@@ -268,12 +268,12 @@ export default function TestDetail() {
     defaultValues: { description: "" },
   });
 
-  const { data: allMappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: allMappings, isLoading: mappingsLoading } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
-  const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: allRequirements } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
@@ -299,7 +299,7 @@ export default function TestDetail() {
       return (allRequirements ?? []).find((r) => r.id === controlIdParam) ?? null;
     }
     if (!mapping || !allRequirements) return null;
-    return allRequirements.find((r) => r.id === mapping.requirementId) ?? null;
+    return allRequirements.find((r) => r.id === mapping.controlId) ?? null;
   }, [mapping, allRequirements, isCreateMode, controlIdParam]);
 
   const source = useMemo(() => {
@@ -310,7 +310,7 @@ export default function TestDetail() {
   const linkedControls = useMemo(() => {
     if (isCreateMode) return requirement ? [requirement] : [];
     if (!mapping || !allRequirements) return [];
-    const req = allRequirements.find((r) => r.id === mapping.requirementId);
+    const req = allRequirements.find((r) => r.id === mapping.controlId);
     return req ? [req] : [];
   }, [mapping, allRequirements, isCreateMode, requirement]);
 
@@ -318,16 +318,16 @@ export default function TestDetail() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CreateTestValues) => {
-      const res = await apiRequest("POST", "/api/requirement-mappings", {
-        requirementId: controlIdParam,
+      const res = await apiRequest("POST", "/api/control-mappings", {
+        controlId: controlIdParam,
         documentId: null,
         coverageStatus: "Not Covered",
         rationale: data.description,
       });
       return res.json();
     },
-    onSuccess: (created: RequirementMapping) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+    onSuccess: (created: ControlMapping) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Test created" });
       navigate(`/tests/${created.id}`, { replace: true });
@@ -355,7 +355,7 @@ export default function TestDetail() {
     return (
       <div className="space-y-4" data-testid="test-detail-not-found">
         <div className="flex justify-end">
-          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/controls")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -378,7 +378,7 @@ export default function TestDetail() {
               </p>
             )}
           </div>
-          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/controls")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -494,7 +494,7 @@ export default function TestDetail() {
           <Button size="icon" variant="outline" data-testid="button-test-share">
             <Share2 className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/controls")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -540,7 +540,7 @@ export default function TestDetail() {
           <EvidenceTestCriteria
             mapping={mapping!}
             document={document}
-            requirement={requirement}
+            control={requirement}
             source={source}
             isPassing={isPassing}
           />

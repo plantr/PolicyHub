@@ -2,13 +2,13 @@ import { z } from 'zod';
 import {
   insertBusinessUnitSchema, insertDocumentSchema, insertDocumentVersionSchema,
   insertAddendumSchema, insertApprovalSchema, insertFindingSchema,
-  insertRequirementMappingSchema, insertReviewHistorySchema,
-  insertRegulatorySourceSchema, insertRequirementSchema, insertAuditSchema,
+  insertControlMappingSchema, insertReviewHistorySchema,
+  insertRegulatorySourceSchema, insertControlSchema, insertAuditSchema,
   insertUserSchema, insertCommitmentSchema, insertKnowledgeBaseArticleSchema,
   insertRiskSchema, insertRiskLibrarySchema, insertRiskActionSchema, insertRiskSnapshotSchema,
-  businessUnits, regulatorySources, requirements, documents, documentVersions,
+  businessUnits, regulatorySources, controls, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
-  requirementMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
+  controlMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
   audits, users, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
   commitments, knowledgeBaseArticles,
   risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
@@ -123,43 +123,43 @@ export const api = {
   },
 
   // =============================================
-  // REQUIREMENTS
+  // CONTROLS
   // =============================================
-  requirements: {
+  controls: {
     list: {
       method: 'GET' as const,
-      path: '/api/requirements' as const,
-      responses: { 200: z.array(z.custom<typeof requirements.$inferSelect>()) },
+      path: '/api/controls' as const,
+      responses: { 200: z.array(z.custom<typeof controls.$inferSelect>()) },
     },
     get: {
       method: 'GET' as const,
-      path: '/api/requirements/:id' as const,
+      path: '/api/controls/:id' as const,
       responses: {
-        200: z.custom<typeof requirements.$inferSelect>(),
+        200: z.custom<typeof controls.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     create: {
       method: 'POST' as const,
-      path: '/api/requirements' as const,
-      input: insertRequirementSchema,
+      path: '/api/controls' as const,
+      input: insertControlSchema,
       responses: {
-        201: z.custom<typeof requirements.$inferSelect>(),
+        201: z.custom<typeof controls.$inferSelect>(),
         400: errorSchemas.validation,
       },
     },
     update: {
       method: 'PUT' as const,
-      path: '/api/requirements/:id' as const,
-      input: insertRequirementSchema.partial(),
+      path: '/api/controls/:id' as const,
+      input: insertControlSchema.partial(),
       responses: {
-        200: z.custom<typeof requirements.$inferSelect>(),
+        200: z.custom<typeof controls.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     delete: {
       method: 'DELETE' as const,
-      path: '/api/requirements/:id' as const,
+      path: '/api/controls/:id' as const,
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,
@@ -338,34 +338,34 @@ export const api = {
   },
 
   // =============================================
-  // REQUIREMENT MAPPINGS
+  // CONTROL MAPPINGS
   // =============================================
-  requirementMappings: {
+  controlMappings: {
     list: {
       method: 'GET' as const,
-      path: '/api/requirement-mappings' as const,
-      responses: { 200: z.array(z.custom<typeof requirementMappings.$inferSelect>()) },
+      path: '/api/control-mappings' as const,
+      responses: { 200: z.array(z.custom<typeof controlMappings.$inferSelect>()) },
     },
     create: {
       method: 'POST' as const,
-      path: '/api/requirement-mappings' as const,
-      input: insertRequirementMappingSchema,
+      path: '/api/control-mappings' as const,
+      input: insertControlMappingSchema,
       responses: {
-        201: z.custom<typeof requirementMappings.$inferSelect>(),
+        201: z.custom<typeof controlMappings.$inferSelect>(),
       },
     },
     update: {
       method: 'PUT' as const,
-      path: '/api/requirement-mappings/:id' as const,
-      input: insertRequirementMappingSchema.partial(),
+      path: '/api/control-mappings/:id' as const,
+      input: insertControlMappingSchema.partial(),
       responses: {
-        200: z.custom<typeof requirementMappings.$inferSelect>(),
+        200: z.custom<typeof controlMappings.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     delete: {
       method: 'DELETE' as const,
-      path: '/api/requirement-mappings/:id' as const,
+      path: '/api/control-mappings/:id' as const,
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,
@@ -895,7 +895,7 @@ export const api = {
       responses: {
         200: z.object({
           totalDocuments: z.number(),
-          totalRequirements: z.number(),
+          totalControls: z.number(),
           totalSources: z.number(),
           businessUnits: z.number(),
           coveredCount: z.number(),

@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import type { Document, BusinessUnit, User, DocumentVersion, Approval, RequirementMapping, RegulatorySource, Requirement } from "@shared/schema";
+import type { Document, BusinessUnit, User, DocumentVersion, Approval, ControlMapping, RegulatorySource, Control } from "@shared/schema";
 import { insertDocumentSchema } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,12 +153,12 @@ export default function Documents() {
     queryKey: ["/api/approvals"],
   });
 
-  const { data: mappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: mappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
-  const { data: requirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: requirements } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
   const { data: sources } = useQuery<RegulatorySource[]>({
@@ -228,14 +228,14 @@ export default function Documents() {
 
   const docFrameworkMap = useMemo(() => {
     const map = new Map<number, string[]>();
-    const reqMap = new Map<number, Requirement>();
+    const reqMap = new Map<number, Control>();
     (requirements ?? []).forEach((r) => reqMap.set(r.id, r));
     const srcMap = new Map<number, RegulatorySource>();
     (sources ?? []).forEach((s) => srcMap.set(s.id, s));
 
     (mappings ?? []).forEach((m) => {
       if (m.documentId == null) return;
-      const req = reqMap.get(m.requirementId);
+      const req = reqMap.get(m.controlId);
       if (!req) return;
       const src = srcMap.get(req.sourceId);
       if (!src) return;

@@ -46,7 +46,7 @@ function Router() {
       <Route path="/documents" component={Documents} />
       <Route path="/documents/:id" component={DocumentDetail} />
       <Route path="/documents/:docId/versions/:verId" component={VersionDetail} />
-      <Route path="/requirements" component={Requirements} />
+      <Route path="/controls" component={Requirements} />
       <Route path="/controls/:id" component={ControlDetail} />
       <Route path="/tests/:id" component={TestDetail} />
       <Route path="/sources" component={RegulatorySources} />

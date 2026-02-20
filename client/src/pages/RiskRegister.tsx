@@ -33,7 +33,7 @@ const riskFormSchema = insertRiskSchema.extend({
   mitigationStrategy: z.string().min(1, "Risk response is required"),
   description: z.string().nullable().default(null),
   businessUnitId: z.coerce.number().nullable().default(null),
-  requirementId: z.coerce.number().nullable().default(null),
+  controlId: z.coerce.number().nullable().default(null),
   inherentLikelihood: z.coerce.number().min(1).max(5).default(3),
   inherentImpact: z.coerce.number().min(1).max(5).default(3),
   inherentScore: z.coerce.number().optional().default(9),
@@ -91,7 +91,7 @@ export default function RiskRegister() {
       status: "Identified",
       owner: "",
       businessUnitId: null,
-      requirementId: null,
+      controlId: null,
       inherentLikelihood: 3,
       inherentImpact: 3,
       inherentScore: 9,
@@ -122,7 +122,7 @@ export default function RiskRegister() {
       const payload = {
         ...data,
         businessUnitId: data.businessUnitId || null,
-        requirementId: data.requirementId || null,
+        controlId: data.controlId || null,
         reviewDate: data.reviewDate || null,
       };
       return apiRequest("POST", "/api/risks", payload);
@@ -142,7 +142,7 @@ export default function RiskRegister() {
       const payload = {
         ...data,
         businessUnitId: data.businessUnitId || null,
-        requirementId: data.requirementId || null,
+        controlId: data.controlId || null,
         reviewDate: data.reviewDate || null,
       };
       return apiRequest("PUT", `/api/risks/${id}`, payload);
@@ -179,7 +179,7 @@ export default function RiskRegister() {
       status: "Identified",
       owner: "",
       businessUnitId: null,
-      requirementId: null,
+      controlId: null,
       inherentLikelihood: 3,
       inherentImpact: 3,
       inherentScore: 9,
@@ -205,7 +205,7 @@ export default function RiskRegister() {
       status: r.status,
       owner: r.owner,
       businessUnitId: r.businessUnitId || null,
-      requirementId: r.requirementId || null,
+      controlId: r.controlId || null,
       inherentLikelihood: r.inherentLikelihood,
       inherentImpact: r.inherentImpact,
       inherentScore: r.inherentScore,
@@ -555,16 +555,16 @@ export default function RiskRegister() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="requirementId" render={({ field }) => (
+                <FormField control={form.control} name="controlId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Requirement ID</FormLabel>
+                    <FormLabel>Control ID</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         {...field}
                         value={field.value ?? ""}
                         onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                        data-testid="input-risk-requirement-id"
+                        data-testid="input-risk-control-id"
                       />
                     </FormControl>
                     <FormMessage />

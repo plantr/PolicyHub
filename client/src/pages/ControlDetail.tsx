@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
-import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
+import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
 
 const linkDocFormSchema = z.object({
   documentId: z.coerce.number().min(1, "Document is required"),
@@ -38,11 +38,11 @@ export default function ControlDetail() {
     defaultValues: { documentId: 0, coverageStatus: "Covered", rationale: "" },
   });
 
-  const { data: control, isLoading: controlLoading } = useQuery<Requirement>({
-    queryKey: ["/api/requirements", controlId],
+  const { data: control, isLoading: controlLoading } = useQuery<Control>({
+    queryKey: ["/api/controls", controlId],
     enabled: !!controlId,
     queryFn: async () => {
-      const res = await fetch(`/api/requirements?id=${controlId}`, { credentials: "include" });
+      const res = await fetch(`/api/controls?id=${controlId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Not found");
       return res.json();
     },
@@ -52,8 +52,8 @@ export default function ControlDetail() {
     queryKey: ["/api/regulatory-sources"],
   });
 
-  const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: allMappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
@@ -67,7 +67,7 @@ export default function ControlDetail() {
 
   const mappings = useMemo(() => {
     if (!allMappings) return [];
-    return allMappings.filter((m) => m.requirementId === controlId);
+    return allMappings.filter((m) => m.controlId === controlId);
   }, [allMappings, controlId]);
 
   const documentMap = useMemo(
@@ -114,8 +114,8 @@ export default function ControlDetail() {
 
   const createMappingMutation = useMutation({
     mutationFn: async (data: { documentId: number; coverageStatus: string; rationale?: string }) => {
-      const res = await apiRequest("POST", "/api/requirement-mappings", {
-        requirementId: controlId,
+      const res = await apiRequest("POST", "/api/control-mappings", {
+        controlId: controlId,
         documentId: data.documentId,
         coverageStatus: data.coverageStatus,
         rationale: data.rationale || null,
@@ -123,7 +123,7 @@ export default function ControlDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
     onError: (err: Error) => {
@@ -133,10 +133,10 @@ export default function ControlDetail() {
 
   const deleteMappingMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/requirement-mappings/${id}`);
+      await apiRequest("DELETE", `/api/control-mappings/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
     onError: (err: Error) => {
@@ -150,13 +150,13 @@ export default function ControlDetail() {
   const aiCoverageMutation = useMutation({
     mutationFn: async () => {
       setAiCoverageRunning(true);
-      const res = await apiRequest("POST", `/api/requirements/${controlId}/ai-coverage`, {});
+      const res = await apiRequest("POST", `/api/controls/${controlId}/ai-coverage`, {});
       return res.json();
     },
     onSuccess: (data: { combinedAiScore: number; combinedAiRationale: string; combinedAiRecommendations?: string }) => {
       setAiCoverageRunning(false);
-      queryClient.invalidateQueries({ queryKey: [`/api/requirements/${controlId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/controls/${controlId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
       toast({ title: "AI Coverage Analysis Complete", description: `Combined score: ${data.combinedAiScore}%` });
     },
     onError: (err: Error) => {
@@ -173,7 +173,7 @@ export default function ControlDetail() {
     },
     onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string; aiMatchRecommendations?: string }) => {
       setAiAnalysingId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       toast({ title: "AI Analysis Complete", description: `Match score: ${data.aiMatchScore}%` });
     },
     onError: (err: Error) => {
@@ -209,7 +209,7 @@ export default function ControlDetail() {
     return (
       <div className="space-y-4" data-testid="control-detail-not-found">
         <div className="flex justify-end">
-          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
+          <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/controls")} data-testid="button-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -235,7 +235,7 @@ export default function ControlDetail() {
             </p>
           )}
         </div>
-        <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/requirements")} data-testid="button-close">
+        <Button size="icon" variant="ghost" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/controls")} data-testid="button-close">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -258,8 +258,17 @@ export default function ControlDetail() {
         <span className="text-muted-foreground">Domain</span>
         <span className="font-medium" data-testid="text-meta-domain">{control.category}</span>
 
-        <span className="text-muted-foreground">Article</span>
-        <span className="font-medium" data-testid="text-meta-article">{control.article || "--"}</span>
+        <span className="text-muted-foreground">Owner</span>
+        <span className="font-medium" data-testid="text-meta-owner">{control.owner || "--"}</span>
+
+        <span className="text-muted-foreground">Evidence Status</span>
+        <span data-testid="badge-meta-evidence-status">
+          {control.evidenceStatus ? (
+            <Badge variant={control.evidenceStatus === "Complete" ? "default" : control.evidenceStatus === "In Progress" ? "secondary" : "outline"}>
+              {control.evidenceStatus}
+            </Badge>
+          ) : "--"}
+        </span>
 
         <span className="text-muted-foreground">Status</span>
         <span data-testid="badge-meta-status">

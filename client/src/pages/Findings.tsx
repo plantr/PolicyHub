@@ -422,10 +422,10 @@ export default function Findings() {
                                     <p data-testid={`text-remediation-${f.id}`}>{f.remediationPlan ?? "--"}</p>
                                   </div>
                                   <div className="flex flex-wrap gap-4">
-                                    {f.requirementId && (
+                                    {f.controlId && (
                                       <div>
-                                        <p className="font-medium text-muted-foreground mb-1">Related Requirement</p>
-                                        <p data-testid={`text-related-req-${f.id}`}>REQ #{f.requirementId}</p>
+                                        <p className="font-medium text-muted-foreground mb-1">Related Control</p>
+                                        <p data-testid={`text-related-req-${f.id}`}>CTRL #{f.controlId}</p>
                                       </div>
                                     )}
                                     {f.documentId && (

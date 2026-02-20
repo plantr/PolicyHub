@@ -11,7 +11,7 @@ import type { Finding, BusinessUnit } from "@shared/schema";
 
 interface Stats {
   totalDocuments: number;
-  totalRequirements: number;
+  totalControls: number;
   totalSources: number;
   businessUnits: number;
   coveredCount: number;
@@ -131,10 +131,10 @@ export default function Dashboard() {
           testId="stat-total-documents"
         />
         <StatCard
-          title="Total Requirements"
-          value={stats?.totalRequirements ?? 0}
+          title="Total Controls"
+          value={stats?.totalControls ?? 0}
           icon={ListChecks}
-          testId="stat-total-requirements"
+          testId="stat-total-controls"
         />
         <StatCard
           title="Coverage Rate"

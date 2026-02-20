@@ -43,7 +43,7 @@ import { ChevronDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { RegulatorySource, Requirement, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
+import type { RegulatorySource, Control, ControlMapping, Document as PolicyDocument } from "@shared/schema";
 
 const editFrameworkSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -114,6 +114,13 @@ function DonutChart({ covered, total, label }: { covered: number; total: number;
   );
 }
 
+function formatCategory(raw: string): string {
+  return raw
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function getCoverageVariant(status: string) {
   switch (status) {
     case "Covered": return "default" as const;
@@ -123,7 +130,7 @@ function getCoverageVariant(status: string) {
   }
 }
 
-function getBestStatus(reqMaps: RequirementMapping[]): string {
+function getBestStatus(reqMaps: ControlMapping[]): string {
   if (reqMaps.length === 0) return "Not Covered";
   if (reqMaps.some((m) => m.coverageStatus === "Covered")) return "Covered";
   if (reqMaps.some((m) => m.coverageStatus === "Partially Covered")) return "Partially Covered";
@@ -174,7 +181,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
 
   const updateMutation = useMutation({
     mutationFn: async (data: EditFrameworkValues) => {
-      await apiRequest("PUT", `/api/regulatory-sources/${sourceId}`, data);
+      await apiRequest("PUT", `/api/regulatory-sources?id=${sourceId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/regulatory-sources", sourceId] });
@@ -187,12 +194,12 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     },
   });
 
-  const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["/api/requirements"],
+  const { data: allRequirements } = useQuery<Control[]>({
+    queryKey: ["/api/controls"],
   });
 
-  const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["/api/requirement-mappings"],
+  const { data: allMappings } = useQuery<ControlMapping[]>({
+    queryKey: ["/api/control-mappings"],
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
@@ -208,7 +215,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
 
   const mappings = useMemo(() => {
     if (!allMappings) return [];
-    return allMappings.filter((m) => reqIds.has(m.requirementId));
+    return allMappings.filter((m) => reqIds.has(m.controlId));
   }, [allMappings, reqIds]);
 
   const metrics = useMemo(() => {
@@ -220,9 +227,9 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     const mappedReqIds = new Set<number>();
 
     for (const m of mappings) {
-      mappedReqIds.add(m.requirementId);
-      if (m.coverageStatus === "Covered") coveredIds.add(m.requirementId);
-      else if (m.coverageStatus === "Partially Covered") partialIds.add(m.requirementId);
+      mappedReqIds.add(m.controlId);
+      if (m.coverageStatus === "Covered") coveredIds.add(m.controlId);
+      else if (m.coverageStatus === "Partially Covered") partialIds.add(m.controlId);
     }
 
     const covered = coveredIds.size;
@@ -235,11 +242,11 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   }, [requirements, mappings]);
 
   const reqMappingLookup = useMemo(() => {
-    const lookup = new Map<number, RequirementMapping[]>();
+    const lookup = new Map<number, ControlMapping[]>();
     for (const m of mappings) {
-      const list = lookup.get(m.requirementId) || [];
+      const list = lookup.get(m.controlId) || [];
       list.push(m);
-      lookup.set(m.requirementId, list);
+      lookup.set(m.controlId, list);
     }
     return lookup;
   }, [mappings]);
@@ -277,7 +284,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   }, [requirements, selectedCategory, searchQuery]);
 
   const groupedRequirements = useMemo(() => {
-    const groups = new Map<string, Requirement[]>();
+    const groups = new Map<string, Control[]>();
     for (const req of filteredRequirements) {
       const cat = req.category;
       const list = groups.get(cat) || [];
@@ -378,7 +385,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 </CardContent>
               </Card>
 
-              <Card data-testid="card-requirement-status">
+              <Card data-testid="card-control-status">
                 <CardContent className="pt-6 space-y-4">
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Controls</h3>
@@ -559,10 +566,10 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-xs text-muted-foreground">Documents</span>
-                      <span className="text-xs font-medium">{linkedDocuments.length}/{metrics.total}</span>
+                      <span className="text-xs font-medium">{linkedDocuments.length}/{(allDocuments ?? []).length}</span>
                     </div>
                     <CoverageBar
-                      percent={metrics.total > 0 ? Math.round((linkedDocuments.length / metrics.total) * 100) : 0}
+                      percent={(allDocuments ?? []).length > 0 ? Math.round((linkedDocuments.length / (allDocuments ?? []).length) * 100) : 0}
                       color="bg-emerald-500 dark:bg-emerald-400"
                     />
                   </div>
@@ -601,7 +608,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 <div className="space-y-0.5">
                   <Button
                     variant="ghost"
-                    className={`w-full justify-start text-sm ${
+                    className={`w-full justify-start text-sm whitespace-normal text-left h-auto ${
                       selectedCategory === null ? "bg-accent font-medium" : "text-muted-foreground"
                     }`}
                     onClick={() => setSelectedCategory(null)}
@@ -615,13 +622,13 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                       <Button
                         key={cat}
                         variant="ghost"
-                        className={`w-full justify-start text-sm ${
+                        className={`w-full justify-start text-sm whitespace-normal text-left h-auto ${
                           selectedCategory === cat ? "bg-accent font-medium" : "text-muted-foreground"
                         }`}
                         onClick={() => setSelectedCategory(cat)}
                         data-testid={`button-category-${cat}`}
                       >
-                        {cat}
+                        {formatCategory(cat)}
                       </Button>
                     );
                   })}
@@ -642,7 +649,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
               </div>
             )}
 
-            <div className="flex-1 min-w-0 space-y-4">
+            <div className="flex-1 min-w-0 overflow-hidden space-y-4">
               {groupedRequirements.length === 0 && (
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   {searchQuery || selectedCategory ? "No controls match your filters." : "No controls defined for this framework."}
@@ -652,62 +659,49 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 <Collapsible key={category} defaultOpen>
                   <CollapsibleTrigger className="flex flex-wrap items-center gap-2 w-full py-3 border-b text-left group" data-testid={`trigger-category-${category}`}>
                     <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]:-rotate-90" />
-                    <span className="font-semibold text-base">{category}</span>
+                    <span className="font-semibold text-base">{formatCategory(category)}</span>
+                    <Badge variant="secondary" className="text-xs">{reqs.length}</Badge>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    {reqs.map((req) => {
-                      const reqMaps = reqMappingLookup.get(req.id) || [];
-                      const bestStatus = getBestStatus(reqMaps);
-                      return (
-                        <div key={req.id} className="border-b last:border-b-0" data-testid={`control-row-${req.id}`}>
-                          <div className="py-3 px-2">
-                            <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-xs text-muted-foreground">{req.code}</span>
-                                {req.article && (
-                                  <Badge variant="outline" className="text-xs shrink-0">{req.article}</Badge>
-                                )}
-                                <span className="text-sm font-medium">{req.title}</span>
-                              </div>
-                              <Badge variant={getCoverageVariant(bestStatus)} className="text-xs shrink-0">{bestStatus}</Badge>
-                            </div>
-                            {req.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.description}</p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                              {req.owner && (
-                                <span data-testid={`text-owner-${req.id}`}>
-                                  <span className="font-medium text-foreground">Owner:</span> {req.owner}
-                                </span>
-                              )}
-                              {req.status && (
-                                <span data-testid={`text-status-${req.id}`}>
-                                  <span className="font-medium text-foreground">Status:</span> {req.status}
-                                </span>
-                              )}
-                              {req.notes && (
-                                <span data-testid={`text-notes-${req.id}`}>
-                                  <span className="font-medium text-foreground">Notes:</span> {req.notes}
-                                </span>
-                              )}
-                            </div>
-                            {reqMaps.length > 0 && (
-                              <div className="mt-2" data-testid={`tests-list-${req.id}`}>
-                                <span className="text-xs font-medium">Tests ({reqMaps.length})</span>
-                                <div className="mt-1 space-y-0.5">
-                                  {reqMaps.map((m) => (
-                                    <div key={m.id} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                      <Badge variant={getCoverageVariant(m.coverageStatus)} className="text-[10px] px-1.5 py-0 shrink-0">{m.coverageStatus}</Badge>
-                                      <span>{m.rationale}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <div className="border rounded-md overflow-hidden mt-2 mb-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="w-[100px]">Code</TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead className="hidden xl:table-cell">Owner</TableHead>
+                            <TableHead className="w-[120px] text-right">Coverage</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reqs.map((req) => {
+                            const reqMaps = reqMappingLookup.get(req.id) || [];
+                            const bestStatus = getBestStatus(reqMaps);
+                            return (
+                              <TableRow key={req.id} data-testid={`control-row-${req.id}`}>
+                                <TableCell className="font-mono text-xs text-muted-foreground align-top">
+                                  {req.code}
+                                </TableCell>
+                                <TableCell className="align-top">
+                                  <Link href={`/controls/${req.id}`} className="text-sm font-medium hover:underline">
+                                    {req.title}
+                                  </Link>
+                                  {req.description && (
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.description}</p>
+                                  )}
+                                </TableCell>
+                                <TableCell className="hidden xl:table-cell text-sm text-muted-foreground align-top">
+                                  {req.owner || "--"}
+                                </TableCell>
+                                <TableCell className="text-right align-top">
+                                  <Badge variant={getCoverageVariant(bestStatus)} className="text-xs">{bestStatus}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CollapsibleContent>
                 </Collapsible>
               ))}

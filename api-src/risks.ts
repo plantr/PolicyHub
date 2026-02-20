@@ -44,8 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (typeof body.businessUnitId === "string") {
           body.businessUnitId = body.businessUnitId === "" || body.businessUnitId === "null" ? null : Number(body.businessUnitId);
         }
-        if (typeof body.requirementId === "string") {
-          body.requirementId = body.requirementId === "" || body.requirementId === "null" ? null : Number(body.requirementId);
+        if (typeof body.controlId === "string") {
+          body.controlId = body.controlId === "" || body.controlId === "null" ? null : Number(body.controlId);
         }
         const score = (body.inherentLikelihood || 3) * (body.inherentImpact || 3);
         body.inherentScore = score;
@@ -69,8 +69,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (typeof body.businessUnitId === "string") {
           body.businessUnitId = body.businessUnitId === "" || body.businessUnitId === "null" ? null : Number(body.businessUnitId);
         }
-        if (typeof body.requirementId === "string") {
-          body.requirementId = body.requirementId === "" || body.requirementId === "null" ? null : Number(body.requirementId);
+        if (typeof body.controlId === "string") {
+          body.controlId = body.controlId === "" || body.controlId === "null" ? null : Number(body.controlId);
         }
         if (body.inherentLikelihood !== undefined && body.inherentImpact !== undefined) {
           const score = body.inherentLikelihood * body.inherentImpact;

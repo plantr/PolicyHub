@@ -1,9 +1,8 @@
 /**
  * Serverless function: /api/gap-analysis
- * Gap analysis refresh and AI-powered auto-mapping.
+ * AI-powered auto-mapping of controls to documents.
  *
  * URL convention:
- *   GET    /api/gap-analysis?action=refresh     → run gap analysis refresh
  *   POST   /api/gap-analysis?action=auto-map    → keyword-based auto-mapping
  *   POST   /api/gap-analysis?action=ai-match&mappingId=N → AI match for single mapping (dispatch-and-fire)
  */
@@ -22,243 +21,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const actionRaw = req.query.action;
     const action = Array.isArray(actionRaw) ? actionRaw[0] : actionRaw;
 
-    // === GAP ANALYSIS REFRESH ===
-    if (req.method === "GET" && action === "refresh") {
-      const allRequirements = await storage.getRequirements();
-      const allMappings = await storage.getRequirementMappings();
-      const allDocuments = await storage.getDocuments();
-      const allSources = await storage.getRegulatorySources();
-      const allBusinessUnits = await storage.getBusinessUnits();
-      const allProfiles = await storage.getRegulatoryProfiles();
-      const allVersions = await db.select().from(schema.documentVersions);
-
-      const latestVersionMarkdown = new Map<number, string>();
-      for (const v of allVersions) {
-        if (!v.markDown) continue;
-        latestVersionMarkdown.set(v.documentId, v.markDown);
-      }
-
-      const sourceMap = new Map(allSources.map((s) => [s.id, s]));
-      const docMap = new Map(allDocuments.map((d) => [d.id, d]));
-      const reqMap = new Map(allRequirements.map((r) => [r.id, r]));
-      const buMap = new Map(allBusinessUnits.map((b) => [b.id, b]));
-
-      const buEnabledSources = new Map<number, Set<number>>();
-      const globalEnabledSourceIds = new Set<number>();
-      for (const profile of allProfiles) {
-        if (!profile.enabled) continue;
-        globalEnabledSourceIds.add(profile.sourceId);
-        if (!buEnabledSources.has(profile.businessUnitId)) {
-          buEnabledSources.set(profile.businessUnitId, new Set());
-        }
-        buEnabledSources.get(profile.businessUnitId)!.add(profile.sourceId);
-      }
-
-      const applicableRequirements = allRequirements.filter((r) => globalEnabledSourceIds.has(r.sourceId));
-      const mappedReqIds = new Set(allMappings.map((m) => m.requirementId));
-      const unmappedRequirements = applicableRequirements
-        .filter((r) => !mappedReqIds.has(r.id))
-        .map((r) => ({
-          requirementId: r.id,
-          code: r.code,
-          title: r.title,
-          category: r.category,
-          sourceId: r.sourceId,
-          sourceName: sourceMap.get(r.sourceId)?.shortName ?? `Source #${r.sourceId}`,
-          article: r.article,
-        }));
-
-      const perBuGaps: Array<{
-        businessUnitId: number;
-        businessUnitName: string;
-        requirementId: number;
-        code: string;
-        title: string;
-        sourceName: string;
-      }> = [];
-
-      for (const [buId, enabledSources] of Array.from(buEnabledSources.entries())) {
-        const buName = buMap.get(buId)?.name ?? `BU #${buId}`;
-        const buApplicableReqs = allRequirements.filter((r) => enabledSources.has(r.sourceId));
-        const buMappedReqIds = new Set(
-          allMappings
-            .filter((m) => m.businessUnitId === buId || m.businessUnitId === null)
-            .map((m) => m.requirementId)
-        );
-        for (const req of buApplicableReqs) {
-          if (!buMappedReqIds.has(req.id)) {
-            perBuGaps.push({
-              businessUnitId: buId,
-              businessUnitName: buName,
-              requirementId: req.id,
-              code: req.code,
-              title: req.title,
-              sourceName: sourceMap.get(req.sourceId)?.shortName ?? `Source #${req.sourceId}`,
-            });
-          }
-        }
-      }
-
-      const overStrictItems: Array<{
-        documentId: number;
-        documentTitle: string;
-        requirementId: number;
-        requirementCode: string;
-        requirementTitle: string;
-        sourceName: string;
-        businessUnitId: number | null;
-        businessUnitName: string;
-        reason: string;
-      }> = [];
-
-      for (const mapping of allMappings) {
-        const req = reqMap.get(mapping.requirementId);
-        if (!req) continue;
-        const mappingBuId = mapping.businessUnitId;
-        if (mappingBuId) {
-          const buSources = buEnabledSources.get(mappingBuId);
-          if (!buSources || !buSources.has(req.sourceId)) {
-            const doc = docMap.get(mapping.documentId);
-            const src = sourceMap.get(req.sourceId);
-            const bu = buMap.get(mappingBuId);
-            overStrictItems.push({
-              documentId: mapping.documentId,
-              documentTitle: doc?.title ?? `Doc #${mapping.documentId}`,
-              requirementId: req.id,
-              requirementCode: req.code,
-              requirementTitle: req.title,
-              sourceName: src?.shortName ?? `Source #${req.sourceId}`,
-              businessUnitId: mappingBuId,
-              businessUnitName: bu?.name ?? `BU #${mappingBuId}`,
-              reason: `Source "${src?.shortName ?? req.sourceId}" is not enabled in ${bu?.name ?? "this business unit"}'s regulatory profile`,
-            });
-          }
-        }
-      }
-
-      function extractKeyPhrases(text: string): string[] {
-        const stopWords = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "shall", "should", "may", "might", "can", "could", "would", "must", "that", "this", "these", "those", "it", "its", "with", "by", "from", "as", "at", "on", "not", "no", "but", "if", "all", "any", "each", "every", "such", "than", "too", "very", "so", "up", "out", "about", "into", "through", "during", "before", "after", "above", "below", "between", "under", "over", "other", "which", "who", "whom", "where", "when", "how", "what", "why", "their", "there", "they", "them", "we", "our", "you", "your"]);
-        const words = text.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !stopWords.has(w));
-        const phrases: string[] = [];
-        const seen = new Set<string>();
-        for (const w of words) {
-          if (!seen.has(w)) { seen.add(w); phrases.push(w); }
-        }
-        return phrases;
-      }
-
-      function scoreContentMatch(docMarkdown: string, requirement: { title: string; description: string; evidence?: string | null }): { score: number; matchedTerms: string[]; totalTerms: number } {
-        const md = docMarkdown.toLowerCase();
-        const allText = [requirement.title, requirement.description, requirement.evidence || ""].join(" ");
-        const phrases = extractKeyPhrases(allText);
-        if (phrases.length === 0) return { score: 0, matchedTerms: [], totalTerms: 0 };
-        const matched = phrases.filter((p) => md.includes(p));
-        return { score: matched.length / phrases.length, matchedTerms: matched, totalTerms: phrases.length };
-      }
-
-      const contentAnalysis: Array<{
-        mappingId: number;
-        requirementId: number;
-        requirementCode: string;
-        requirementTitle: string;
-        documentId: number;
-        documentTitle: string;
-        previousStatus: string;
-        newStatus: string;
-        matchScore: number;
-        matchedTerms: string[];
-        totalTerms: number;
-        hasMarkdown: boolean;
-      }> = [];
-
-      const mappingsToUpdate: Array<{ id: number; coverageStatus: string }> = [];
-
-      for (const mapping of allMappings) {
-        const req = reqMap.get(mapping.requirementId);
-        if (!req) continue;
-        const doc = docMap.get(mapping.documentId);
-        if (!doc) continue;
-
-        const docMarkdown = latestVersionMarkdown.get(mapping.documentId);
-        if (!docMarkdown) {
-          contentAnalysis.push({
-            mappingId: mapping.id,
-            requirementId: req.id,
-            requirementCode: req.code,
-            requirementTitle: req.title,
-            documentId: doc.id,
-            documentTitle: doc.title,
-            previousStatus: mapping.coverageStatus,
-            newStatus: mapping.coverageStatus,
-            matchScore: 0,
-            matchedTerms: [],
-            totalTerms: 0,
-            hasMarkdown: false,
-          });
-          continue;
-        }
-
-        const result = scoreContentMatch(docMarkdown, req);
-        let newStatus = mapping.coverageStatus;
-        if (result.score >= 0.6) newStatus = "Covered";
-        else if (result.score >= 0.3) newStatus = "Partially Covered";
-        else newStatus = "Not Covered";
-
-        contentAnalysis.push({
-          mappingId: mapping.id,
-          requirementId: req.id,
-          requirementCode: req.code,
-          requirementTitle: req.title,
-          documentId: doc.id,
-          documentTitle: doc.title,
-          previousStatus: mapping.coverageStatus,
-          newStatus,
-          matchScore: Math.round(result.score * 100),
-          matchedTerms: result.matchedTerms.slice(0, 20),
-          totalTerms: result.totalTerms,
-          hasMarkdown: true,
-        });
-
-        if (newStatus !== mapping.coverageStatus) {
-          mappingsToUpdate.push({ id: mapping.id, coverageStatus: newStatus });
-        }
-      }
-
-      for (const upd of mappingsToUpdate) {
-        await db.update(schema.requirementMappings)
-          .set({ coverageStatus: upd.coverageStatus })
-          .where(eq(schema.requirementMappings.id, upd.id));
-      }
-
-      const updatedMappings = mappingsToUpdate.length > 0
-        ? await storage.getRequirementMappings()
-        : allMappings;
-
-      const docLinkedMappings = updatedMappings.filter((m) => m.documentId != null);
-      const summary = {
-        totalRequirements: allRequirements.length,
-        applicableRequirements: applicableRequirements.length,
-        totalMapped: docLinkedMappings.length,
-        unmappedCount: unmappedRequirements.length,
-        perBuGapCount: perBuGaps.length,
-        overStrictCount: overStrictItems.length,
-        coveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Covered").length,
-        partiallyCoveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Partially Covered").length,
-        notCoveredCount: docLinkedMappings.filter((m) => m.coverageStatus === "Not Covered").length,
-        contentAnalysisCount: contentAnalysis.length,
-        contentUpdatedCount: mappingsToUpdate.length,
-      };
-
-      return res.json({ summary, unmappedRequirements, perBuGaps, overStrictItems, contentAnalysis });
-    }
-
     // === AUTO-MAP CONTROLS TO DOCUMENTS (keyword-based) ===
     if (req.method === "POST" && action === "auto-map") {
       const { sourceId, dryRun } = req.body as { sourceId?: number; dryRun?: boolean };
 
-      const allRequirements = await storage.getRequirements();
+      const allControls = await storage.getControls();
       const allDocuments = await storage.getDocuments();
-      const allMappings = await storage.getRequirementMappings();
+      const allMappings = await storage.getControlMappings();
       const allVersions = await db.select().from(schema.documentVersions);
 
       const latestVersionMarkdown = new Map<number, string>();
@@ -276,12 +45,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json({ message: "No documents with markdown content found", created: 0, results: [] });
       }
 
-      const targetReqs = sourceId
-        ? allRequirements.filter((r) => r.sourceId === sourceId)
-        : allRequirements;
+      const targetControls = sourceId
+        ? allControls.filter((r) => r.sourceId === sourceId)
+        : allControls;
 
       const existingMappingKeys = new Set(
-        allMappings.map((m) => `${m.requirementId}-${m.documentId}`)
+        allMappings.map((m) => `${m.controlId}-${m.documentId}`)
       );
 
       function tokenize(text: string): string[] {
@@ -320,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const totalDocs = docsWithContent.length;
 
-      function scoreMatch(req: typeof targetReqs[0], docId: number): { score: number; matchedTerms: string[] } {
+      function scoreMatch(req: typeof targetControls[0], docId: number): { score: number; matchedTerms: string[] } {
         const docData = docTokenSets.get(docId);
         if (!docData) return { score: 0, matchedTerms: [] };
 
@@ -393,9 +162,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const results: Array<{
-        requirementId: number;
-        requirementCode: string;
-        requirementTitle: string;
+        controlId: number;
+        controlCode: string;
+        controlTitle: string;
         documentId: number;
         documentTitle: string;
         score: number;
@@ -407,10 +176,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let created = 0;
       let skippedExisting = 0;
 
-      for (const req of targetReqs) {
+      for (const ctrl of targetControls) {
         let bestDoc: { docId: number; score: number; matchedTerms: string[] } | null = null;
         for (const doc of docsWithContent) {
-          const { score, matchedTerms } = scoreMatch(req, doc.id);
+          const { score, matchedTerms } = scoreMatch(ctrl, doc.id);
           if (score > 0.25 && (!bestDoc || score > bestDoc.score)) {
             bestDoc = { docId: doc.id, score, matchedTerms };
           }
@@ -418,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (bestDoc) {
           const doc = allDocuments.find((d) => d.id === bestDoc!.docId)!;
-          const key = `${req.id}-${bestDoc.docId}`;
+          const key = `${ctrl.id}-${bestDoc.docId}`;
           const alreadyExists = existingMappingKeys.has(key);
 
           let coverageStatus = "Not Covered";
@@ -428,8 +197,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const newRationale = `Auto-mapped (${Math.round(bestDoc.score * 100)}%): ${bestDoc.matchedTerms.slice(0, 8).join(", ")}`;
 
           if (!alreadyExists && !dryRun) {
-            await storage.createRequirementMapping({
-              requirementId: req.id,
+            await storage.createControlMapping({
+              controlId: ctrl.id,
               documentId: bestDoc.docId,
               coverageStatus,
               rationale: newRationale,
@@ -439,17 +208,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (alreadyExists && !dryRun) {
-            const existing = allMappings.find((em) => em.requirementId === req.id && em.documentId === bestDoc!.docId);
+            const existing = allMappings.find((em) => em.controlId === ctrl.id && em.documentId === bestDoc!.docId);
             if (existing && existing.rationale?.startsWith("Auto-mapped")) {
-              await storage.updateRequirementMapping(existing.id, { rationale: newRationale, coverageStatus });
+              await storage.updateControlMapping(existing.id, { rationale: newRationale, coverageStatus });
             }
             skippedExisting++;
           }
 
           results.push({
-            requirementId: req.id,
-            requirementCode: req.code,
-            requirementTitle: req.title,
+            controlId: ctrl.id,
+            controlCode: ctrl.code,
+            controlTitle: ctrl.title,
             documentId: bestDoc.docId,
             documentTitle: doc.title,
             score: Math.round(bestDoc.score * 100),
@@ -464,27 +233,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for (const mapping of allMappings) {
           if (!mapping.rationale?.startsWith("Auto-mapped")) continue;
           if (!mapping.documentId) continue;
-          const reqForMapping = targetReqs.find((r) => r.id === mapping.requirementId);
-          if (!reqForMapping) continue;
-          const alreadyHandled = results.some((r) => r.requirementId === mapping.requirementId && r.documentId === mapping.documentId);
+          const ctrlForMapping = targetControls.find((r) => r.id === mapping.controlId);
+          if (!ctrlForMapping) continue;
+          const alreadyHandled = results.some((r) => r.controlId === mapping.controlId && r.documentId === mapping.documentId);
           if (alreadyHandled) continue;
-          const { score, matchedTerms } = scoreMatch(reqForMapping, mapping.documentId);
+          const { score, matchedTerms } = scoreMatch(ctrlForMapping, mapping.documentId);
           let newStatus = "Not Covered";
           if (score >= 0.45) newStatus = "Covered";
           else if (score >= 0.30) newStatus = "Partially Covered";
           const updatedRationale = `Auto-mapped (${Math.round(score * 100)}%): ${matchedTerms.slice(0, 8).join(", ")}`;
-          await storage.updateRequirementMapping(mapping.id, { rationale: updatedRationale, coverageStatus: newStatus });
+          await storage.updateControlMapping(mapping.id, { rationale: updatedRationale, coverageStatus: newStatus });
         }
       }
 
       return res.json({
         message: dryRun ? "Dry run complete" : "Auto-mapping complete",
-        totalControls: targetReqs.length,
+        totalControls: targetControls.length,
         docsAnalysed: docsWithContent.length,
         created,
         skippedExisting,
         matched: results.length,
-        unmatched: targetReqs.length - results.length,
+        unmatched: targetControls.length - results.length,
         results: results.sort((a, b) => b.score - a.score),
       });
     }
@@ -497,13 +266,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ message: "Missing mappingId query parameter" });
       }
 
-      const mapping = await db.select().from(schema.requirementMappings)
-        .where(eq(schema.requirementMappings.id, mappingId)).then(r => r[0]);
+      const mapping = await db.select().from(schema.controlMappings)
+        .where(eq(schema.controlMappings.id, mappingId)).then(r => r[0]);
       if (!mapping) return res.status(404).json({ message: "Mapping not found" });
       if (!mapping.documentId) return res.status(400).json({ message: "Mapping has no linked document" });
 
-      const requirement = await storage.getRequirement(mapping.requirementId);
-      if (!requirement) return res.status(404).json({ message: "Requirement not found" });
+      const control = await storage.getControl(mapping.controlId);
+      if (!control) return res.status(404).json({ message: "Control not found" });
       const document = await storage.getDocument(mapping.documentId);
       if (!document) return res.status(404).json({ message: "Document not found" });
 
@@ -543,16 +312,16 @@ async function processAiMatchJob(jobId: string, mappingId: number) {
   try {
     await db.update(schema.aiJobs).set({
       status: "processing",
-      progressMessage: "Analyzing requirement-document match...",
+      progressMessage: "Analyzing control-document match...",
       updatedAt: new Date(),
     }).where(eq(schema.aiJobs.id, jobId));
 
-    const mapping = await db.select().from(schema.requirementMappings)
-      .where(eq(schema.requirementMappings.id, mappingId)).then(r => r[0]);
+    const mapping = await db.select().from(schema.controlMappings)
+      .where(eq(schema.controlMappings.id, mappingId)).then(r => r[0]);
     if (!mapping || !mapping.documentId) throw new Error("Mapping not found or has no document");
 
-    const requirement = await storage.getRequirement(mapping.requirementId);
-    if (!requirement) throw new Error("Requirement not found");
+    const control = await storage.getControl(mapping.controlId);
+    if (!control) throw new Error("Control not found");
     const document = await storage.getDocument(mapping.documentId);
     if (!document) throw new Error("Document not found");
 
@@ -568,13 +337,13 @@ async function processAiMatchJob(jobId: string, mappingId: number) {
       baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
     });
 
-    const prompt = `You are a compliance analyst reviewing whether a policy document adequately covers a regulatory requirement.
+    const prompt = `You are a compliance analyst reviewing whether a policy document adequately covers a regulatory control.
 
-REGULATORY REQUIREMENT:
-- Code: ${requirement.code}
-- Title: ${requirement.title}
-- Description: ${requirement.description || "N/A"}
-- Suggested Evidence: ${requirement.evidence || "N/A"}
+REGULATORY CONTROL:
+- Code: ${control.code}
+- Title: ${control.title}
+- Description: ${control.description || "N/A"}
+- Suggested Evidence: ${control.evidence || "N/A"}
 
 POLICY DOCUMENT:
 - Title: ${document.title}
@@ -582,17 +351,17 @@ POLICY DOCUMENT:
 - Content (may be truncated):
 ${truncatedContent}
 
-TASK: Analyse how well this document covers the regulatory requirement. Provide:
-1. A match percentage (0-100) representing how comprehensively the document addresses the requirement
+TASK: Analyse how well this document covers the regulatory control. Provide:
+1. A match percentage (0-100) representing how comprehensively the document addresses the control
 2. A brief rationale (2-3 sentences) explaining what the document DOES cover well
 3. Specific recommendations for what would need to be added or improved to reach 100% coverage. If already at 100%, say "No further action needed."
 
 Guidelines for scoring:
-- 80-100%: Document directly and comprehensively addresses the requirement with specific provisions
-- 60-79%: Document substantially covers the requirement but may lack some specifics
-- 40-59%: Document partially addresses the requirement; important gaps exist
-- 20-39%: Document touches on related topics but does not meaningfully address the requirement
-- 0-19%: Document has little to no relevance to the requirement
+- 80-100%: Document directly and comprehensively addresses the control with specific provisions
+- 60-79%: Document substantially covers the control but may lack some specifics
+- 40-59%: Document partially addresses the control; important gaps exist
+- 20-39%: Document touches on related topics but does not meaningfully address the control
+- 0-19%: Document has little to no relevance to the control
 
 Respond in exactly this JSON format:
 {"score": <number>, "rationale": "<string>", "recommendations": "<string>"}`;
@@ -622,9 +391,9 @@ Respond in exactly this JSON format:
       if (recsMatch) aiRecommendations = recsMatch[1];
     }
 
-    await db.update(schema.requirementMappings)
+    await db.update(schema.controlMappings)
       .set({ aiMatchScore: aiScore, aiMatchRationale: aiRationale, aiMatchRecommendations: aiRecommendations })
-      .where(eq(schema.requirementMappings.id, mappingId));
+      .where(eq(schema.controlMappings.id, mappingId));
 
     await db.update(schema.aiJobs).set({
       status: "completed",
