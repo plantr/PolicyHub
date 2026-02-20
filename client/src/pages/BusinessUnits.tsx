@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, MapPin } from "lucide-react";
 import type { BusinessUnit } from "@shared/schema";
 import { insertBusinessUnitSchema } from "@shared/schema";
@@ -67,12 +66,7 @@ export default function BusinessUnits() {
   });
 
   const { data: businessUnits, isLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const createMutation = useMutation({
@@ -92,7 +86,7 @@ export default function BusinessUnits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit created" });
       closeDialog();
@@ -108,7 +102,7 @@ export default function BusinessUnits() {
         .split(",")
         .map((a) => a.trim())
         .filter(Boolean);
-      const res = await apiRequest("PUT", `/api/business-units/${id}`, {
+      const res = await apiRequest("PUT", `/api/business-units?id=${id}`, {
         code: data.code || null,
         name: data.name,
         jurisdiction: data.jurisdiction,
@@ -119,7 +113,7 @@ export default function BusinessUnits() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit updated" });
       closeDialog();
@@ -131,11 +125,11 @@ export default function BusinessUnits() {
 
   const archiveMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("PUT", `/api/business-units/${id}/archive`);
+      const res = await apiRequest("PUT", `/api/business-units?id=${id}&action=archive`);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["business-units"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/business-units"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Business unit archived" });
       setArchiveConfirmOpen(false);
