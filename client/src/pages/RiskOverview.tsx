@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,12 +77,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RiskOverview() {
   const { data: risks, isLoading: risksLoading } = useQuery<Risk[]>({
-    queryKey: ["risks"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("risks").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/risks"],
   });
 
   if (risksLoading) return <RiskOverviewSkeleton />;

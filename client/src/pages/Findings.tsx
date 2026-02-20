@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Search, MoreHorizontal } from "lucide-react";
 import type { Finding, BusinessUnit } from "@shared/schema";
@@ -95,20 +94,10 @@ export default function Findings() {
   });
 
   const { data: findings, isLoading: findingsLoading } = useQuery<Finding[]>({
-    queryKey: ["findings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("findings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/findings"],
   });
   const { data: businessUnits, isLoading: buLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const isLoading = findingsLoading || buLoading;
@@ -127,7 +116,7 @@ export default function Findings() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Finding created" });
       closeDialog();
@@ -151,7 +140,7 @@ export default function Findings() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Finding updated" });
       closeDialog();
@@ -166,7 +155,7 @@ export default function Findings() {
       await apiRequest("DELETE", `/api/findings/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["findings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/findings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Finding deleted" });
       setDeleteConfirmOpen(false);

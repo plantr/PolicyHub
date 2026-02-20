@@ -32,7 +32,6 @@ import {
 import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { uploadFileToStorage } from "@/lib/storage";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
@@ -73,22 +72,22 @@ export default function VersionDetail() {
   const { toast } = useToast();
 
   const { data: document, isLoading: docLoading } = useQuery<Document>({
-    queryKey: ["documents", docId],
+    queryKey: ["/api/documents", docId],
     enabled: !!docId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("documents").select("*").eq("id", Number(docId)).single();
-      if (error) throw error;
-      return data;
+      const res = await fetch(`/api/documents?id=${docId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Not found");
+      return res.json();
     },
   });
 
   const { data: versions, isLoading: versionsLoading } = useQuery<DocumentVersion[]>({
-    queryKey: ["document-versions", docId],
+    queryKey: ["/api/document-versions", docId],
     enabled: !!docId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("document_versions").select("*").eq("document_id", Number(docId)).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const res = await fetch(`/api/document-versions?documentId=${docId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch versions");
+      return res.json();
     },
   });
 
@@ -98,12 +97,7 @@ export default function VersionDetail() {
   );
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("users").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/users"],
   });
 
   const activeUsers = useMemo(

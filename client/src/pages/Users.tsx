@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { Plus, Search, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Mail, Phone } from "lucide-react";
 import type { User, BusinessUnit, AdminRecord } from "@shared/schema";
 import { insertUserSchema } from "@shared/schema";
@@ -67,30 +66,15 @@ export default function Users() {
   const { toast } = useToast();
 
   const { data: allUsers = [], isLoading } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("users").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/users"],
   });
 
   const { data: businessUnits = [] } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const { data: adminRoles = [] } = useQuery<AdminRecord[]>({
-    queryKey: ["admin", "roles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("roles").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/admin?table=roles"],
   });
 
   const roleOptions = adminRoles.filter(r => r.active).length > 0
@@ -119,7 +103,7 @@ export default function Users() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setDialogOpen(false);
       form.reset();
       toast({ title: "User created" });
@@ -135,7 +119,7 @@ export default function Users() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setDialogOpen(false);
       setEditingUser(null);
       form.reset();
@@ -152,7 +136,7 @@ export default function Users() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setDeactivateConfirmOpen(false);
       setDeactivatingUser(null);
       toast({ title: "User deactivated" });

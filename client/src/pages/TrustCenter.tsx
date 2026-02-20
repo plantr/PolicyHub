@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,52 +36,22 @@ function ComplianceGauge({ label, current, total }: { label: string; current: nu
 
 export default function TrustCenter() {
   const { data: documents, isLoading: docsLoading } = useQuery<Document[]>({
-    queryKey: ["documents"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("documents").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/documents"],
   });
   const { data: findings, isLoading: findingsLoading } = useQuery<Finding[]>({
-    queryKey: ["findings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("findings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/findings"],
   });
   const { data: commitmentsList, isLoading: commitmentsLoading } = useQuery<Commitment[]>({
-    queryKey: ["commitments"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("commitments").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/commitments"],
   });
   const { data: articles, isLoading: articlesLoading } = useQuery<KnowledgeBaseArticle[]>({
-    queryKey: ["knowledge-base"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("knowledge_base_articles").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/knowledge-base"],
   });
   const { data: businessUnits, isLoading: buLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
   const { data: mappings, isLoading: mappingsLoading } = useQuery<RequirementMapping[]>({
-    queryKey: ["requirement-mappings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirement_mappings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirement-mappings"],
   });
 
   const isLoading = docsLoading || findingsLoading || commitmentsLoading || articlesLoading || buLoading || mappingsLoading;

@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { Plus, Search, ChevronDown, ChevronLeft, ChevronRight, ListChecks, MoreHorizontal } from "lucide-react";
 import type { RiskAction, Risk } from "@shared/schema";
@@ -96,21 +95,11 @@ export default function RiskActions() {
   });
 
   const { data: actions, isLoading } = useQuery<RiskAction[]>({
-    queryKey: ["risk-actions"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("risk_actions").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/risk-actions"],
   });
 
   const { data: risks } = useQuery<Risk[]>({
-    queryKey: ["risks"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("risks").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/risks"],
   });
 
   const riskMap = Object.fromEntries((risks || []).map(r => [r.id, r.title]));
@@ -124,7 +113,7 @@ export default function RiskActions() {
       return apiRequest("POST", "/api/risk-actions", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["risk-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-actions"] });
       queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Action created" });
       setDialogOpen(false);
@@ -142,7 +131,7 @@ export default function RiskActions() {
       return apiRequest("PUT", `/api/risk-actions/${id}`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["risk-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-actions"] });
       queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Action updated" });
       setDialogOpen(false);
@@ -155,7 +144,7 @@ export default function RiskActions() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/risk-actions/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["risk-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-actions"] });
       queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Action deleted" });
       setDeleteConfirmOpen(false);

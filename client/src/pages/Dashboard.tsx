@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,21 +66,11 @@ export default function Dashboard() {
   });
 
   const { data: findings, isLoading: findingsLoading } = useQuery<Finding[]>({
-    queryKey: ["findings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("findings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/findings"],
   });
 
   const { data: businessUnits, isLoading: busLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const isLoading = statsLoading || findingsLoading || busLoading;

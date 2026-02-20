@@ -147,7 +147,7 @@ export default function RiskLibrary() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["risks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risks"] });
       queryClient.invalidateQueries({ queryKey: ["audit-log"] });
       toast({ title: "Risk added to register" });
     },

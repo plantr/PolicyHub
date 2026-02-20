@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Requirement, RegulatorySource, RequirementMapping, Document as PolicyDocument } from "@shared/schema";
@@ -134,39 +133,19 @@ export default function Requirements() {
   });
 
   const { data: requirements, isLoading: reqLoading } = useQuery<Requirement[]>({
-    queryKey: ["requirements"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirements").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirements"],
   });
 
   const { data: sources, isLoading: srcLoading } = useQuery<RegulatorySource[]>({
-    queryKey: ["regulatory-sources"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("regulatory_sources").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/regulatory-sources"],
   });
 
   const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["requirement-mappings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirement_mappings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirement-mappings"],
   });
 
   const { data: allDocuments } = useQuery<PolicyDocument[]>({
-    queryKey: ["documents"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("documents").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/documents"],
   });
 
   const isLoading = reqLoading || srcLoading;
@@ -315,7 +294,7 @@ export default function Requirements() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Control created" });
       closeDialog();
@@ -338,7 +317,7 @@ export default function Requirements() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
       toast({ title: "Control updated" });
       closeDialog();
     },
@@ -352,7 +331,7 @@ export default function Requirements() {
       await apiRequest("DELETE", `/api/requirements/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirements"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Control deleted" });
       setDeleteConfirmOpen(false);

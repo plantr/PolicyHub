@@ -83,7 +83,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { uploadFileToStorage } from "@/lib/storage";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
@@ -119,78 +118,48 @@ export default function DocumentDetail() {
   const [, navigate] = useLocation();
 
   const { data: document, isLoading: docLoading } = useQuery<Document>({
-    queryKey: ["documents", id],
+    queryKey: ["/api/documents", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("documents").select("*").eq("id", Number(id)).single();
-      if (error) throw error;
-      return data;
+      const res = await fetch(`/api/documents?id=${id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Not found");
+      return res.json();
     },
   });
 
   const { data: versions, isLoading: versionsLoading } = useQuery<DocumentVersion[]>({
-    queryKey: ["document-versions", id],
+    queryKey: ["/api/document-versions", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("document_versions").select("*").eq("document_id", Number(id)).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const res = await fetch(`/api/document-versions?documentId=${id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch versions");
+      return res.json();
     },
   });
 
 
   const { data: businessUnits } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("users").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/users"],
   });
 
   const { data: allMappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["requirement-mappings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirement_mappings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirement-mappings"],
   });
 
   const { data: allRequirements } = useQuery<Requirement[]>({
-    queryKey: ["requirements"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirements").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirements"],
   });
 
   const { data: allSources } = useQuery<RegulatorySource[]>({
-    queryKey: ["regulatory-sources"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("regulatory_sources").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/regulatory-sources"],
   });
 
   const { data: allAudits } = useQuery<Audit[]>({
-    queryKey: ["audits"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("audits").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/audits"],
   });
 
   const activeUsers = useMemo(
@@ -410,7 +379,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to add mapping", description: err.message, variant: "destructive" });
@@ -422,7 +391,7 @@ export default function DocumentDetail() {
       await apiRequest("DELETE", `/api/requirement-mappings?id=${mappingId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
@@ -439,7 +408,7 @@ export default function DocumentDetail() {
     },
     onSuccess: (data: { matched: number; total: number; removed?: number }) => {
       setAiAutoMapRunning(false);
-      queryClient.invalidateQueries({ queryKey: ["requirement-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/requirement-mappings"] });
       const removedMsg = data.removed ? `, removed ${data.removed} low-quality mappings` : "";
       toast({
         title: "AI Auto-Map Complete",

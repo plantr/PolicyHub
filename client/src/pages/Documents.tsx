@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
 import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { uploadFileToStorage } from "@/lib/storage";
@@ -131,84 +130,39 @@ export default function Documents() {
   });
 
   const { data: documents, isLoading: docsLoading } = useQuery<Document[]>({
-    queryKey: ["documents"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("documents").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/documents"],
   });
 
   const { data: businessUnits, isLoading: busLoading } = useQuery<BusinessUnit[]>({
-    queryKey: ["business-units"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_units").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/business-units"],
   });
 
   const { data: categories } = useQuery<AdminRecord[]>({
-    queryKey: ["admin", "document-categories"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("document_categories").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/admin?table=document-categories"],
   });
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("users").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/users"],
   });
 
   const { data: versions } = useQuery<DocumentVersion[]>({
-    queryKey: ["document-versions"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("document_versions").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/document-versions"],
   });
 
   const { data: approvalsData } = useQuery<Approval[]>({
-    queryKey: ["approvals"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("approvals").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/approvals"],
   });
 
   const { data: mappings } = useQuery<RequirementMapping[]>({
-    queryKey: ["requirement-mappings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirement_mappings").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirement-mappings"],
   });
 
   const { data: requirements } = useQuery<Requirement[]>({
-    queryKey: ["requirements"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("requirements").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/requirements"],
   });
 
   const { data: sources } = useQuery<RegulatorySource[]>({
-    queryKey: ["regulatory-sources"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("regulatory_sources").select("*");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["/api/regulatory-sources"],
   });
 
   const activeUsers = useMemo(
@@ -483,8 +437,8 @@ export default function Documents() {
       return doc;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      queryClient.invalidateQueries({ queryKey: ["document-versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Document created" });
       closeDialog();
@@ -514,7 +468,7 @@ export default function Documents() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       toast({ title: "Document updated" });
       closeDialog();
     },
@@ -528,7 +482,7 @@ export default function Documents() {
       await apiRequest("DELETE", `/api/documents/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Document deleted" });
       setDeleteConfirmOpen(false);
