@@ -42,7 +42,7 @@ const editVersionSchema = z.object({
   changeReason: z.string().default(""),
   createdBy: z.string().min(1, "Created by is required"),
   effectiveDate: z.string().nullable().default(null),
-  markDown: z.string().nullable().default(null),
+  content: z.string().min(1, "Content is required"),
 });
 
 type EditVersionValues = z.infer<typeof editVersionSchema>;
@@ -113,7 +113,7 @@ export default function VersionDetail() {
       changeReason: "",
       createdBy: "",
       effectiveDate: null,
-      markDown: null,
+      content: "",
     },
   });
 
@@ -123,7 +123,7 @@ export default function VersionDetail() {
       return res.json() as Promise<{ markdown: string }>;
     },
     onSuccess: (data) => {
-      form.setValue("markDown", data.markdown, { shouldDirty: true });
+      form.setValue("content", data.markdown, { shouldDirty: true });
       toast({ title: "PDF converted", description: "Markdown content populated from attached PDF" });
     },
     onError: (err: Error) => {
@@ -133,34 +133,33 @@ export default function VersionDetail() {
 
   const hasPdf = !!version?.pdfS3Key;
 
-  const [formLoaded, setFormLoaded] = useState(false);
-  if (version && !formLoaded) {
+  const [loadedVersionId, setLoadedVersionId] = useState<number | null>(null);
+  if (version && loadedVersionId !== version.id) {
     form.reset({
       version: version.version,
       status: version.status,
       changeReason: version.changeReason ?? "",
       createdBy: version.createdBy,
       effectiveDate: version.effectiveDate ? format(new Date(version.effectiveDate), "yyyy-MM-dd") : null,
-      markDown: version.markDown ?? null,
+      content: version.content && version.content !== "No content" ? version.content : "",
     });
-    setFormLoaded(true);
+    setLoadedVersionId(version.id);
   }
 
   const saveMutation = useMutation({
     mutationFn: async (data: EditVersionValues) => {
-      const currentMarkDown = form.getValues("markDown");
       const res = await apiRequest("PUT", `/api/document-versions?id=${verId}`, {
         version: data.version,
         status: data.status,
         changeReason: data.changeReason || null,
         createdBy: data.createdBy,
         effectiveDate: data.effectiveDate || null,
-        markDown: currentMarkDown || null,
+        content: data.content,
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", docId] });
       toast({ title: "Version saved" });
     },
     onError: (err: Error) => {
@@ -190,7 +189,7 @@ export default function VersionDetail() {
       return confirmRes.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", docId] });
       toast({ title: "PDF uploaded successfully" });
     },
     onError: (err: Error) => {
@@ -227,7 +226,7 @@ export default function VersionDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", docId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", docId] });
       toast({ title: "PDF removed" });
     },
     onError: (err: Error) => {
@@ -428,17 +427,17 @@ export default function VersionDetail() {
             <Textarea
               placeholder="Write markdown content for this version..."
               className="min-h-[300px] font-mono text-sm"
-              value={form.watch("markDown") ?? ""}
-              onChange={(e) => form.setValue("markDown", e.target.value || null, { shouldDirty: true })}
+              value={form.watch("content")}
+              onChange={(e) => form.setValue("content", e.target.value, { shouldDirty: true })}
               data-testid="input-markdown"
             />
           </TabsContent>
           <TabsContent value="preview">
             <div className="prose prose-sm dark:prose-invert max-w-none min-h-[300px] border rounded-md p-4" data-testid="preview-markdown">
-              {form.watch("markDown") ? (
-                <Markdown>{form.watch("markDown")!}</Markdown>
+              {form.watch("content") ? (
+                <Markdown>{form.watch("content")}</Markdown>
               ) : (
-                <p className="text-muted-foreground">No markdown content yet.</p>
+                <p className="text-muted-foreground">No content yet.</p>
               )}
             </div>
           </TabsContent>

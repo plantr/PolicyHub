@@ -62,7 +62,7 @@ export interface IStorage {
   getDocumentVersions(documentId: number): Promise<DocumentVersion[]>;
   getDocumentVersion(id: number): Promise<DocumentVersion | undefined>;
   createDocumentVersion(version: CreateDocumentVersionRequest): Promise<DocumentVersion>;
-  updateDocumentVersion(id: number, data: Partial<Pick<DocumentVersion, "version" | "status" | "changeReason" | "createdBy" | "effectiveDate">>): Promise<DocumentVersion | undefined>;
+  updateDocumentVersion(id: number, data: Partial<Pick<DocumentVersion, "version" | "status" | "changeReason" | "createdBy" | "effectiveDate" | "content">>): Promise<DocumentVersion | undefined>;
   updateDocumentVersionStatus(id: number, status: string): Promise<DocumentVersion>;
   updateDocumentVersionPdf(id: number, pdfS3Key: string, pdfFileName: string, pdfFileSize: number): Promise<DocumentVersion>;
 
@@ -261,7 +261,7 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(documentVersions).values(version).returning();
     return created;
   }
-  async updateDocumentVersion(id: number, data: Partial<Pick<DocumentVersion, "version" | "status" | "changeReason" | "createdBy" | "effectiveDate">>): Promise<DocumentVersion | undefined> {
+  async updateDocumentVersion(id: number, data: Partial<Pick<DocumentVersion, "version" | "status" | "changeReason" | "createdBy" | "effectiveDate" | "content">>): Promise<DocumentVersion | undefined> {
     const [updated] = await db.update(documentVersions).set(data).where(eq(documentVersions.id, id)).returning();
     return updated;
   }

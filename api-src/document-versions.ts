@@ -57,8 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
 
           const doc = await storage.getDocument(version.documentId);
-          const buId = doc?.businessUnitId;
-          if (!buId) return res.status(404).json({ message: "Document has no business unit" });
+          const buId = doc?.businessUnitId ?? null;
 
           const isDownload = req.query.mode === "download";
           const fileName = version.pdfFileName || "policy.pdf";
@@ -80,24 +79,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached to this version" });
 
           const doc = await storage.getDocument(version.documentId);
-          const buId = doc?.businessUnitId;
-          if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+          const buId = doc?.businessUnitId ?? null;
 
           const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
           const response = await fetch(signedUrl);
           if (!response.ok) throw new Error(`Failed to fetch PDF from storage: ${response.status}`);
-          const buffer = Buffer.from(await response.arrayBuffer());
+          const pdfBuffer = Buffer.from(await response.arrayBuffer());
+          const pdfBase64 = pdfBuffer.toString("base64");
 
-          const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-          const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
-          const textParts: string[] = [];
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const content = await page.getTextContent();
-            const pageText = content.items.map((item: any) => item.str).join("");
-            textParts.push(pageText);
-          }
-          const markdown = textParts.join("\n\n");
+          const Anthropic = (await import("@anthropic-ai/sdk")).default;
+          const anthropic = new Anthropic({
+            apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+            baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+          });
+
+          const message = await anthropic.messages.create({
+            model: "claude-sonnet-4-5",
+            max_tokens: 16000,
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type: "document",
+                  source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+                },
+                {
+                  type: "text",
+                  text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
+
+1. Document title as a single # heading (ALL CAPS as it appears)
+2. Use --- horizontal rules to separate major sections
+3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
+4. Include a Table of Contents section with numbered entries and sub-entries using indentation
+5. Main sections use ## headings (e.g. ## 1. Introduction)
+6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
+7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
+8. Keep the original section numbering in the headings
+9. Bullet lists use - prefix with proper spacing
+10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
+11. Paragraphs should be separated by blank lines
+12. Preserve all content faithfully — do not summarise or omit anything
+13. Use --- horizontal rules between top-level sections
+
+Return ONLY the markdown content, no code fences or explanation.`,
+                },
+              ],
+            }],
+          });
+
+          const markdown = message.content[0].type === "text" ? message.content[0].text : "";
           return res.json({ markdown });
         }
 
@@ -144,8 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!version) return res.status(404).json({ message: "Version not found" });
 
           const doc = await storage.getDocument(version.documentId);
-          const buId = doc?.businessUnitId;
-          if (!buId) return res.status(400).json({ message: "Document has no business unit — cannot determine storage bucket" });
+          const buId = doc?.businessUnitId ?? null;
 
           const resolvedName = await resolveFilename(buId, version.documentId, id, fileName);
           const objectPath = storagePath(version.documentId, id, resolvedName);
@@ -163,8 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!version) return res.status(404).json({ message: "Version not found" });
 
           const doc = await storage.getDocument(version.documentId);
-          const buId = doc?.businessUnitId;
-          if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+          const buId = doc?.businessUnitId ?? null;
 
           if (version.pdfS3Key) {
             try { await deleteStorageObject(buId, version.pdfS3Key); } catch { /* ignore */ }
@@ -207,14 +235,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const existing = await storage.getDocumentVersion(id);
         if (!existing) return res.status(404).json({ message: "Version not found" });
 
-        const { version, status, changeReason, createdBy, effectiveDate, markDown } = req.body;
+        const { version, status, changeReason, createdBy, effectiveDate, content } = req.body;
         const updateData: Record<string, unknown> = {};
         if (version !== undefined) updateData.version = version;
         if (status !== undefined) updateData.status = status;
         if (changeReason !== undefined) updateData.changeReason = changeReason || null;
         if (createdBy !== undefined) updateData.createdBy = createdBy;
         if (effectiveDate !== undefined) updateData.effectiveDate = effectiveDate ? new Date(effectiveDate) : null;
-        if (markDown !== undefined) updateData.markDown = markDown || null;
+        if (content !== undefined) updateData.content = content;
 
         const updated = await storage.updateDocumentVersion(id, updateData);
         if (!updated) return res.status(404).json({ message: "Version not found" });
@@ -236,8 +264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!version.pdfS3Key) return res.status(404).json({ message: "No PDF attached" });
 
           const doc = await storage.getDocument(version.documentId);
-          const buId = doc?.businessUnitId;
-          if (!buId) return res.status(400).json({ message: "Document has no business unit" });
+          const buId = doc?.businessUnitId ?? null;
 
           await deleteStorageObject(buId, version.pdfS3Key);
           const updated = await storage.updateDocumentVersionPdf(id, "", "", 0);

@@ -78,6 +78,7 @@ export const documents = pgTable("documents", {
   nextReviewDate: timestamp("next_review_date"),
   businessUnitId: integer("business_unit_id"),
   parentDocumentId: integer("parent_document_id"),
+  aiReviewedAt: timestamp("ai_reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -101,7 +102,6 @@ export const documentVersions = pgTable("document_versions", {
   pdfS3Key: text("pdf_s3_key"),
   pdfFileName: text("pdf_file_name"),
   pdfFileSize: integer("pdf_file_size"),
-  markDown: text("mark_down"),
 });
 
 // =============================================
