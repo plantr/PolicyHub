@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,9 +51,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Upload, FileText, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Upload, FileText, FileUp, X, Search, CheckCircle2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { uploadFileToStorage } from "@/lib/storage";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
 const REVIEW_FREQUENCIES = ["Annual", "Semi-Annual", "Quarterly", "Monthly"];
@@ -103,7 +104,7 @@ export default function Documents() {
   const [sortColumn, setSortColumn] = useState<string>("version");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(100);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -113,6 +114,25 @@ export default function Documents() {
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const [autoMapDialogOpen, setAutoMapDialogOpen] = useState(false);
+  const [autoMapSourceId, setAutoMapSourceId] = useState<string>("all");
+  const [autoMapJobId, setAutoMapJobId] = useState<string | null>(null);
+  const autoMapJob = useAiJob(autoMapJobId);
+  const cancelJob = useCancelAiJob();
+  const autoMapRunning = autoMapJobId !== null;
+
+  const [mdRefreshJobId, setMdRefreshJobId] = useState<string | null>(null);
+  const mdRefreshJob = useAiJob(mdRefreshJobId);
+  const mdRefreshRunning = mdRefreshJobId !== null;
+
+  // Restore jobs on mount from localStorage
+  useEffect(() => {
+    const saved = getPersistedJobId("map-all-documents");
+    if (saved) setAutoMapJobId(saved);
+    const savedMd = getPersistedJobId("bulk-pdf-to-markdown");
+    if (savedMd) setMdRefreshJobId(savedMd);
+  }, []);
 
   const form = useForm<DocFormValues>({
     resolver: zodResolver(docFormSchema),
@@ -331,6 +351,12 @@ export default function Documents() {
           cmp = ca - cb;
           break;
         }
+        case "aiReview": {
+          const ra = a.aiReviewedAt ? new Date(a.aiReviewedAt).getTime() : 0;
+          const rb = b.aiReviewedAt ? new Date(b.aiReviewedAt).getTime() : 0;
+          cmp = ra - rb;
+          break;
+        }
         case "framework": {
           const fa = (docFrameworkMap.get(a.id) ?? []).join(", ");
           const fb = (docFrameworkMap.get(b.id) ?? []).join(", ");
@@ -490,6 +516,91 @@ export default function Documents() {
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  useEffect(() => {
+    if (!autoMapJob.data || !autoMapJobId) return;
+    if (autoMapJob.data.status === "completed") {
+      clearPersistedJobId("map-all-documents");
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      const result = autoMapJob.data.result as { documentsProcessed?: number; totalMapped?: number } | null;
+      toast({
+        title: "AI Auto-Map Complete",
+        description: `Processed ${result?.documentsProcessed ?? 0} documents, mapped ${result?.totalMapped ?? 0} controls`,
+      });
+      setAutoMapJobId(null);
+    } else if (autoMapJob.data.status === "failed") {
+      clearPersistedJobId("map-all-documents");
+      toast({ title: "AI Auto-Map Failed", description: autoMapJob.data.errorMessage || "Unknown error", variant: "destructive" });
+      setAutoMapJobId(null);
+    } else if (autoMapJob.data.status === "cancelled") {
+      clearPersistedJobId("map-all-documents");
+      toast({ title: "AI Auto-Map Cancelled" });
+      setAutoMapJobId(null);
+    }
+  }, [autoMapJob.data?.status]);
+
+  useEffect(() => {
+    if (!mdRefreshJob.data || !mdRefreshJobId) return;
+    if (mdRefreshJob.data.status === "completed") {
+      clearPersistedJobId("bulk-pdf-to-markdown");
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions"] });
+      const result = mdRefreshJob.data.result as { total?: number; converted?: number; skipped?: number } | null;
+      toast({
+        title: "Markdown Refresh Complete",
+        description: `Converted ${result?.converted ?? 0} of ${result?.total ?? 0} documents`,
+      });
+      setMdRefreshJobId(null);
+    } else if (mdRefreshJob.data.status === "failed") {
+      clearPersistedJobId("bulk-pdf-to-markdown");
+      toast({ title: "Markdown Refresh Failed", description: mdRefreshJob.data.errorMessage || "Unknown error", variant: "destructive" });
+      setMdRefreshJobId(null);
+    } else if (mdRefreshJob.data.status === "cancelled") {
+      clearPersistedJobId("bulk-pdf-to-markdown");
+      toast({ title: "Markdown Refresh Cancelled" });
+      setMdRefreshJobId(null);
+    }
+  }, [mdRefreshJob.data?.status]);
+
+  const mdRefreshMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai-jobs?action=bulk-pdf-to-markdown");
+      return res.json();
+    },
+    onSuccess: (data: { jobId?: string; message?: string }) => {
+      if (data.jobId) {
+        persistJobId("bulk-pdf-to-markdown", data.jobId);
+        setMdRefreshJobId(data.jobId);
+      } else {
+        toast({ title: "Markdown Refresh", description: data.message || "Nothing to process" });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Markdown Refresh Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const autoMapMutation = useMutation({
+    mutationFn: async ({ mode, sourceId }: { mode: "full" | "unmapped"; sourceId?: number }) => {
+      const params = new URLSearchParams({ action: "map-all-documents" });
+      if (mode === "unmapped") params.set("mode", "unmapped");
+      if (sourceId) params.set("sourceId", String(sourceId));
+      const res = await apiRequest("POST", `/api/ai-jobs?${params}`);
+      return res.json();
+    },
+    onSuccess: (data: { jobId?: string; message?: string }) => {
+      setAutoMapDialogOpen(false);
+      if (data.jobId) {
+        persistJobId("map-all-documents", data.jobId);
+        setAutoMapJobId(data.jobId);
+      } else {
+        toast({ title: "AI Auto-Map", description: data.message || "Nothing to process" });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "AI Auto-Map Failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -692,7 +803,53 @@ export default function Documents() {
           </Button>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {autoMapRunning ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => autoMapJobId && cancelJob.mutate(autoMapJobId)}
+              data-testid="button-ai-auto-map-all"
+            >
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              {autoMapJob.data?.progressMessage || "Mapping..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={autoMapMutation.isPending}
+              onClick={() => setAutoMapDialogOpen(true)}
+              data-testid="button-ai-auto-map-all"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-500 dark:text-purple-400" />
+              AI Auto-Map
+            </Button>
+          )}
+          {mdRefreshRunning ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => mdRefreshJobId && cancelJob.mutate(mdRefreshJobId)}
+              data-testid="button-md-refresh"
+            >
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              {mdRefreshJob.data?.progressMessage || "Converting..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={mdRefreshMutation.isPending}
+              onClick={() => mdRefreshMutation.mutate()}
+              data-testid="button-md-refresh"
+            >
+              <FileUp className="h-3.5 w-3.5 mr-1.5" />
+              Markdown Refresh
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-document">
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add document
@@ -745,6 +902,9 @@ export default function Documents() {
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-controls" onClick={() => toggleSort("controls")}>
                     <span className="flex items-center">Controls Covered<SortIcon col="controls" /></span>
                   </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-ai-review" onClick={() => toggleSort("aiReview")}>
+                    <span className="flex items-center"><Sparkles className="h-3 w-3 mr-0.5 text-purple-500 dark:text-purple-400" />AI Review<SortIcon col="aiReview" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-framework" onClick={() => toggleSort("framework")}>
                     <span className="flex items-center">Framework<SortIcon col="framework" /></span>
                   </TableHead>
@@ -754,7 +914,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -839,6 +999,23 @@ export default function Documents() {
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>
                           )}
                         </TableCell>
+                        <TableCell data-testid={`text-ai-review-${doc.id}`}>
+                          {doc.aiReviewedAt ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center gap-1.5 text-sm">
+                                  <Sparkles className="h-3.5 w-3.5 text-purple-500 dark:text-purple-400" />
+                                  <span className="text-purple-600 dark:text-purple-400 whitespace-nowrap">
+                                    {format(new Date(doc.aiReviewedAt), "MMM d, yyyy")}
+                                  </span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>AI reviewed on {format(new Date(doc.aiReviewedAt), "PPpp")}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
                         <TableCell data-testid={`text-framework-${doc.id}`}>
                           {frameworks.length > 0 ? (
                             <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -893,6 +1070,9 @@ export default function Documents() {
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="20">20</SelectItem>
                     <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1212,6 +1392,66 @@ export default function Documents() {
               data-testid="button-confirm-delete-document"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={autoMapDialogOpen} onOpenChange={(open) => { setAutoMapDialogOpen(open); if (!open) setAutoMapSourceId("all"); }}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dialog-auto-map">
+          <DialogHeader>
+            <DialogTitle>AI Auto-Map All Documents</DialogTitle>
+            <DialogDescription>
+              This will use AI to automatically map controls to your documents. Choose how you'd like to proceed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Framework</label>
+              <Select value={autoMapSourceId} onValueChange={setAutoMapSourceId}>
+                <SelectTrigger data-testid="select-auto-map-framework">
+                  <SelectValue placeholder="All frameworks" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All frameworks</SelectItem>
+                  {(sources ?? []).map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.shortName || s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-3 px-4"
+              disabled={autoMapMutation.isPending}
+              onClick={() => autoMapMutation.mutate({ mode: "unmapped", sourceId: autoMapSourceId !== "all" ? Number(autoMapSourceId) : undefined })}
+              data-testid="button-auto-map-unmapped"
+            >
+              <div className="text-left">
+                <p className="text-sm font-medium">Unmapped documents only</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Only process documents that haven't been AI reviewed yet
+                </p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-3 px-4"
+              disabled={autoMapMutation.isPending}
+              onClick={() => autoMapMutation.mutate({ mode: "full", sourceId: autoMapSourceId !== "all" ? Number(autoMapSourceId) : undefined })}
+              data-testid="button-auto-map-full"
+            >
+              <div className="text-left">
+                <p className="text-sm font-medium">Full refresh</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Re-analyse all documents, including previously mapped ones
+                </p>
+              </div>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setAutoMapDialogOpen(false); setAutoMapSourceId("all"); }} data-testid="button-cancel-auto-map">
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

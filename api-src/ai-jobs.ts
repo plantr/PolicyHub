@@ -8,6 +8,8 @@
  *   POST   /api/ai-jobs?action=map-controls&documentId=N → AI auto-map document to controls (dispatch-and-fire)
  *   POST   /api/ai-jobs?action=map-all-documents[&sourceId=N] → AI auto-map all documents to controls (dispatch-and-fire)
  *   POST   /api/ai-jobs?action=bulk-coverage&mode=all|gaps → AI coverage for all controls (dispatch-and-fire)
+ *   POST   /api/ai-jobs?action=pdf-to-markdown&versionId=N → Convert PDF attachment to markdown (dispatch-and-fire)
+ *   POST   /api/ai-jobs?action=bulk-pdf-to-markdown → Convert all published PDFs to markdown (dispatch-and-fire)
  *
  * All POST endpoints return { jobId, status: 'pending' } immediately
  * and process in the background via fire-and-forget.
@@ -19,6 +21,7 @@ import { storage } from "../server/storage";
 import { db } from "../server/db";
 import { eq, and, ne, inArray, desc } from "drizzle-orm";
 import * as schema from "../shared/schema";
+import { createSignedDownloadUrl, bucketName } from "../server/storage-supabase";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
@@ -237,6 +240,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       return res.json({ jobId: job.id, status: "pending" });
+    }
+
+    // === AI PDF-TO-MARKDOWN (dispatch-and-fire) ===
+    if (req.method === "POST" && action === "pdf-to-markdown") {
+      const versionIdRaw = req.query.versionId;
+      const versionId = Number(Array.isArray(versionIdRaw) ? versionIdRaw[0] : versionIdRaw);
+      if (!versionId || isNaN(versionId)) {
+        return res.status(400).json({ message: "Missing versionId query parameter" });
+      }
+
+      const version = await storage.getDocumentVersion(versionId);
+      if (!version) return res.status(404).json({ message: "Version not found" });
+      if (!version.pdfS3Key) return res.status(400).json({ message: "No PDF attached to this version" });
+
+      const [job] = await db.insert(schema.aiJobs).values({
+        jobType: "ai-pdf-to-markdown",
+        entityId: versionId,
+        status: "pending",
+        progressMessage: "Queued for conversion...",
+      }).returning();
+
+      // Fire-and-forget
+      processAiPdfToMarkdownJob(job.id, versionId).catch(err => {
+        console.error("AI pdf-to-markdown job processing error:", err);
+      });
+
+      return res.json({ jobId: job.id, status: "pending" });
+    }
+
+    // === AI BULK PDF-TO-MARKDOWN (dispatch-and-fire) ===
+    if (req.method === "POST" && action === "bulk-pdf-to-markdown") {
+      const allVersions = await db.select().from(schema.documentVersions);
+      const eligibleVersions = allVersions.filter(
+        (v) => v.status === "Published" && v.pdfS3Key && v.pdfS3Key.length > 0,
+      );
+
+      if (eligibleVersions.length === 0) {
+        return res.json({ message: "No published versions with PDFs found", total: 0 });
+      }
+
+      const [job] = await db.insert(schema.aiJobs).values({
+        jobType: "ai-bulk-pdf-to-markdown",
+        entityId: 0,
+        status: "pending",
+        progressMessage: `Queued: ${eligibleVersions.length} documents to convert...`,
+      }).returning();
+
+      // Fire-and-forget
+      processAiBulkPdfToMarkdownJob(job.id, eligibleVersions.map((v) => v.id)).catch(err => {
+        console.error("AI bulk-pdf-to-markdown job processing error:", err);
+      });
+
+      return res.json({ jobId: job.id, status: "pending", total: eligibleVersions.length });
     }
 
     return res.status(405).json({ message: "Method not allowed" });
@@ -930,6 +986,217 @@ Respond in exactly this JSON format:
     await db.update(schema.aiJobs).set({
       status: "failed",
       errorMessage: err.message || "AI bulk coverage failed",
+      updatedAt: new Date(),
+    }).where(and(eq(schema.aiJobs.id, jobId), ne(schema.aiJobs.status, "cancelled")));
+  }
+}
+
+// ============================================================
+// AI PROCESSOR: PDF-to-markdown conversion
+// ============================================================
+async function processAiPdfToMarkdownJob(jobId: string, versionId: number) {
+  try {
+    // Step 1 (20%): Fetch PDF from Supabase Storage
+    await db.update(schema.aiJobs).set({
+      status: "processing",
+      progressMessage: "Fetching PDF from storage...",
+      result: { progress: 20 },
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
+
+    const version = await storage.getDocumentVersion(versionId);
+    if (!version) throw new Error("Version not found");
+    if (!version.pdfS3Key) throw new Error("No PDF attached to this version");
+
+    const doc = await storage.getDocument(version.documentId);
+    const buId = doc?.businessUnitId ?? null;
+
+    const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
+    const response = await fetch(signedUrl);
+    if (!response.ok) throw new Error(`Failed to fetch PDF from storage: ${response.status}`);
+    const pdfBuffer = Buffer.from(await response.arrayBuffer());
+    const pdfBase64 = pdfBuffer.toString("base64");
+
+    if (await isJobCancelled(jobId)) return;
+
+    // Step 2 (50%): Send to Claude API for markdown conversion
+    await db.update(schema.aiJobs).set({
+      progressMessage: "Converting PDF with AI...",
+      result: { progress: 50 },
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
+
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const anthropic = new Anthropic({
+      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    });
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 16000,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+          },
+          {
+            type: "text",
+            text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
+
+1. Document title as a single # heading (ALL CAPS as it appears)
+2. Use --- horizontal rules to separate major sections
+3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
+4. Include a Table of Contents section with numbered entries and sub-entries using indentation
+5. Main sections use ## headings (e.g. ## 1. Introduction)
+6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
+7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
+8. Keep the original section numbering in the headings
+9. Bullet lists use - prefix with proper spacing
+10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
+11. Paragraphs should be separated by blank lines
+12. Preserve all content faithfully — do not summarise or omit anything
+13. Use --- horizontal rules between top-level sections
+
+Return ONLY the markdown content, no code fences or explanation.`,
+          },
+        ],
+      }],
+    });
+
+    const markdown = message.content[0].type === "text" ? message.content[0].text : "";
+
+    if (await isJobCancelled(jobId)) return;
+
+    // Step 3 (90%): Save result
+    await db.update(schema.aiJobs).set({
+      progressMessage: "Finalising...",
+      result: { progress: 90, markdown },
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
+
+    // Step 4 (100%): Complete
+    await db.update(schema.aiJobs).set({
+      status: "completed",
+      result: { progress: 100, markdown },
+      progressMessage: "Conversion complete",
+      updatedAt: new Date(),
+    }).where(and(eq(schema.aiJobs.id, jobId), ne(schema.aiJobs.status, "cancelled")));
+  } catch (err: any) {
+    await db.update(schema.aiJobs).set({
+      status: "failed",
+      errorMessage: err.message || "PDF-to-markdown conversion failed",
+      updatedAt: new Date(),
+    }).where(and(eq(schema.aiJobs.id, jobId), ne(schema.aiJobs.status, "cancelled")));
+  }
+}
+
+// ============================================================
+// AI PROCESSOR: bulk PDF-to-markdown conversion
+// ============================================================
+async function processAiBulkPdfToMarkdownJob(jobId: string, versionIds: number[]) {
+  try {
+    await db.update(schema.aiJobs).set({
+      status: "processing",
+      progressMessage: `Converting document 1 of ${versionIds.length}...`,
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
+
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const anthropic = new Anthropic({
+      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    });
+
+    let converted = 0;
+    let skipped = 0;
+
+    for (let i = 0; i < versionIds.length; i++) {
+      if (await isJobCancelled(jobId)) return;
+      const versionId = versionIds[i];
+
+      await db.update(schema.aiJobs).set({
+        progressMessage: `Converting document ${i + 1} of ${versionIds.length}...`,
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
+
+      try {
+        const version = await storage.getDocumentVersion(versionId);
+        if (!version || !version.pdfS3Key) { skipped++; continue; }
+
+        const doc = await storage.getDocument(version.documentId);
+        const buId = doc?.businessUnitId ?? null;
+
+        const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
+        const response = await fetch(signedUrl);
+        if (!response.ok) { skipped++; continue; }
+        const pdfBuffer = Buffer.from(await response.arrayBuffer());
+        const pdfBase64 = pdfBuffer.toString("base64");
+
+        if (await isJobCancelled(jobId)) return;
+
+        const message = await anthropic.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 16000,
+          messages: [{
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+              },
+              {
+                type: "text",
+                text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
+
+1. Document title as a single # heading (ALL CAPS as it appears)
+2. Use --- horizontal rules to separate major sections
+3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
+4. Include a Table of Contents section with numbered entries and sub-entries using indentation
+5. Main sections use ## headings (e.g. ## 1. Introduction)
+6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
+7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
+8. Keep the original section numbering in the headings
+9. Bullet lists use - prefix with proper spacing
+10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
+11. Paragraphs should be separated by blank lines
+12. Preserve all content faithfully — do not summarise or omit anything
+13. Use --- horizontal rules between top-level sections
+
+Return ONLY the markdown content, no code fences or explanation.`,
+              },
+            ],
+          }],
+        });
+
+        const markdown = message.content[0].type === "text" ? message.content[0].text : "";
+
+        if (markdown && markdown.length > 0) {
+          await db.update(schema.documentVersions)
+            .set({ content: markdown })
+            .where(eq(schema.documentVersions.id, versionId));
+          converted++;
+        } else {
+          skipped++;
+        }
+      } catch (err: any) {
+        console.error(`Bulk PDF-to-markdown error for version ${versionId}:`, err.message);
+        skipped++;
+      }
+    }
+
+    await db.update(schema.aiJobs).set({
+      status: "completed",
+      result: { total: versionIds.length, converted, skipped },
+      progressMessage: `Converted ${converted} of ${versionIds.length} documents`,
+      updatedAt: new Date(),
+    }).where(and(eq(schema.aiJobs.id, jobId), ne(schema.aiJobs.status, "cancelled")));
+  } catch (err: any) {
+    await db.update(schema.aiJobs).set({
+      status: "failed",
+      errorMessage: err.message || "Bulk PDF-to-markdown conversion failed",
       updatedAt: new Date(),
     }).where(and(eq(schema.aiJobs.id, jobId), ne(schema.aiJobs.status, "cancelled")));
   }
