@@ -24,8 +24,6 @@ import { eq, and, ne, inArray, desc } from "drizzle-orm";
 import * as schema from "../shared/schema";
 import { createSignedDownloadUrl, bucketName } from "../server/storage-supabase";
 
-export const maxDuration = 300; // 5 minutes for AI processing
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
 

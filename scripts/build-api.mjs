@@ -56,20 +56,25 @@ await build({
 
 // Create .func directories for each function (URL path stays /api/*)
 const funcBase = ".vercel/output/functions/api";
-const vcConfig = JSON.stringify({
-  runtime: "nodejs22.x",
-  handler: "index.mjs",
-  launcherType: "Nodejs",
-  shouldAddHelpers: true,
-  shouldAddSourcemapSupport: false,
-}, null, 2);
+
+// Functions that need extended timeouts for AI processing
+const extendedTimeoutFunctions = new Set(["ai-jobs", "document-versions", "gap-analysis"]);
 
 for (const entry of entries) {
   const name = basename(entry, ".ts");
   const funcDir = `${funcBase}/${name}.func`;
   mkdirSync(funcDir, { recursive: true });
   cpSync(`${tmpDir}/${name}.mjs`, `${funcDir}/index.mjs`);
-  writeFileSync(`${funcDir}/.vc-config.json`, vcConfig);
+
+  const vcConfig = {
+    runtime: "nodejs22.x",
+    handler: "index.mjs",
+    launcherType: "Nodejs",
+    shouldAddHelpers: true,
+    shouldAddSourcemapSupport: false,
+    ...(extendedTimeoutFunctions.has(name) ? { maxDuration: 300 } : {}),
+  };
+  writeFileSync(`${funcDir}/.vc-config.json`, JSON.stringify(vcConfig, null, 2));
 }
 
 // Clean up temp
