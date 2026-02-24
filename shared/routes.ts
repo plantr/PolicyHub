@@ -435,6 +435,26 @@ export const api = {
       path: '/api/policy-links' as const,
       responses: { 200: z.array(z.custom<typeof policyLinks.$inferSelect>()) },
     },
+    create: {
+      method: 'POST' as const,
+      path: '/api/policy-links' as const,
+      input: z.object({
+        fromDocumentId: z.number(),
+        toDocumentId: z.number(),
+        linkType: z.string(),
+      }),
+      responses: {
+        201: z.custom<typeof policyLinks.$inferSelect>(),
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/policy-links/:id' as const,
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // =============================================

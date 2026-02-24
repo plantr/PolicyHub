@@ -14,6 +14,7 @@ import type {
   Control,
   RegulatorySource,
   Audit,
+  PolicyLink,
 } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +82,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -165,6 +167,14 @@ export default function DocumentDetail() {
     queryKey: ["/api/audits"],
   });
 
+  const { data: allPolicyLinks } = useQuery<PolicyLink[]>({
+    queryKey: ["/api/policy-links"],
+  });
+
+  const { data: allDocuments } = useQuery<Document[]>({
+    queryKey: ["/api/documents"],
+  });
+
   const activeUsers = useMemo(
     () => (users ?? []).filter((u) => u.status === "Active").sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
     [users],
@@ -235,6 +245,18 @@ export default function DocumentDetail() {
     if (!allAudits || !document) return [];
     return allAudits.filter((a) => a.businessUnitId === document.businessUnitId);
   }, [allAudits, document]);
+
+  const docLinks = useMemo(() => {
+    if (!allPolicyLinks || !id) return [];
+    const docId = Number(id);
+    return allPolicyLinks.filter((l) => l.fromDocumentId === docId || l.toDocumentId === docId);
+  }, [allPolicyLinks, id]);
+
+  const docMap = useMemo(() => {
+    const map = new Map<number, Document>();
+    allDocuments?.forEach((d) => map.set(d.id, d));
+    return map;
+  }, [allDocuments]);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -412,6 +434,53 @@ export default function DocumentDetail() {
       toast({ title: "Failed to remove mapping", description: err.message, variant: "destructive" });
     },
   });
+
+  const [linkDocOpen, setLinkDocOpen] = useState(false);
+  const [linkDocId, setLinkDocId] = useState<string>("");
+  const [linkType, setLinkType] = useState<string>("Related to");
+
+  const addLinkMutation = useMutation({
+    mutationFn: async ({ toDocumentId, linkType }: { toDocumentId: number; linkType: string }) => {
+      const res = await apiRequest("POST", "/api/policy-links", {
+        fromDocumentId: Number(id),
+        toDocumentId,
+        linkType,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/policy-links"] });
+      toast({ title: "Document linked" });
+      setLinkDocOpen(false);
+      setLinkDocId("");
+      setLinkType("Related to");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to link document", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removeLinkMutation = useMutation({
+    mutationFn: async (linkId: number) => {
+      await apiRequest("DELETE", `/api/policy-links?id=${linkId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/policy-links"] });
+      toast({ title: "Link removed" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to remove link", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const alreadyLinkedDocIds = useMemo(() => {
+    const set = new Set<number>();
+    docLinks.forEach((l) => {
+      set.add(l.fromDocumentId);
+      set.add(l.toDocumentId);
+    });
+    return set;
+  }, [docLinks]);
 
   const [aiJobId, setAiJobId] = useState<string | null>(null);
 
@@ -695,6 +764,7 @@ export default function DocumentDetail() {
     { key: "versions", label: "Policy versions" },
     { key: "mapped", label: `Mapped elements (${docMappings.length})` },
     { key: "gaps", label: `Gaps (${gapMappings.length})` },
+    { key: "related", label: `Related documents (${docLinks.length})` },
     { key: "audits", label: "Audits" },
     { key: "comments", label: "Comments" },
   ];
@@ -1220,6 +1290,78 @@ export default function DocumentDetail() {
         </div>
       )}
 
+      {activeTab === "related" && (
+        <div className="space-y-4" data-testid="tabcontent-related">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" onClick={() => { setLinkDocOpen(true); setLinkDocId(""); setLinkType("Related to"); }} data-testid="button-link-document">
+                <Link2 className="h-3.5 w-3.5 mr-1" />
+                Link Document
+              </Button>
+            </div>
+          </div>
+
+          <div className="border rounded-md" data-testid="related-documents-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-related-document">Document</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-related-type">Type</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-related-link-type">Link Type</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="col-related-action"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {docLinks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8" data-testid="text-no-related">
+                      No related documents
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  docLinks.map((link) => {
+                    const otherDocId = link.fromDocumentId === Number(id) ? link.toDocumentId : link.fromDocumentId;
+                    const otherDoc = docMap.get(otherDocId);
+                    return (
+                      <TableRow key={link.id} data-testid={`row-link-${link.id}`}>
+                        <TableCell>
+                          <Link href={`/documents/${otherDocId}`}>
+                            <span className="text-sm font-medium text-primary hover:underline cursor-pointer" data-testid={`link-doc-${link.id}`}>
+                              {otherDoc?.title ?? `Document #${otherDocId}`}
+                            </span>
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" data-testid={`badge-doctype-${link.id}`}>
+                            {otherDoc?.docType ?? "-"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" data-testid={`badge-linktype-${link.id}`}>
+                            {link.linkType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removeLinkMutation.mutate(link.id)}
+                            disabled={removeLinkMutation.isPending}
+                            data-testid={`button-unlink-${link.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {activeTab === "audits" && (
         <div className="space-y-4" data-testid="tabcontent-audits">
           <div className="border rounded-md">
@@ -1548,6 +1690,65 @@ export default function DocumentDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMapControlOpen(false)} data-testid="button-close-map-control">
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={linkDocOpen} onOpenChange={(open) => {
+        setLinkDocOpen(open);
+        if (!open) { setLinkDocId(""); setLinkType("Related to"); }
+      }}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="dialog-link-document">
+          <DialogHeader>
+            <DialogTitle data-testid="text-link-dialog-title">Link Document</DialogTitle>
+            <DialogDescription data-testid="text-link-dialog-description">
+              Select a document and link type to create a relationship.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Document</label>
+              <Select value={linkDocId} onValueChange={setLinkDocId}>
+                <SelectTrigger data-testid="select-link-document">
+                  <SelectValue placeholder="Select a document" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(allDocuments ?? [])
+                    .filter((d) => d.id !== Number(id) && !alreadyLinkedDocIds.has(d.id))
+                    .map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)} data-testid={`option-link-doc-${d.id}`}>
+                        {d.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Link Type</label>
+              <Select value={linkType} onValueChange={setLinkType}>
+                <SelectTrigger data-testid="select-link-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="References">References</SelectItem>
+                  <SelectItem value="Supersedes">Supersedes</SelectItem>
+                  <SelectItem value="Related to">Related to</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setLinkDocOpen(false)} data-testid="button-cancel-link">
+              Cancel
+            </Button>
+            <Button
+              disabled={!linkDocId || addLinkMutation.isPending}
+              onClick={() => addLinkMutation.mutate({ toDocumentId: Number(linkDocId), linkType })}
+              data-testid="button-submit-link"
+            >
+              {addLinkMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Link
             </Button>
           </DialogFooter>
         </DialogContent>

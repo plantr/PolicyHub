@@ -594,6 +594,7 @@ export type CreateFindingRequest = z.infer<typeof insertFindingSchema>;
 export type UpdateFindingRequest = Partial<CreateFindingRequest>;
 export type CreateControlMappingRequest = z.infer<typeof insertControlMappingSchema>;
 export type UpdateControlMappingRequest = Partial<CreateControlMappingRequest>;
+export type CreatePolicyLinkRequest = z.infer<typeof insertPolicyLinkSchema>;
 export type CreateAuditRequest = z.infer<typeof insertAuditSchema>;
 export type UpdateAuditRequest = Partial<CreateAuditRequest>;
 export type CreateUserRequest = z.infer<typeof insertUserSchema>;

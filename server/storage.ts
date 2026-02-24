@@ -18,7 +18,7 @@ import {
   type CreateDocumentRequest, type UpdateDocumentRequest,
   type CreateDocumentVersionRequest, type CreateAddendumRequest, type CreateApprovalRequest,
   type CreateFindingRequest, type UpdateFindingRequest,
-  type CreateControlMappingRequest, type UpdateControlMappingRequest,
+  type CreateControlMappingRequest, type UpdateControlMappingRequest, type CreatePolicyLinkRequest,
   type CreateRegulatorySourceRequest, type UpdateRegulatorySourceRequest,
   type CreateControlRequest, type UpdateControlRequest,
   type Commitment, type CreateCommitmentRequest, type UpdateCommitmentRequest,
@@ -95,6 +95,8 @@ export interface IStorage {
   getFindingEvidence(findingId: number): Promise<FindingEvidence[]>;
 
   getPolicyLinks(): Promise<PolicyLink[]>;
+  createPolicyLink(link: CreatePolicyLinkRequest): Promise<PolicyLink>;
+  deletePolicyLink(id: number): Promise<void>;
 
   getAudits(): Promise<Audit[]>;
   getAudit(id: number): Promise<Audit | undefined>;
@@ -356,6 +358,13 @@ export class DatabaseStorage implements IStorage {
 
   async getPolicyLinks(): Promise<PolicyLink[]> {
     return await db.select().from(policyLinks);
+  }
+  async createPolicyLink(link: CreatePolicyLinkRequest): Promise<PolicyLink> {
+    const [created] = await db.insert(policyLinks).values(link).returning();
+    return created;
+  }
+  async deletePolicyLink(id: number): Promise<void> {
+    await db.delete(policyLinks).where(eq(policyLinks.id, id));
   }
 
   async getAudits(): Promise<Audit[]> {
