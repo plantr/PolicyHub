@@ -1,8 +1,12 @@
+/**
+ * Seed script: POCA (Proceeds of Crime Act 2002) Framework Controls
+ *
+ * Creates the POCA regulatory source and all associated controls.
+ * Run with: npx tsx --env-file=.env scripts/seed-poca-controls.ts
+ */
 import postgres from "postgres";
 
 const sql = postgres(process.env.DATABASE_URL!, { prepare: false });
-
-const POCA_SOURCE_ID = 4;
 
 const controls = [
   {
@@ -216,7 +220,34 @@ const controls = [
 ];
 
 async function main() {
-  console.log(`Inserting ${controls.length} POCA controls (source_id=${POCA_SOURCE_ID})...`);
+  console.log("Seeding POCA framework and controls...");
+
+  // 1. Create or find the POCA regulatory source
+  const existing = await sql`SELECT id FROM regulatory_sources WHERE short_name = 'POCA' LIMIT 1`;
+
+  let sourceId: number;
+  if (existing.length > 0) {
+    sourceId = existing[0].id;
+    console.log(`Found existing POCA source (id=${sourceId})`);
+  } else {
+    const [source] = await sql`
+      INSERT INTO regulatory_sources (name, short_name, jurisdiction, url, category, description)
+      VALUES (
+        'Proceeds of Crime Act 2002',
+        'POCA',
+        'United Kingdom',
+        'https://www.legislation.gov.uk/ukpga/2002/29/contents',
+        'Financial Crime',
+        'The Proceeds of Crime Act 2002 (POCA) is the principal UK legislation for tackling money laundering and recovering criminal proceeds. Part 7 creates offences for dealing with criminal property, failing to disclose suspicion, and tipping off, requiring organisations to maintain controls for detection, reporting (SARs), and cooperation with law enforcement.'
+      )
+      RETURNING id
+    `;
+    sourceId = source.id;
+    console.log(`Created POCA source (id=${sourceId})`);
+  }
+
+  // 2. Insert controls
+  console.log(`Inserting ${controls.length} POCA controls (source_id=${sourceId})...`);
 
   for (const c of controls) {
     await sql`
@@ -225,7 +256,7 @@ async function main() {
         evidence, owner, notes,
         framework_sections, frequency, related_policies, primary_source_url
       ) VALUES (
-        ${POCA_SOURCE_ID}, ${c.code}, ${c.title}, ${c.description}, ${c.category},
+        ${sourceId}, ${c.code}, ${c.title}, ${c.description}, ${c.category},
         ${c.evidence}, ${c.owner}, ${c.notes},
         ${c.framework_sections}, ${c.frequency}, ${c.related_policies}, ${c.primary_source_url}
       )

@@ -777,8 +777,8 @@ export default function Documents() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => { setFrameworkFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            {uniqueFrameworks.map((fw) => (
-              <DropdownMenuItem key={fw} onClick={() => { setFrameworkFilter(fw); setCurrentPage(1); }}>{fw}</DropdownMenuItem>
+            {(sources ?? []).map((s) => (
+              <DropdownMenuItem key={s.id} onClick={() => { setFrameworkFilter(s.shortName || s.name); setCurrentPage(1); }}>{s.shortName || s.name}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -791,8 +791,8 @@ export default function Documents() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => { setSourceFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            {uniqueFrameworks.map((fw) => (
-              <DropdownMenuItem key={fw} onClick={() => { setSourceFilter(fw); setCurrentPage(1); }}>{fw}</DropdownMenuItem>
+            {(sources ?? []).map((s) => (
+              <DropdownMenuItem key={s.id} onClick={() => { setSourceFilter(s.shortName || s.name); setCurrentPage(1); }}>{s.shortName || s.name}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
