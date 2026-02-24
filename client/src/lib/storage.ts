@@ -1,6 +1,3 @@
-import * as tus from "tus-js-client";
-import { supabase } from "./supabase";
-
 // =============================================
 // CONSTANTS
 // =============================================
@@ -26,7 +23,6 @@ export const ACCEPTED_MIME_TYPES = [
 
 export const MAX_FILE_SIZE_BYTES = 10485760; // 10 MB
 export const MAX_FILE_SIZE_DISPLAY = "10 MB";
-export const TUS_CHUNK_SIZE = 6 * 1024 * 1024; // 6 MB — required by Supabase
 
 // =============================================
 // TYPES
@@ -45,24 +41,6 @@ export interface UploadOptions {
 export interface FileValidationResult {
   valid: boolean;
   errors: string[];  // empty if valid, descriptive messages if not
-}
-
-// =============================================
-// HELPERS
-// =============================================
-
-/**
- * Extracts the Supabase project ref from VITE_SUPABASE_URL to build the storage endpoint.
- * Uses regex to safely handle URL formats: https://xyz.supabase.co, https://api.xyz.supabase.co, etc.
- */
-function getStorageEndpoint(): string {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-  const match = /([a-z0-9]+)\.supabase\.co/.exec(supabaseUrl);
-  if (!match) {
-    throw new Error("Cannot extract project ref from VITE_SUPABASE_URL");
-  }
-  const projectRef = match[1];
-  return `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`;
 }
 
 // =============================================
@@ -91,66 +69,54 @@ export function validateFile(file: File): FileValidationResult {
 }
 
 // =============================================
-// TUS UPLOAD
+// SIGNED URL UPLOAD
 // =============================================
 
 /**
- * Uploads a file to Supabase Storage using the TUS resumable upload protocol.
- * Call /api/document-versions/:id/upload-url first to get signedUrl, token, and bucketId.
- * After this resolves, call /api/document-versions/:id/upload-confirm to record the upload in the DB.
+ * Uploads a file to Supabase Storage using the signed upload URL.
+ * The signed URL was created server-side with the service-role client, so it
+ * bypasses RLS — no JWT business_units claims required.
+ *
+ * Uses XMLHttpRequest for upload progress tracking.
  */
 export function uploadFileToStorage(options: UploadOptions): Promise<void> {
-  return new Promise(async (resolve, reject) => {
-    let accessToken: string;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("No active session — user must be signed in to upload files");
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        options.onProgress?.(Math.round((e.loaded / e.total) * 100));
       }
-      accessToken = session.access_token;
-    } catch (err) {
-      return reject(err instanceof Error ? err : new Error(String(err)));
-    }
+    });
 
-    let storageEndpoint: string;
-    try {
-      storageEndpoint = getStorageEndpoint();
-    } catch (err) {
-      return reject(err instanceof Error ? err : new Error(String(err)));
-    }
-
-    // tus-js-client UploadOptions does not declare `uploadSignature` in its types,
-    // but Supabase Storage requires it to authenticate TUS resumable uploads.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const uploadOptions: any = {
-      endpoint: storageEndpoint,
-      retryDelays: [0, 3000, 5000, 10000, 20000],
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        "x-upsert": "false",
-      },
-      uploadSignature: options.token,
-      metadata: {
-        bucketName: options.bucketId,
-        objectName: options.objectPath,
-        contentType: options.file.type,
-        cacheControl: "3600",
-      },
-      chunkSize: TUS_CHUNK_SIZE,
-      onProgress(bytesUploaded: number, bytesTotal: number) {
-        options.onProgress?.(Math.round((bytesUploaded / bytesTotal) * 100));
-      },
-      onSuccess() {
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
-      },
-      onError(err: Error) {
+      } else {
+        const err = new Error(
+          `Upload failed: ${xhr.status} ${xhr.statusText} — ${xhr.responseText}`
+        );
         options.onError?.(err);
         reject(err);
-      },
-    };
-    const upload = new tus.Upload(options.file, uploadOptions);
+      }
+    });
 
-    upload.start();
+    xhr.addEventListener("error", () => {
+      const err = new Error("Upload failed: network error");
+      options.onError?.(err);
+      reject(err);
+    });
+
+    xhr.addEventListener("abort", () => {
+      const err = new Error("Upload aborted");
+      options.onError?.(err);
+      reject(err);
+    });
+
+    xhr.open("PUT", options.signedUrl);
+    xhr.setRequestHeader("Content-Type", options.file.type);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.send(options.file);
   });
 }
 
