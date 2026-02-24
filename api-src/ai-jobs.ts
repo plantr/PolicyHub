@@ -15,6 +15,7 @@
  * and process in the background via fire-and-forget.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { waitUntil } from "@vercel/functions";
 import { handleCors } from "./_shared/cors";
 import { sendError } from "./_shared/handler";
 import { storage } from "../server/storage";
@@ -22,6 +23,8 @@ import { db } from "../server/db";
 import { eq, and, ne, inArray, desc } from "drizzle-orm";
 import * as schema from "../shared/schema";
 import { createSignedDownloadUrl, bucketName } from "../server/storage-supabase";
+
+export const maxDuration = 300; // 5 minutes for AI processing
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
@@ -101,10 +104,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: "Queued for analysis...",
       }).returning();
 
-      // Fire-and-forget
-      processAiCoverageJob(job.id, controlId).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiCoverageJob(job.id, controlId).catch(err => {
         console.error("AI coverage job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending" });
     }
@@ -154,10 +157,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: "Queued for analysis...",
       }).returning();
 
-      // Fire-and-forget
-      processAiMapControlsJob(job.id, docId).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiMapControlsJob(job.id, docId).catch(err => {
         console.error("AI map-controls job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending" });
     }
@@ -192,10 +195,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: `Queued: ${targetControls.length} controls to analyse...`,
       }).returning();
 
-      // Fire-and-forget
-      processAiBulkCoverageJob(job.id, targetControls.map((c) => c.id)).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiBulkCoverageJob(job.id, targetControls.map((c) => c.id)).catch(err => {
         console.error("AI bulk-coverage job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending", total: targetControls.length });
     }
@@ -234,10 +237,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: `Queued: ${docsWithPublished.length} documents to process...`,
       }).returning();
 
-      // Fire-and-forget
-      processAiMapAllDocumentsJob(job.id, docsWithPublished.map((d) => d.id), sourceId).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiMapAllDocumentsJob(job.id, docsWithPublished.map((d) => d.id), sourceId).catch(err => {
         console.error("AI map-all-documents job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending" });
     }
@@ -261,10 +264,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: "Queued for conversion...",
       }).returning();
 
-      // Fire-and-forget
-      processAiPdfToMarkdownJob(job.id, versionId).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiPdfToMarkdownJob(job.id, versionId).catch(err => {
         console.error("AI pdf-to-markdown job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending" });
     }
@@ -287,10 +290,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         progressMessage: `Queued: ${eligibleVersions.length} documents to convert...`,
       }).returning();
 
-      // Fire-and-forget
-      processAiBulkPdfToMarkdownJob(job.id, eligibleVersions.map((v) => v.id)).catch(err => {
+      // Fire-and-forget (waitUntil keeps the function alive after response)
+      waitUntil(processAiBulkPdfToMarkdownJob(job.id, eligibleVersions.map((v) => v.id)).catch(err => {
         console.error("AI bulk-pdf-to-markdown job processing error:", err);
-      });
+      }));
 
       return res.json({ jobId: job.id, status: "pending", total: eligibleVersions.length });
     }
