@@ -39,7 +39,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2 } from "lucide-react";
+import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -143,6 +143,10 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCategorySidebar, setShowCategorySidebar] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [sortField, setSortField] = useState<"code" | "title" | "owner" | "coverage" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  const [coverageFilter, setCoverageFilter] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: source, isLoading: sourceLoading } = useQuery<RegulatorySource>({
@@ -266,6 +270,31 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     return Array.from(new Set(requirements.map((r) => r.category))).sort();
   }, [requirements]);
 
+  const uniqueOwners = useMemo(() => {
+    return Array.from(new Set(requirements.map((r) => r.owner).filter(Boolean))).sort() as string[];
+  }, [requirements]);
+
+  const getControlCoverage = (controlId: number) => getBestStatus(reqMappingLookup.get(controlId) || []);
+
+  const gapRows = useMemo(() => {
+    const rows: { control: Control; mapping: ControlMapping | null; bestStatus: string }[] = [];
+    for (const ctrl of requirements) {
+      const ctrlMappings = reqMappingLookup.get(ctrl.id) || [];
+      const bestStatus = getBestStatus(ctrlMappings);
+      if (bestStatus === "Covered") continue;
+      if (ctrlMappings.length === 0) {
+        rows.push({ control: ctrl, mapping: null, bestStatus });
+      } else {
+        for (const m of ctrlMappings) {
+          if (m.coverageStatus !== "Covered") {
+            rows.push({ control: ctrl, mapping: m, bestStatus: m.coverageStatus });
+          }
+        }
+      }
+    }
+    return rows;
+  }, [requirements, reqMappingLookup]);
+
   const filteredRequirements = useMemo(() => {
     let filtered = requirements;
     if (selectedCategory) {
@@ -280,10 +309,36 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
           (r.description && r.description.toLowerCase().includes(q))
       );
     }
+    if (ownerFilter) {
+      filtered = filtered.filter((r) => r.owner === ownerFilter);
+    }
+    if (coverageFilter) {
+      filtered = filtered.filter((r) => getControlCoverage(r.id) === coverageFilter);
+    }
     return filtered;
-  }, [requirements, selectedCategory, searchQuery]);
+  }, [requirements, selectedCategory, searchQuery, ownerFilter, coverageFilter, reqMappingLookup]);
 
   const groupedRequirements = useMemo(() => {
+    const coverageOrder: Record<string, number> = { "Covered": 0, "Partially Covered": 1, "Not Covered": 2 };
+    const sortControls = (list: Control[]) => {
+      if (!sortField) return list;
+      return [...list].sort((a, b) => {
+        let cmp = 0;
+        switch (sortField) {
+          case "code": cmp = a.code.localeCompare(b.code); break;
+          case "title": cmp = a.title.localeCompare(b.title); break;
+          case "owner": cmp = (a.owner || "").localeCompare(b.owner || ""); break;
+          case "coverage": {
+            const sa = coverageOrder[getControlCoverage(a.id)] ?? 3;
+            const sb = coverageOrder[getControlCoverage(b.id)] ?? 3;
+            cmp = sa - sb;
+            break;
+          }
+        }
+        return sortDir === "desc" ? -cmp : cmp;
+      });
+    };
+
     const groups = new Map<string, Control[]>();
     for (const req of filteredRequirements) {
       const cat = req.category;
@@ -291,8 +346,10 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
       list.push(req);
       groups.set(cat, list);
     }
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredRequirements]);
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([cat, reqs]) => [cat, sortControls(reqs)] as [string, Control[]]);
+  }, [filteredRequirements, sortField, sortDir, reqMappingLookup]);
 
   if (sourceLoading) {
     return (
@@ -347,6 +404,14 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
           >
             Controls
             <Badge variant="secondary" className="ml-2 text-xs">{requirements.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="gaps"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2"
+            data-testid="tab-gaps"
+          >
+            Gaps
+            <Badge variant="secondary" className="ml-2 text-xs">{metrics.partial + metrics.notCovered}</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -589,6 +654,39 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 data-testid="input-controls-search"
               />
             </div>
+            <Select value={ownerFilter ?? "__all__"} onValueChange={(v) => setOwnerFilter(v === "__all__" ? null : v)}>
+              <SelectTrigger className="w-[180px]" data-testid="select-owner-filter">
+                <SelectValue placeholder="All owners" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All owners</SelectItem>
+                {uniqueOwners.map((owner) => (
+                  <SelectItem key={owner} value={owner}>{owner}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={coverageFilter ?? "__all__"} onValueChange={(v) => setCoverageFilter(v === "__all__" ? null : v)}>
+              <SelectTrigger className="w-[180px]" data-testid="select-coverage-filter">
+                <SelectValue placeholder="All coverage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All coverage</SelectItem>
+                <SelectItem value="Covered">Covered</SelectItem>
+                <SelectItem value="Partially Covered">Partially Covered</SelectItem>
+                <SelectItem value="Not Covered">Not Covered</SelectItem>
+              </SelectContent>
+            </Select>
+            {(ownerFilter || coverageFilter) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setOwnerFilter(null); setCoverageFilter(null); }}
+                data-testid="button-clear-filters"
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
           </div>
 
           <div className="flex gap-6">
@@ -667,10 +765,30 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                       <Table>
                         <TableHeader>
                           <TableRow className="hover:bg-transparent">
-                            <TableHead className="w-[100px]">Code</TableHead>
-                            <TableHead>Title</TableHead>
-                            <TableHead className="hidden xl:table-cell">Owner</TableHead>
-                            <TableHead className="w-[120px] text-right">Coverage</TableHead>
+                            <TableHead className="w-[100px]">
+                              <button className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => { if (sortField === "code") { setSortDir(sortDir === "asc" ? "desc" : "asc"); } else { setSortField("code"); setSortDir("asc"); } }}>
+                                Code
+                                {sortField === "code" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                              </button>
+                            </TableHead>
+                            <TableHead>
+                              <button className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => { if (sortField === "title") { setSortDir(sortDir === "asc" ? "desc" : "asc"); } else { setSortField("title"); setSortDir("asc"); } }}>
+                                Title
+                                {sortField === "title" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                              </button>
+                            </TableHead>
+                            <TableHead className="hidden xl:table-cell">
+                              <button className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => { if (sortField === "owner") { setSortDir(sortDir === "asc" ? "desc" : "asc"); } else { setSortField("owner"); setSortDir("asc"); } }}>
+                                Owner
+                                {sortField === "owner" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                              </button>
+                            </TableHead>
+                            <TableHead className="w-[120px] text-right">
+                              <button className="inline-flex items-center gap-1 hover:text-foreground ml-auto" onClick={() => { if (sortField === "coverage") { setSortDir(sortDir === "asc" ? "desc" : "asc"); } else { setSortField("coverage"); setSortDir("asc"); } }}>
+                                Coverage
+                                {sortField === "coverage" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                              </button>
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -707,6 +825,103 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
               ))}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="gaps" data-testid="tab-content-gaps">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card data-testid="card-gap-not-covered">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                  <h3 className="text-sm font-medium text-muted-foreground">Not Covered</h3>
+                </div>
+                <p className="text-3xl font-bold">{metrics.notCovered}</p>
+                <p className="text-xs text-muted-foreground mt-1">controls with no policy coverage</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-gap-partial">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <CircleDot className="h-4 w-4 text-amber-500" />
+                  <h3 className="text-sm font-medium text-muted-foreground">Partially Covered</h3>
+                </div>
+                <p className="text-3xl font-bold">{metrics.partial}</p>
+                <p className="text-xs text-muted-foreground mt-1">controls needing additional coverage</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-gap-total">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <h3 className="text-sm font-medium text-muted-foreground">Fully Covered</h3>
+                </div>
+                <p className="text-3xl font-bold">{metrics.covered}</p>
+                <p className="text-xs text-muted-foreground mt-1">controls with full policy coverage</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {gapRows.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground" data-testid="text-no-gaps">
+                All controls in {source.shortName} are fully covered. No gaps identified.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="border rounded-md" data-testid="gaps-table">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-medium text-muted-foreground">Control Code</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Control Title</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Document</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Coverage</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">AI Match %</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Recommendation</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gapRows.map((row, idx) => {
+                    const doc = row.mapping?.documentId != null
+                      ? (allDocuments ?? []).find((d) => d.id === row.mapping!.documentId)
+                      : undefined;
+                    return (
+                      <TableRow key={`${row.control.id}-${row.mapping?.id ?? "unmapped"}-${idx}`} data-testid={`gap-row-${row.control.id}`}>
+                        <TableCell className="font-mono text-sm font-medium">
+                          <Link href={`/controls/${row.control.id}`} className="hover:underline">
+                            {row.control.code}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{row.control.title}</TableCell>
+                        <TableCell className="text-sm">
+                          {doc ? (
+                            <Link href={`/documents/${doc.id}`} className="hover:underline">{doc.title}</Link>
+                          ) : (
+                            <span className="text-muted-foreground">No document mapped</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getCoverageVariant(row.bestStatus)} className="text-xs">
+                            {row.bestStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {row.mapping?.aiMatchScore != null ? (
+                            <span className="text-sm font-medium">{row.mapping.aiMatchScore}%</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-normal">
+                          {row.mapping?.aiMatchRecommendations ?? row.mapping?.aiMatchRationale ?? "--"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

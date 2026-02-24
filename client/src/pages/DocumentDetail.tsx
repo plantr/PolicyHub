@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -65,6 +65,8 @@ import {
   Plus,
   X,
   CheckCircle2,
+  AlertCircle,
+  CircleDot,
   Calendar,
   List,
   MoreHorizontal,
@@ -84,6 +86,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { uploadFileToStorage } from "@/lib/storage";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -190,6 +193,18 @@ export default function DocumentDetail() {
     const docId = Number(id);
     return allMappings.filter((m) => m.documentId === docId);
   }, [allMappings, id]);
+
+  const gapMappings = useMemo(() => {
+    return docMappings.filter((m) => m.coverageStatus !== "Covered");
+  }, [docMappings]);
+
+  const gapMetrics = useMemo(() => {
+    const total = docMappings.length;
+    const covered = docMappings.filter((m) => m.coverageStatus === "Covered").length;
+    const partial = docMappings.filter((m) => m.coverageStatus === "Partially Covered").length;
+    const notCovered = docMappings.filter((m) => m.coverageStatus === "Not Covered").length;
+    return { total, covered, partial, notCovered };
+  }, [docMappings]);
 
   const linkedFrameworks = useMemo(() => {
     const frameworkIds = new Set<number>();
@@ -398,25 +413,62 @@ export default function DocumentDetail() {
     },
   });
 
-  const [aiAutoMapRunning, setAiAutoMapRunning] = useState(false);
+  const [aiJobId, setAiJobId] = useState<string | null>(null);
+
+  const aiJob = useAiJob(aiJobId);
+  const cancelJob = useCancelAiJob();
+  const aiAutoMapRunning = aiJobId !== null;
+  const aiJobProgress = aiJob.data?.progressMessage;
+  const storageKey = `map-controls:${id}`;
+
+  // Restore job on mount from localStorage
+  useEffect(() => {
+    const saved = getPersistedJobId(storageKey);
+    if (saved) setAiJobId(saved);
+  }, [storageKey]);
+
+  // Handle job completion/failure via useEffect
+  useEffect(() => {
+    if (!aiJob.data || !aiJobId) return;
+    if (aiJob.data.status === "completed") {
+      clearPersistedJobId(storageKey);
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      const result = aiJob.data.result as { matched?: number; total?: number; removed?: number } | null;
+      const removedMsg = result?.removed ? `, removed ${result.removed} low-quality mappings` : "";
+      toast({
+        title: "AI Auto-Map Complete",
+        description: `Matched ${result?.matched ?? 0} controls out of ${result?.total ?? 0} evaluated${removedMsg}`,
+      });
+      setAiJobId(null);
+    } else if (aiJob.data.status === "failed") {
+      clearPersistedJobId(storageKey);
+      toast({ title: "AI Auto-Map Failed", description: aiJob.data.errorMessage || "Unknown error", variant: "destructive" });
+      setAiJobId(null);
+    } else if (aiJob.data.status === "cancelled") {
+      clearPersistedJobId(storageKey);
+      toast({ title: "AI Auto-Map Cancelled" });
+      setAiJobId(null);
+    }
+  }, [aiJob.data?.status]);
 
   const aiAutoMapMutation = useMutation({
     mutationFn: async () => {
-      setAiAutoMapRunning(true);
       const res = await apiRequest("POST", `/api/ai-jobs?action=map-controls&documentId=${id}`);
       return res.json();
     },
-    onSuccess: (data: { matched: number; total: number; removed?: number }) => {
-      setAiAutoMapRunning(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
-      const removedMsg = data.removed ? `, removed ${data.removed} low-quality mappings` : "";
-      toast({
-        title: "AI Auto-Map Complete",
-        description: `Matched ${data.matched} controls out of ${data.total} evaluated${removedMsg}`,
-      });
+    onSuccess: (data: { jobId?: string; message?: string }) => {
+      if (data.jobId) {
+        persistJobId(storageKey, data.jobId);
+        setAiJobId(data.jobId);
+      } else {
+        // Early return (e.g. all controls already mapped) — no background job
+        queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+        toast({ title: "AI Auto-Map Complete", description: data.message || "All controls already mapped" });
+      }
     },
     onError: (err: Error) => {
-      setAiAutoMapRunning(false);
       toast({ title: "AI Auto-Map Failed", description: err.message, variant: "destructive" });
     },
   });
@@ -447,7 +499,7 @@ export default function DocumentDetail() {
       return confirmRes.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", id] });
       toast({ title: "PDF uploaded successfully" });
       setUploadingVersionId(null);
     },
@@ -489,7 +541,7 @@ export default function DocumentDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", id] });
       toast({ title: "PDF removed" });
     },
     onError: (err: Error) => {
@@ -564,7 +616,7 @@ export default function DocumentDetail() {
       return version;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-versions", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/document-versions", id] });
       toast({ title: "Version created" });
       setAddVersionOpen(false);
       setVersionFile(null);
@@ -641,7 +693,8 @@ export default function DocumentDetail() {
 
   const tabs = [
     { key: "versions", label: "Policy versions" },
-    { key: "mapped", label: "Mapped elements" },
+    { key: "mapped", label: `Mapped elements (${docMappings.length})` },
+    { key: "gaps", label: `Gaps (${gapMappings.length})` },
     { key: "audits", label: "Audits" },
     { key: "comments", label: "Comments" },
   ];
@@ -705,20 +758,29 @@ export default function DocumentDetail() {
           <Button variant="outline" size="icon" data-testid="button-owner-info">
             <UserCircle className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="button-ai-auto-map"
-            disabled={aiAutoMapRunning || !hasPublishedVersion}
-            onClick={() => aiAutoMapMutation.mutate()}
-          >
-            {aiAutoMapRunning ? (
+          {aiAutoMapRunning ? (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="button-ai-auto-map"
+              onClick={() => aiJobId && cancelJob.mutate(aiJobId)}
+            >
               <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-            ) : (
+              {aiJobProgress || "Analysing..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="button-ai-auto-map"
+              disabled={aiAutoMapMutation.isPending || !hasPublishedVersion}
+              onClick={() => aiAutoMapMutation.mutate()}
+            >
               <Sparkles className="h-4 w-4 mr-1.5 text-purple-500 dark:text-purple-400" />
-            )}
-            {aiAutoMapRunning ? "Analysing..." : "AI Auto-Map"}
-          </Button>
+              AI Auto-Map
+            </Button>
+          )}
           <Button variant="outline" size="sm" data-testid="button-edit-details">
             <Pencil className="h-3.5 w-3.5 mr-1.5" />
             Edit details
@@ -970,7 +1032,7 @@ export default function DocumentDetail() {
                     const req = reqMap.get(mapping.controlId);
                     const source = req ? sourceMap.get(req.sourceId) : null;
                     return (
-                      <TableRow key={mapping.id} className="group" data-testid={`row-mapping-${mapping.id}`}>
+                      <TableRow key={mapping.id} className="group cursor-pointer" onClick={() => navigate(`/controls/${mapping.controlId}`)} data-testid={`row-mapping-${mapping.id}`}>
                         <TableCell className="max-w-[280px]">
                           <div>
                             <span className="font-medium text-sm" data-testid={`text-control-title-${mapping.id}`}>
@@ -1012,7 +1074,7 @@ export default function DocumentDetail() {
                             {mapping.coverageStatus}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -1045,6 +1107,9 @@ export default function DocumentDetail() {
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="icon" disabled={mappedPage <= 1} onClick={() => setMappedPage((p) => p - 1)} data-testid="button-mapped-prev">
@@ -1055,6 +1120,103 @@ export default function DocumentDetail() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "gaps" && (
+        <div className="space-y-4" data-testid="tabcontent-gaps">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border rounded-md p-4" data-testid="card-gap-not-covered">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm font-medium text-muted-foreground">Not Covered</span>
+              </div>
+              <p className="text-3xl font-bold">{gapMetrics.notCovered}</p>
+              <p className="text-xs text-muted-foreground mt-1">controls not addressed by this policy</p>
+            </div>
+            <div className="border rounded-md p-4" data-testid="card-gap-partial">
+              <div className="flex items-center gap-2 mb-1">
+                <CircleDot className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium text-muted-foreground">Partially Covered</span>
+              </div>
+              <p className="text-3xl font-bold">{gapMetrics.partial}</p>
+              <p className="text-xs text-muted-foreground mt-1">controls needing additional coverage</p>
+            </div>
+            <div className="border rounded-md p-4" data-testid="card-gap-covered">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm font-medium text-muted-foreground">Fully Covered</span>
+              </div>
+              <p className="text-3xl font-bold">{gapMetrics.covered}</p>
+              <p className="text-xs text-muted-foreground mt-1">controls with full policy coverage</p>
+            </div>
+          </div>
+
+          {gapMappings.length === 0 ? (
+            <div className="border rounded-md py-12 text-center text-muted-foreground" data-testid="text-no-gaps">
+              All mapped controls are fully covered by this policy. No gaps identified.
+            </div>
+          ) : (
+            <div className="border rounded-md" data-testid="gaps-table">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-medium text-muted-foreground">Control</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Framework</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Coverage</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">AI Match %</TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">Recommendation</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gapMappings.map((mapping) => {
+                    const req = reqMap.get(mapping.controlId);
+                    const source = req ? sourceMap.get(req.sourceId) : null;
+                    return (
+                      <TableRow key={mapping.id} className="cursor-pointer" onClick={() => navigate(`/controls/${mapping.controlId}`)} data-testid={`gap-row-${mapping.id}`}>
+                        <TableCell className="max-w-[280px]">
+                          <div>
+                            <span className="font-mono text-xs text-muted-foreground mr-1.5">{req?.code}</span>
+                            <span className="font-medium text-sm">{req?.title ?? `Control #${mapping.controlId}`}</span>
+                            {req?.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.description}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{source?.shortName ?? "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant={mapping.coverageStatus === "Partially Covered" ? "secondary" : "destructive"} className="text-xs">
+                            {mapping.coverageStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {mapping.aiMatchScore != null ? (
+                            <div className="flex items-center gap-1.5">
+                              <svg width="24" height="24" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                <circle
+                                  cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                  strokeDasharray={`${(mapping.aiMatchScore / 100) * 87.96} ${87.96}`}
+                                  transform="rotate(-90 18 18)"
+                                  className={mapping.aiMatchScore >= 80 ? "stroke-green-500 dark:stroke-green-400" : mapping.aiMatchScore >= 60 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                />
+                              </svg>
+                              <span className="text-xs font-semibold">{mapping.aiMatchScore}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-normal">
+                          {mapping.aiMatchRecommendations ?? mapping.aiMatchRationale ?? "--"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
 

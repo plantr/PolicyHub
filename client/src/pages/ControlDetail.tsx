@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -15,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2, StopCircle } from "lucide-react";
 import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 const linkDocFormSchema = z.object({
   documentId: z.coerce.number().min(1, "Document is required"),
@@ -100,14 +101,10 @@ export default function ControlDetail() {
 
   const coveredCount = mappings.filter((m) => m.coverageStatus === "Covered" || m.coverageStatus === "Partially Covered").length;
 
-  const bestPct = useMemo(() => {
+  const bestAiPct = useMemo(() => {
     let best = -1;
     for (const m of mappings) {
-      const match = m.rationale?.match(/\((\d+)%\)/);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        if (val > best) best = val;
-      }
+      if (m.aiMatchScore != null && m.aiMatchScore > best) best = m.aiMatchScore;
     }
     return best >= 0 ? best : null;
   }, [mappings]);
@@ -146,18 +143,88 @@ export default function ControlDetail() {
 
   const [aiAnalysingId, setAiAnalysingId] = useState<number | null>(null);
   const [aiCoverageRunning, setAiCoverageRunning] = useState(false);
+  const [coverageJobId, setCoverageJobId] = useState<string | null>(null);
+  const [matchJobId, setMatchJobId] = useState<string | null>(null);
+
+  const coverageJob = useAiJob(coverageJobId);
+  const matchJob = useAiJob(matchJobId);
+  const cancelJob = useCancelAiJob();
+
+  const coverageStorageKey = `coverage:${controlId}`;
+  const matchStorageKey = `match:${controlId}`;
+
+  // Restore jobs on mount from localStorage
+  useEffect(() => {
+    const savedCoverage = getPersistedJobId(coverageStorageKey);
+    if (savedCoverage) { setCoverageJobId(savedCoverage); setAiCoverageRunning(true); }
+    const savedMatch = getPersistedJobId(matchStorageKey);
+    if (savedMatch) setMatchJobId(savedMatch);
+  }, [coverageStorageKey, matchStorageKey]);
+
+  // Track which statuses we've already handled to avoid duplicate toasts
+  const handledCoverageJobRef = useRef<string | null>(null);
+  const handledMatchJobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!coverageJob.data || !coverageJobId || handledCoverageJobRef.current === coverageJobId) return;
+    if (coverageJob.data.status === "completed") {
+      handledCoverageJobRef.current = coverageJobId;
+      clearPersistedJobId(coverageStorageKey);
+      setAiCoverageRunning(false);
+      setCoverageJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/controls", controlId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      const result = coverageJob.data.result;
+      toast({ title: "AI Coverage Analysis Complete", description: `Combined score: ${result?.combinedAiScore ?? "?"}%` });
+    } else if (coverageJob.data.status === "failed") {
+      handledCoverageJobRef.current = coverageJobId;
+      clearPersistedJobId(coverageStorageKey);
+      setAiCoverageRunning(false);
+      setCoverageJobId(null);
+      toast({ title: "AI Coverage Failed", description: coverageJob.data.errorMessage || "Unknown error", variant: "destructive" });
+    } else if (coverageJob.data.status === "cancelled") {
+      handledCoverageJobRef.current = coverageJobId;
+      clearPersistedJobId(coverageStorageKey);
+      setAiCoverageRunning(false);
+      setCoverageJobId(null);
+      toast({ title: "AI Coverage Cancelled" });
+    }
+  }, [coverageJob.data, coverageJobId]);
+
+  useEffect(() => {
+    if (!matchJob.data || !matchJobId || handledMatchJobRef.current === matchJobId) return;
+    if (matchJob.data.status === "completed") {
+      handledMatchJobRef.current = matchJobId;
+      clearPersistedJobId(matchStorageKey);
+      setAiAnalysingId(null);
+      setMatchJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      const result = matchJob.data.result;
+      toast({ title: "AI Analysis Complete", description: `Match score: ${result?.aiMatchScore ?? "?"}%` });
+    } else if (matchJob.data.status === "failed") {
+      handledMatchJobRef.current = matchJobId;
+      clearPersistedJobId(matchStorageKey);
+      setAiAnalysingId(null);
+      setMatchJobId(null);
+      toast({ title: "AI Analysis Failed", description: matchJob.data.errorMessage || "Unknown error", variant: "destructive" });
+    } else if (matchJob.data.status === "cancelled") {
+      handledMatchJobRef.current = matchJobId;
+      clearPersistedJobId(matchStorageKey);
+      setAiAnalysingId(null);
+      setMatchJobId(null);
+      toast({ title: "AI Analysis Cancelled" });
+    }
+  }, [matchJob.data, matchJobId]);
 
   const aiCoverageMutation = useMutation({
     mutationFn: async () => {
       setAiCoverageRunning(true);
-      const res = await apiRequest("POST", `/api/controls/${controlId}/ai-coverage`, {});
-      return res.json();
+      const res = await apiRequest("POST", `/api/ai-jobs?action=coverage&controlId=${controlId}`);
+      return res.json() as Promise<{ jobId: string }>;
     },
-    onSuccess: (data: { combinedAiScore: number; combinedAiRationale: string; combinedAiRecommendations?: string }) => {
-      setAiCoverageRunning(false);
-      queryClient.invalidateQueries({ queryKey: [`/api/controls/${controlId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
-      toast({ title: "AI Coverage Analysis Complete", description: `Combined score: ${data.combinedAiScore}%` });
+    onSuccess: (data) => {
+      persistJobId(coverageStorageKey, data.jobId);
+      setCoverageJobId(data.jobId);
     },
     onError: (err: Error) => {
       setAiCoverageRunning(false);
@@ -168,13 +235,12 @@ export default function ControlDetail() {
   const aiMatchMutation = useMutation({
     mutationFn: async (mappingId: number) => {
       setAiAnalysingId(mappingId);
-      const res = await apiRequest("POST", `/api/gap-analysis/ai-match/${mappingId}`, {});
-      return res.json();
+      const res = await apiRequest("POST", `/api/gap-analysis?action=ai-match&mappingId=${mappingId}`);
+      return res.json() as Promise<{ jobId: string }>;
     },
-    onSuccess: (data: { mappingId: number; aiMatchScore: number; aiMatchRationale: string; aiMatchRecommendations?: string }) => {
-      setAiAnalysingId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
-      toast({ title: "AI Analysis Complete", description: `Match score: ${data.aiMatchScore}%` });
+    onSuccess: (data) => {
+      persistJobId(matchStorageKey, data.jobId);
+      setMatchJobId(data.jobId);
     },
     onError: (err: Error) => {
       setAiAnalysingId(null);
@@ -291,7 +357,7 @@ export default function ControlDetail() {
                     {(() => {
                       const score = control?.combinedAiScore;
                       const hasScore = score !== null && score !== undefined;
-                      const displayPct = hasScore ? score : (bestPct ?? 0);
+                      const displayPct = hasScore ? score : (bestAiPct ?? 0);
                       const strokeColor = displayPct >= 80 ? "stroke-green-500 dark:stroke-green-400" : displayPct >= 60 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500";
                       return (
                         <svg width="56" height="56" viewBox="0 0 36 36" data-testid="coverage-circle">
@@ -308,29 +374,37 @@ export default function ControlDetail() {
                     })()}
                     <div>
                       <p className="text-sm font-semibold" data-testid="text-coverage-label">
-                        {control?.combinedAiScore !== null && control?.combinedAiScore !== undefined ? "AI Coverage Score" : "Coverage Score"}
+                        {control?.combinedAiScore !== null && control?.combinedAiScore !== undefined ? "AI Coverage Score" : "Best AI Match"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {control?.combinedAiScore !== null && control?.combinedAiScore !== undefined
                           ? `Combined AI assessment across ${mappedDocuments.length} linked document${mappedDocuments.length !== 1 ? "s" : ""}`
-                          : `${coveredCount} of ${mappings.length} providing coverage across ${mappedDocuments.length} document${mappedDocuments.length !== 1 ? "s" : ""}`}
+                          : `Best individual AI score across ${mappedDocuments.length} linked document${mappedDocuments.length !== 1 ? "s" : ""}`}
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => aiCoverageMutation.mutate()}
-                    disabled={aiCoverageRunning}
-                    data-testid="button-ai-coverage"
-                  >
-                    {aiCoverageRunning ? (
+                  {aiCoverageRunning ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => coverageJobId && cancelJob.mutate(coverageJobId)}
+                      data-testid="button-ai-coverage"
+                    >
                       <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                    ) : (
+                      {coverageJob.data?.progressMessage || "Analysing..."}
+                      <X className="h-3.5 w-3.5 ml-1.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => aiCoverageMutation.mutate()}
+                      data-testid="button-ai-coverage"
+                    >
                       <Sparkles className="h-4 w-4 mr-1.5 text-purple-500" />
-                    )}
-                    {aiCoverageRunning ? "Analysing..." : "AI Assess Coverage"}
-                  </Button>
+                      AI Assess Coverage
+                    </Button>
+                  )}
                 </div>
                 {control?.combinedAiRationale && (
                   <div className="mt-4 border-l-2 border-purple-300 dark:border-purple-600 pl-3 space-y-2">
@@ -373,17 +447,14 @@ export default function ControlDetail() {
               ) : (
                 <div className="divide-y">
                   {mappedDocuments.map(({ mapping, document: doc }) => {
-                    const pctMatch = mapping.rationale?.match(/\((\d+)%\)/);
-                    const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
-                    const termsMatch = mapping.rationale?.match(/:\s*(.+)$/);
-                    const matchedTerms = termsMatch ? termsMatch[1].split(",").map((t) => t.trim()).filter(Boolean) : [];
                     const coverageColor = mapping.coverageStatus === "Covered"
                       ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                       : mapping.coverageStatus === "Partially Covered"
                         ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
                         : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-                    const strokeColor = pct !== null
-                      ? (pct >= 45 ? "stroke-green-500 dark:stroke-green-400" : pct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500")
+                    const aiPct = mapping.aiMatchScore;
+                    const aiStrokeColor = aiPct != null
+                      ? (aiPct >= 60 ? "stroke-purple-500 dark:stroke-purple-400" : aiPct >= 40 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500")
                       : "";
                     return (
                       <div
@@ -392,18 +463,18 @@ export default function ControlDetail() {
                         data-testid={`row-mapped-doc-${mapping.id}`}
                       >
                         <div className="flex flex-wrap items-center gap-3">
-                          {pct !== null ? (
-                            <div className="flex items-center gap-1.5 shrink-0" data-testid={`match-pct-${mapping.id}`}>
+                          {aiPct != null ? (
+                            <div className="flex items-center gap-1.5 shrink-0" data-testid={`ai-match-pct-${mapping.id}`}>
                               <svg width="28" height="28" viewBox="0 0 36 36">
                                 <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
                                 <circle
                                   cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
-                                  strokeDasharray={`${(pct / 100) * 87.96} ${87.96}`}
+                                  strokeDasharray={`${(aiPct / 100) * 87.96} ${87.96}`}
                                   transform="rotate(-90 18 18)"
-                                  className={strokeColor}
+                                  className={aiStrokeColor}
                                 />
                               </svg>
-                              <span className="text-sm font-semibold">{pct}%</span>
+                              <span className="text-sm font-semibold">{aiPct}%</span>
                             </div>
                           ) : (
                             mapping.coverageStatus === "Covered" ? (
@@ -430,21 +501,30 @@ export default function ControlDetail() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-muted-foreground"
-                              disabled={aiAnalysingId === mapping.id}
-                              onClick={(e) => { e.stopPropagation(); aiMatchMutation.mutate(mapping.id); }}
-                              data-testid={`button-ai-match-${mapping.id}`}
-                              title="Run AI analysis"
-                            >
-                              {aiAnalysingId === mapping.id ? (
+                            {aiAnalysingId === mapping.id && matchJobId ? (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-muted-foreground"
+                                onClick={(e) => { e.stopPropagation(); cancelJob.mutate(matchJobId); }}
+                                data-testid={`button-ai-match-${mapping.id}`}
+                                title="Cancel AI analysis"
+                              >
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
+                              </Button>
+                            ) : (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-muted-foreground"
+                                disabled={aiAnalysingId != null}
+                                onClick={(e) => { e.stopPropagation(); aiMatchMutation.mutate(mapping.id); }}
+                                data-testid={`button-ai-match-${mapping.id}`}
+                                title="Run AI analysis"
+                              >
                                 <Sparkles className="h-4 w-4" />
-                              )}
-                            </Button>
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
@@ -485,19 +565,7 @@ export default function ControlDetail() {
                             )}
                           </div>
                         )}
-                        {matchedTerms.length > 0 && (
-                          <div className="ml-11 space-y-1.5" data-testid={`matched-terms-${mapping.id}`}>
-                            <span className="text-xs font-medium text-muted-foreground">Keyword match — matched terms:</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {matchedTerms.map((term, i) => (
-                                <Badge key={i} variant="outline" className="text-xs font-normal">
-                                  {term}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {!matchedTerms.length && mapping.rationale && !mapping.rationale.startsWith("Auto-mapped") && (
+                        {mapping.rationale && !mapping.aiMatchRationale && (
                           <div className="ml-11" data-testid={`manual-rationale-${mapping.id}`}>
                             <span className="text-xs font-medium text-muted-foreground">Rationale: </span>
                             <span className="text-xs text-muted-foreground">{mapping.rationale}</span>

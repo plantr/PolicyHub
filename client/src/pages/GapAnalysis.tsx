@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ControlMapping, Control, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
-import { Search, ChevronDown, ChevronLeft, ChevronRight, Wand2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
+import { Search, ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 function getCoverageBadgeClass(status: string) {
   switch (status) {
@@ -36,8 +37,9 @@ export default function GapAnalysis() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [buFilter, setBuFilter] = useState("all");
+  const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(100);
   const [sortColumn, setSortColumn] = useState<string | null>("aiMatch");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [, navigate] = useLocation();
@@ -59,24 +61,64 @@ export default function GapAnalysis() {
     queryKey: ["/api/regulatory-sources"],
   });
 
-  const autoMapMutation = useMutation({
-    mutationFn: async (sourceId?: number) => {
-      const res = await fetch("/api/gap-analysis/auto-map", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId }),
+  const [aiMapRunning, setAiMapRunning] = useState(false);
+  const [aiMapJobId, setAiMapJobId] = useState<string | null>(null);
+  const aiMapJob = useAiJob(aiMapJobId);
+  const cancelJob = useCancelAiJob();
+  const handledAiMapJobRef = useRef<string | null>(null);
+  const gapStorageKey = "gap:map-all-documents";
+
+  // Restore job on mount from localStorage
+  useEffect(() => {
+    const saved = getPersistedJobId(gapStorageKey);
+    if (saved) { setAiMapJobId(saved); setAiMapRunning(true); }
+  }, []);
+
+  useEffect(() => {
+    if (!aiMapJob.data || !aiMapJobId || handledAiMapJobRef.current === aiMapJobId) return;
+    if (aiMapJob.data.status === "completed") {
+      handledAiMapJobRef.current = aiMapJobId;
+      clearPersistedJobId(gapStorageKey);
+      setAiMapRunning(false);
+      setAiMapJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      const result = aiMapJob.data.result;
+      toast({
+        title: "AI Auto-Map Complete",
+        description: `${result?.totalMapped ?? 0} control-document pairs mapped across ${result?.documentsProcessed ?? 0} documents.`,
       });
-      if (!res.ok) throw new Error("Auto-mapping failed");
-      return res.json();
+    } else if (aiMapJob.data.status === "failed") {
+      handledAiMapJobRef.current = aiMapJobId;
+      clearPersistedJobId(gapStorageKey);
+      setAiMapRunning(false);
+      setAiMapJobId(null);
+      toast({ title: "AI Auto-Map Failed", description: aiMapJob.data.errorMessage || "Unknown error", variant: "destructive" });
+    } else if (aiMapJob.data.status === "cancelled") {
+      handledAiMapJobRef.current = aiMapJobId;
+      clearPersistedJobId(gapStorageKey);
+      setAiMapRunning(false);
+      setAiMapJobId(null);
+      toast({ title: "AI Auto-Map Cancelled" });
+    }
+  }, [aiMapJob.data, aiMapJobId]);
+
+  const aiAutoMapMutation = useMutation({
+    mutationFn: async (sourceId?: number) => {
+      setAiMapRunning(true);
+      const url = sourceId
+        ? `/api/ai-jobs?action=map-all-documents&sourceId=${sourceId}`
+        : "/api/ai-jobs?action=map-all-documents";
+      const res = await fetch(url, { method: "POST" });
+      if (!res.ok) throw new Error("AI auto-mapping failed");
+      return res.json() as Promise<{ jobId: string }>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
-      toast({
-        title: "Auto-mapping complete",
-        description: `${data.created} new mappings created from ${data.docsAnalysed} documents. ${data.matched} controls matched, ${data.unmatched} unmatched.`,
-      });
+      persistJobId(gapStorageKey, data.jobId);
+      setAiMapJobId(data.jobId);
     },
     onError: (err: Error) => {
+      setAiMapRunning(false);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
@@ -86,16 +128,21 @@ export default function GapAnalysis() {
   const reqMap = new Map((requirements ?? []).map((r) => [r.id, r]));
   const docMap = new Map((documents ?? []).map((d) => [d.id, d]));
   const buMap = new Map((businessUnits ?? []).map((b) => [b.id, b]));
+  const sourceMap = new Map((sources ?? []).map((s) => [s.id, s]));
 
   const allMappings = mappings ?? [];
 
-  const hasActiveFilters = statusFilter !== "all" || buFilter !== "all" || searchQuery !== "";
+  const hasActiveFilters = statusFilter !== "all" || buFilter !== "all" || frameworkFilter !== "all" || searchQuery !== "";
 
   const filtered = useMemo(() => {
     return allMappings.filter((m) => {
       if (m.documentId == null) return false;
       if (statusFilter !== "all" && m.coverageStatus !== statusFilter) return false;
       if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
+      if (frameworkFilter !== "all") {
+        const req = reqMap.get(m.controlId);
+        if (!req || String(req.sourceId) !== frameworkFilter) return false;
+      }
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const req = reqMap.get(m.controlId);
@@ -107,7 +154,7 @@ export default function GapAnalysis() {
       }
       return true;
     });
-  }, [allMappings, statusFilter, buFilter, searchQuery, reqMap, docMap]);
+  }, [allMappings, statusFilter, buFilter, frameworkFilter, searchQuery, reqMap, docMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -148,6 +195,13 @@ export default function GapAnalysis() {
           vb = (b.documentId != null ? docMap.get(b.documentId)?.title ?? "" : "").toLowerCase();
           break;
         }
+        case "framework": {
+          const sa = reqMap.get(a.controlId);
+          const sb = reqMap.get(b.controlId);
+          va = (sa ? sourceMap.get(sa.sourceId)?.shortName ?? "" : "").toLowerCase();
+          vb = (sb ? sourceMap.get(sb.sourceId)?.shortName ?? "" : "").toLowerCase();
+          break;
+        }
         case "bu": {
           va = (a.businessUnitId ? buMap.get(a.businessUnitId)?.name ?? "" : "Group").toLowerCase();
           vb = (b.businessUnitId ? buMap.get(b.businessUnitId)?.name ?? "" : "Group").toLowerCase();
@@ -157,15 +211,6 @@ export default function GapAnalysis() {
           const order: Record<string, number> = { "Covered": 0, "Partially Covered": 1, "Not Covered": 2 };
           va = order[a.coverageStatus] ?? 3;
           vb = order[b.coverageStatus] ?? 3;
-          break;
-        }
-        case "matchPct": {
-          const extractPct = (r: string | null) => {
-            const m = r?.match(/\((\d+)%\)/);
-            return m ? parseInt(m[1], 10) : -1;
-          };
-          va = extractPct(a.rationale);
-          vb = extractPct(b.rationale);
           break;
         }
         case "aiMatch": {
@@ -178,7 +223,7 @@ export default function GapAnalysis() {
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [filtered, sortColumn, sortDir, reqMap, docMap, buMap]);
+  }, [filtered, sortColumn, sortDir, reqMap, docMap, buMap, sourceMap]);
 
   const totalResults = sorted.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
@@ -189,6 +234,7 @@ export default function GapAnalysis() {
   function resetFilters() {
     setStatusFilter("all");
     setBuFilter("all");
+    setFrameworkFilter("all");
     setSearchQuery("");
     setCurrentPage(1);
   }
@@ -237,6 +283,20 @@ export default function GapAnalysis() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-framework">
+              Framework <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setFrameworkFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {(sources ?? []).map((s) => (
+              <DropdownMenuItem key={s.id} onClick={() => { setFrameworkFilter(String(s.id)); setCurrentPage(1); }}>{s.shortName}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
             Reset view
@@ -244,29 +304,40 @@ export default function GapAnalysis() {
         )}
 
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={autoMapMutation.isPending}
-                data-testid="button-auto-map"
-              >
-                <Wand2 className={`h-4 w-4 mr-1 ${autoMapMutation.isPending ? "animate-spin" : ""}`} />
-                {autoMapMutation.isPending ? "Mapping..." : "Auto-Map Controls"}
-                <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => autoMapMutation.mutate(undefined)} data-testid="menu-automap-all">
-                All Frameworks
-              </DropdownMenuItem>
-              {(sources ?? []).map((s) => (
-                <DropdownMenuItem key={s.id} onClick={() => autoMapMutation.mutate(s.id)} data-testid={`menu-automap-${s.id}`}>
-                  {s.shortName}
+          {aiMapRunning ? (
+            <Button
+              variant="outline"
+              onClick={() => aiMapJobId && cancelJob.mutate(aiMapJobId)}
+              data-testid="button-ai-auto-map"
+            >
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              {aiMapJob.data?.progressMessage ?? "Mapping..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  data-testid="button-ai-auto-map"
+                >
+                  <Sparkles className="h-4 w-4 mr-1 text-purple-500" />
+                  AI Auto-Map
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => aiAutoMapMutation.mutate(undefined)} data-testid="menu-automap-all">
+                  All Frameworks
                 </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {(sources ?? []).map((s) => (
+                  <DropdownMenuItem key={s.id} onClick={() => aiAutoMapMutation.mutate(s.id)} data-testid={`menu-automap-${s.id}`}>
+                    {s.shortName}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -292,11 +363,11 @@ export default function GapAnalysis() {
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("code")} data-testid="th-req-code">Control Code<SortIcon col="code" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("title")} data-testid="th-req-title">Control Title<SortIcon col="title" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("framework")} data-testid="th-framework">Framework<SortIcon col="framework" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("document")} data-testid="th-document">Document<SortIcon col="document" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("bu")} data-testid="th-bu">Business Unit<SortIcon col="bu" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("coverage")} data-testid="th-coverage">Coverage<SortIcon col="coverage" /></TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("matchPct")} data-testid="th-match-pct">Match %<SortIcon col="matchPct" /></TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("aiMatch")} data-testid="th-ai-match"><Sparkles className="inline h-3 w-3 mr-0.5 text-purple-500 dark:text-purple-400" />AI %<SortIcon col="aiMatch" /></TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort("aiMatch")} data-testid="th-ai-match"><Sparkles className="inline h-3 w-3 mr-0.5 text-purple-500 dark:text-purple-400" />AI Match %<SortIcon col="aiMatch" /></TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-rationale">Rationale</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -312,8 +383,6 @@ export default function GapAnalysis() {
                         const req = reqMap.get(m.controlId);
                         const doc = m.documentId != null ? docMap.get(m.documentId) : undefined;
                         const bu = m.businessUnitId ? buMap.get(m.businessUnitId) : null;
-                        const pctMatch = m.rationale?.match(/\((\d+)%\)/);
-                        const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
                         return (
                           <TableRow key={m.id} className="cursor-pointer" onClick={() => navigate(`/controls/${m.controlId}`)} data-testid={`row-mapping-${m.id}`}>
                             <TableCell className="font-mono text-sm font-medium" data-testid={`text-req-code-${m.id}`}>
@@ -321,6 +390,9 @@ export default function GapAnalysis() {
                             </TableCell>
                             <TableCell className="font-medium" data-testid={`text-req-title-${m.id}`}>
                               {req?.title ?? "--"}
+                            </TableCell>
+                            <TableCell className="text-sm" data-testid={`text-framework-${m.id}`}>
+                              {req ? sourceMap.get(req.sourceId)?.shortName ?? "--" : "--"}
                             </TableCell>
                             <TableCell className="text-sm" data-testid={`text-document-${m.id}`}>
                               {doc?.title ?? `Doc #${m.documentId}`}
@@ -332,33 +404,6 @@ export default function GapAnalysis() {
                               <Badge variant="secondary" className={`border-0 ${getCoverageBadgeClass(m.coverageStatus)}`}>
                                 {m.coverageStatus}
                               </Badge>
-                            </TableCell>
-                            <TableCell data-testid={`text-match-pct-${m.id}`}>
-                              {pct !== null ? (
-                                <div className="flex items-center gap-1.5">
-                                  <svg width="24" height="24" viewBox="0 0 36 36">
-                                    <circle
-                                      cx="18" cy="18" r="14"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="4"
-                                      className="text-muted"
-                                    />
-                                    <circle
-                                      cx="18" cy="18" r="14"
-                                      fill="none"
-                                      strokeWidth="4"
-                                      strokeLinecap="round"
-                                      strokeDasharray={`${(pct / 100) * 87.96} ${87.96}`}
-                                      transform="rotate(-90 18 18)"
-                                      className={pct >= 45 ? "stroke-green-500 dark:stroke-green-400" : pct >= 30 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
-                                    />
-                                  </svg>
-                                  <span className="text-xs font-medium">{pct}%</span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
                             </TableCell>
                             <TableCell data-testid={`text-ai-match-${m.id}`}>
                               {m.aiMatchScore != null ? (
@@ -379,7 +424,7 @@ export default function GapAnalysis() {
                               )}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[250px] truncate" data-testid={`text-rationale-${m.id}`}>
-                              {m.rationale ?? "--"}
+                              {m.aiMatchRationale ?? m.rationale ?? "--"}
                             </TableCell>
                           </TableRow>
                         );
@@ -403,6 +448,9 @@ export default function GapAnalysis() {
                       <SelectItem value="10">10</SelectItem>
                       <SelectItem value="20">20</SelectItem>
                       <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button

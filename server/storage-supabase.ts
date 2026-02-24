@@ -22,12 +22,14 @@ export const SIGNED_URL_EXPIRY = 3600; // 1 hour in seconds
 // BUCKET + PATH HELPERS
 // =============================================
 
+const DEFAULT_BUCKET = 'documents';
+
 /**
  * Returns the Supabase Storage bucket name for a given business unit ID.
- * Pattern: bu-{buId} (e.g., bu-42)
+ * Falls back to the default shared bucket when no BU is assigned.
  */
-export function bucketName(buId: number): string {
-  return `bu-${buId}`;
+export function bucketName(buId: number | null | undefined): string {
+  return buId ? `bu-${buId}` : DEFAULT_BUCKET;
 }
 
 /**
@@ -88,7 +90,7 @@ export function validateFileSize(sizeBytes: number): { valid: boolean; message?:
  * Uses the bucket for the given business unit.
  */
 export async function resolveFilename(
-  buId: number,
+  buId: number | null | undefined,
   docId: number,
   versionId: number,
   originalName: string
@@ -135,7 +137,7 @@ export async function resolveFilename(
  * Uses the service-role client (bypasses RLS).
  */
 export async function createSignedUploadUrl(
-  buId: number,
+  buId: number | null | undefined,
   filePath: string
 ): Promise<{ signedUrl: string; token: string; path: string }> {
   const { data, error } = await getSupabaseAdmin().storage
@@ -155,7 +157,7 @@ export async function createSignedUploadUrl(
  *                      If omitted, Content-Disposition: inline (preview in browser).
  */
 export async function createSignedDownloadUrl(
-  buId: number,
+  buId: number | null | undefined,
   filePath: string,
   forDownload?: string
 ): Promise<string> {
@@ -180,7 +182,7 @@ export async function createSignedDownloadUrl(
  * Deletes a storage object from a business unit's bucket.
  * Uses the service-role client (bypasses RLS).
  */
-export async function deleteStorageObject(buId: number, filePath: string): Promise<void> {
+export async function deleteStorageObject(buId: number | null | undefined, filePath: string): Promise<void> {
   const { error } = await getSupabaseAdmin().storage
     .from(bucketName(buId))
     .remove([filePath]);
@@ -194,7 +196,7 @@ export async function deleteStorageObject(buId: number, filePath: string): Promi
  * Creates a new private Supabase Storage bucket for a business unit.
  * Caller should handle "bucket already exists" errors gracefully if needed.
  */
-export async function createBucketForBusinessUnit(buId: number): Promise<void> {
+export async function createBucketForBusinessUnit(buId: number | null | undefined): Promise<void> {
   const { error } = await getSupabaseAdmin().storage.createBucket(bucketName(buId), {
     public: false,
     fileSizeLimit: MAX_FILE_SIZE,

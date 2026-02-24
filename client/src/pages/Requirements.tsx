@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,10 +21,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertControlSchema } from "@shared/schema";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 const reqFormSchema = insertControlSchema.extend({
   sourceId: z.coerce.number().min(1, "Source is required"),
@@ -51,7 +52,7 @@ function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, cente
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size}>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -61,22 +62,28 @@ function DonutChart({ segments, size = 120, strokeWidth = 20, centerLabel, cente
           strokeWidth={strokeWidth}
           className="text-muted"
         />
-        {total > 0 && segments.map((seg, i) => {
+        {total > 0 && segments.filter((s) => s.value > 0).map((seg, i) => {
           const pct = seg.value / total;
           const dashLen = pct * circumference;
-          const offset = (accumulated / total) * circumference;
+          const offset = accumulated;
           accumulated += seg.value;
+          const startAngle = (offset / total) * 360 - 90;
+          const cx = size / 2;
+          const cy = size / 2;
+          const rad1 = (startAngle * Math.PI) / 180;
+          const rad2 = ((startAngle + (pct * 360)) * Math.PI) / 180;
+          const x1 = cx + radius * Math.cos(rad1);
+          const y1 = cy + radius * Math.sin(rad1);
+          const x2 = cx + radius * Math.cos(rad2);
+          const y2 = cy + radius * Math.sin(rad2);
+          const largeArc = pct > 0.5 ? 1 : 0;
           return (
-            <circle
+            <path
               key={i}
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
+              d={`M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`}
               fill="none"
               stroke="currentColor"
               strokeWidth={strokeWidth}
-              strokeDasharray={`${dashLen} ${circumference - dashLen}`}
-              strokeDashoffset={-offset}
               strokeLinecap="butt"
               className={seg.className}
             />
@@ -117,7 +124,11 @@ export default function Requirements() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingReq, setDeletingReq] = useState<Control | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(100);
+  const [sortColumn, setSortColumn] = useState<string>("match");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [coverageDialogOpen, setCoverageDialogOpen] = useState(false);
+  const [bulkCoverageJobId, setBulkCoverageJobId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<ReqFormValues>({
@@ -248,8 +259,23 @@ export default function Requirements() {
     setCurrentPage(1);
   }
 
+  function toggleSort(col: string) {
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDir(col === "match" ? "desc" : "asc");
+    }
+    setCurrentPage(1);
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortColumn !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  }
+
   const filtered = useMemo(() => {
-    return (requirements ?? []).filter((req) => {
+    const result = (requirements ?? []).filter((req) => {
       if (frameworkFilter !== "all" && String(req.sourceId) !== frameworkFilter) return false;
       if (categoryFilter !== "all" && req.category !== categoryFilter) return false;
       if (statusFilter !== "all") {
@@ -273,7 +299,49 @@ export default function Requirements() {
       }
       return true;
     });
-  }, [requirements, frameworkFilter, categoryFilter, statusFilter, ownerFilter, searchQuery, mappingsByReq, docMap]);
+
+    result.sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case "framework": {
+          const sa = sourceMap.get(a.sourceId)?.shortName ?? "";
+          const sb = sourceMap.get(b.sourceId)?.shortName ?? "";
+          cmp = sa.localeCompare(sb);
+          break;
+        }
+        case "title":
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case "id":
+          cmp = a.code.localeCompare(b.code);
+          break;
+        case "match": {
+          const ma = a.combinedAiScore ?? -1;
+          const mb = b.combinedAiScore ?? -1;
+          cmp = ma - mb;
+          break;
+        }
+        case "evidenceStatus": {
+          const order: Record<string, number> = { "Complete": 0, "In Progress": 1, "Not Started": 2 };
+          const ea = order[a.evidenceStatus ?? ""] ?? 3;
+          const eb = order[b.evidenceStatus ?? ""] ?? 3;
+          cmp = ea - eb;
+          break;
+        }
+        case "domain":
+          cmp = a.category.localeCompare(b.category);
+          break;
+        case "owner":
+          cmp = (a.owner ?? "").localeCompare(b.owner ?? "");
+          break;
+        default:
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return result;
+  }, [requirements, frameworkFilter, categoryFilter, statusFilter, ownerFilter, searchQuery, mappingsByReq, docMap, sortColumn, sortDir, sourceMap]);
 
   const totalResults = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
@@ -373,6 +441,73 @@ export default function Requirements() {
     setEditingReq(null);
   }
 
+  const bulkCoverageJob = useAiJob(bulkCoverageJobId);
+  const cancelJob = useCancelAiJob();
+
+  // Restore job on mount from localStorage
+  useEffect(() => {
+    const saved = getPersistedJobId("bulk-coverage");
+    if (saved) setBulkCoverageJobId(saved);
+  }, []);
+
+  // When bulk coverage job completes, refresh data and show toast
+  const bulkJobStatus = bulkCoverageJob.data?.status;
+  const bulkJobResult = bulkCoverageJob.data?.result;
+  const bulkJobError = bulkCoverageJob.data?.errorMessage;
+
+  useEffect(() => {
+    if (bulkJobStatus === "completed" && bulkCoverageJobId) {
+      clearPersistedJobId("bulk-coverage");
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      toast({
+        title: "AI Coverage Complete",
+        description: `${bulkJobResult?.completed ?? 0} controls analysed, ${bulkJobResult?.failed ?? 0} skipped`,
+      });
+      setBulkCoverageJobId(null);
+    } else if (bulkJobStatus === "failed" && bulkCoverageJobId) {
+      clearPersistedJobId("bulk-coverage");
+      toast({
+        title: "AI Coverage Failed",
+        description: bulkJobError || "An error occurred",
+        variant: "destructive",
+      });
+      setBulkCoverageJobId(null);
+    } else if (bulkJobStatus === "cancelled" && bulkCoverageJobId) {
+      clearPersistedJobId("bulk-coverage");
+      toast({ title: "AI Coverage Cancelled" });
+      setBulkCoverageJobId(null);
+    }
+  }, [bulkJobStatus, bulkCoverageJobId]);
+
+  const bulkCoverageMutation = useMutation({
+    mutationFn: async (mode: "all" | "gaps") => {
+      const res = await apiRequest("POST", `/api/ai-jobs?action=bulk-coverage&mode=${mode}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.jobId) {
+        persistJobId("bulk-coverage", data.jobId);
+        setBulkCoverageJobId(data.jobId);
+        toast({
+          title: "AI Coverage Started",
+          description: `Analysing ${data.total} controls...`,
+        });
+      } else {
+        toast({
+          title: "Nothing to analyse",
+          description: data.message || "No eligible controls found",
+        });
+      }
+      setCoverageDialogOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const isBulkRunning = bulkCoverageJobId != null && (bulkJobStatus === "pending" || bulkJobStatus === "processing");
+
   function onSubmit(values: ReqFormValues) {
     if (editingReq) {
       updateMutation.mutate({ id: editingReq.id, data: values });
@@ -386,6 +521,29 @@ export default function Requirements() {
       <div className="flex flex-wrap items-center justify-between gap-3" data-testid="controls-header">
         <h1 className="text-xl font-semibold tracking-tight" data-testid="text-page-title">Controls</h1>
         <div className="flex items-center gap-2">
+          {isBulkRunning ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => bulkCoverageJobId && cancelJob.mutate(bulkCoverageJobId)}
+              data-testid="button-run-ai-coverage"
+            >
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              {bulkCoverageJob.data?.progressMessage || "Analysing..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCoverageDialogOpen(true)}
+              disabled={bulkCoverageMutation.isPending}
+              data-testid="button-run-ai-coverage"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              Run AI Coverage
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={openCreateDialog} data-testid="button-add-control">
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add control
@@ -574,20 +732,35 @@ export default function Requirements() {
             <Table data-testid="controls-table">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-framework">Framework</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="th-title">Title</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px]" data-testid="th-id">ID</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px] cursor-pointer select-none" data-testid="th-framework" onClick={() => toggleSort("framework")}>
+                    <span className="flex items-center">Framework<SortIcon col="framework" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="th-title" onClick={() => toggleSort("title")}>
+                    <span className="flex items-center">Title<SortIcon col="title" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[100px] cursor-pointer select-none" data-testid="th-id" onClick={() => toggleSort("id")}>
+                    <span className="flex items-center">ID<SortIcon col="id" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[250px]" data-testid="th-description">Description</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px]" data-testid="th-evidence-status">Evidence Status</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px]" data-testid="th-domain">Domain</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px]" data-testid="th-owner">Owner</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[90px] cursor-pointer select-none" data-testid="th-match" onClick={() => toggleSort("match")}>
+                    <span className="flex items-center">Match %<SortIcon col="match" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[120px] cursor-pointer select-none" data-testid="th-evidence-status" onClick={() => toggleSort("evidenceStatus")}>
+                    <span className="flex items-center">Evidence Status<SortIcon col="evidenceStatus" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px] cursor-pointer select-none" data-testid="th-domain" onClick={() => toggleSort("domain")}>
+                    <span className="flex items-center">Domain<SortIcon col="domain" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground w-[140px] cursor-pointer select-none" data-testid="th-owner" onClick={() => toggleSort("owner")}>
+                    <span className="flex items-center">Owner<SortIcon col="owner" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground w-[50px]" data-testid="th-actions"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedControls.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
+                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground" data-testid="text-no-controls">
                       No controls found.
                     </TableCell>
                   </TableRow>
@@ -618,6 +791,24 @@ export default function Requirements() {
                         </TableCell>
                         <TableCell className="align-top pt-4" data-testid={`text-description-${req.id}`}>
                           <p className="text-xs text-muted-foreground line-clamp-2 max-w-[250px]">{req.description || "--"}</p>
+                        </TableCell>
+                        <TableCell className="align-top pt-4" data-testid={`text-match-${req.id}`}>
+                          {req.combinedAiScore != null ? (
+                            <div className="flex items-center gap-1.5">
+                              <svg width="24" height="24" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted" />
+                                <circle
+                                  cx="18" cy="18" r="14" fill="none" strokeWidth="4" strokeLinecap="round"
+                                  strokeDasharray={`${(req.combinedAiScore / 100) * 87.96} ${87.96}`}
+                                  transform="rotate(-90 18 18)"
+                                  className={req.combinedAiScore >= 80 ? "stroke-green-500 dark:stroke-green-400" : req.combinedAiScore >= 60 ? "stroke-amber-500 dark:stroke-amber-400" : "stroke-gray-400 dark:stroke-gray-500"}
+                                />
+                              </svg>
+                              <span className="text-xs font-semibold">{req.combinedAiScore}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">--</span>
+                          )}
                         </TableCell>
                         <TableCell className="align-top pt-4" data-testid={`text-evidence-status-${req.id}`}>
                           {req.evidenceStatus ? (
@@ -686,6 +877,8 @@ export default function Requirements() {
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>
                   <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -863,6 +1056,52 @@ export default function Requirements() {
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={coverageDialogOpen} onOpenChange={setCoverageDialogOpen}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dialog-coverage-choice">
+          <DialogHeader>
+            <DialogTitle>Run AI Coverage Analysis</DialogTitle>
+            <DialogDescription>
+              Analyse how well linked documents cover each control. This will use AI to score every control that has mapped documents.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-3 px-4"
+              disabled={bulkCoverageMutation.isPending}
+              onClick={() => bulkCoverageMutation.mutate("gaps")}
+              data-testid="button-coverage-gaps"
+            >
+              <div className="text-left">
+                <p className="font-medium text-sm">Gaps only</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Only analyse controls that don't yet have 100% coverage
+                </p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-3 px-4"
+              disabled={bulkCoverageMutation.isPending}
+              onClick={() => bulkCoverageMutation.mutate("all")}
+              data-testid="button-coverage-all"
+            >
+              <div className="text-left">
+                <p className="font-medium text-sm">Full refresh</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Re-analyse all controls, including those already at 100%
+                </p>
+              </div>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setCoverageDialogOpen(false)} data-testid="button-cancel-coverage">
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

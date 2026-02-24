@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -29,10 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileText, Trash2, Loader2, Save, FileUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { uploadFileToStorage } from "@/lib/storage";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
 
@@ -117,14 +118,54 @@ export default function VersionDetail() {
     },
   });
 
+  // PDF-to-markdown job state
+  const [markdownJobId, setMarkdownJobId] = useState<string | null>(null);
+  const markdownJob = useAiJob(markdownJobId);
+  const cancelJob = useCancelAiJob();
+  const markdownStorageKey = `pdf-to-markdown:${verId}`;
+  const markdownJobRunning = markdownJobId !== null;
+  const markdownJobProgress = markdownJob.data?.progressMessage;
+
+  // Restore job on mount from localStorage
+  useEffect(() => {
+    const saved = getPersistedJobId(markdownStorageKey);
+    if (saved) setMarkdownJobId(saved);
+  }, [markdownStorageKey]);
+
+  // Handle job completion/failure/cancel
+  const handledMarkdownJobRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!markdownJob.data || !markdownJobId || handledMarkdownJobRef.current === markdownJobId) return;
+    if (markdownJob.data.status === "completed") {
+      handledMarkdownJobRef.current = markdownJobId;
+      clearPersistedJobId(markdownStorageKey);
+      setMarkdownJobId(null);
+      const markdown = markdownJob.data.result?.markdown;
+      if (markdown) {
+        form.setValue("content", markdown, { shouldDirty: true });
+      }
+      toast({ title: "PDF converted", description: "Markdown content populated from attached PDF" });
+    } else if (markdownJob.data.status === "failed") {
+      handledMarkdownJobRef.current = markdownJobId;
+      clearPersistedJobId(markdownStorageKey);
+      setMarkdownJobId(null);
+      toast({ title: "Conversion failed", description: markdownJob.data.errorMessage || "Unknown error", variant: "destructive" });
+    } else if (markdownJob.data.status === "cancelled") {
+      handledMarkdownJobRef.current = markdownJobId;
+      clearPersistedJobId(markdownStorageKey);
+      setMarkdownJobId(null);
+      toast({ title: "Conversion cancelled" });
+    }
+  }, [markdownJob.data, markdownJobId]);
+
   const pdfToMarkdownMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("GET", `/api/document-versions?id=${verId}&action=to-markdown`);
-      return res.json() as Promise<{ markdown: string }>;
+      const res = await apiRequest("POST", `/api/ai-jobs?action=pdf-to-markdown&versionId=${verId}`);
+      return res.json() as Promise<{ jobId: string }>;
     },
     onSuccess: (data) => {
-      form.setValue("content", data.markdown, { shouldDirty: true });
-      toast({ title: "PDF converted", description: "Markdown content populated from attached PDF" });
+      persistJobId(markdownStorageKey, data.jobId);
+      setMarkdownJobId(data.jobId);
     },
     onError: (err: Error) => {
       toast({ title: "Conversion failed", description: err.message, variant: "destructive" });
@@ -406,17 +447,31 @@ export default function VersionDetail() {
       <Card className="p-6" data-testid="section-markdown">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h2 className="text-lg font-semibold" data-testid="text-markdown-heading">Markdown Content</h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!hasPdf || pdfToMarkdownMutation.isPending}
-            onClick={() => pdfToMarkdownMutation.mutate()}
-            data-testid="button-markdown-document"
-          >
-            <FileUp className="h-4 w-4 mr-1" />
-            {pdfToMarkdownMutation.isPending ? "Converting..." : "Markdown Document"}
-          </Button>
+          {markdownJobRunning ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => markdownJobId && cancelJob.mutate(markdownJobId)}
+              data-testid="button-markdown-document"
+            >
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              {markdownJobProgress || "Converting..."}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!hasPdf || pdfToMarkdownMutation.isPending}
+              onClick={() => pdfToMarkdownMutation.mutate()}
+              data-testid="button-markdown-document"
+            >
+              <FileUp className="h-4 w-4 mr-1" />
+              Markdown Document
+            </Button>
+          )}
         </div>
         <Tabs defaultValue="edit">
           <TabsList data-testid="tabs-markdown">

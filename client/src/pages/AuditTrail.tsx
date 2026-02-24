@@ -37,7 +37,7 @@ export default function AuditTrail() {
   const [searchQuery, setSearchQuery] = useState("");
   const [entityTypeFilter, setEntityTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(100);
 
   const { data: entries, isLoading } = useQuery<AuditLogEntry[]>({
     queryKey: ["audit-log"],
@@ -184,6 +184,9 @@ export default function AuditTrail() {
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="icon" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)} data-testid="button-prev-page">
