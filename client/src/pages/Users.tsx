@@ -115,7 +115,7 @@ export default function Users() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: UserFormValues }) => {
-      const res = await apiRequest("PUT", `/api/users/${id}`, data);
+      const res = await apiRequest("PUT", `/api/users?id=${id}`, data);
       return res.json();
     },
     onSuccess: () => {
@@ -132,7 +132,7 @@ export default function Users() {
 
   const deactivateMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("PUT", `/api/users/${id}/deactivate`);
+      const res = await apiRequest("PUT", `/api/users?id=${id}&action=deactivate`);
       return res.json();
     },
     onSuccess: () => {
