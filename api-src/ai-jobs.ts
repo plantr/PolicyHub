@@ -252,6 +252,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json({ message: "No documents with content found", matched: 0 });
       }
 
+      // Mark any stuck processing/pending jobs as failed so they don't block the UI
+      await db.update(schema.aiJobs)
+        .set({
+          status: "failed",
+          errorMessage: "Superseded by new job",
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(schema.aiJobs.jobType, "ai-map-all-documents"),
+          inArray(schema.aiJobs.status, ["processing", "pending"]),
+        ));
+
       const [job] = await db.insert(schema.aiJobs).values({
         jobType: "ai-map-all-documents",
         entityId: sourceId ?? 0,
@@ -761,7 +773,7 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
         batches.push(unmappedControls.slice(i, i + BATCH_SIZE));
       }
 
-      const newMappings: Array<{ controlId: number; score: number; rationale: string; recommendations: string }> = [];
+      const existingByControl = new Map(existingDocMappings.map((m) => [m.controlId, m]));
 
       const processBatch = async (batch: typeof unmappedControls) => {
         const controlList = batch.map((r) =>
@@ -854,42 +866,38 @@ If no controls match at 60% or above, return an empty array: []`;
         );
 
         for (const results of waveResults) {
-          newMappings.push(...results);
+          for (const match of results) {
+            const coverageStatus = match.score >= 80 ? "Covered" : "Partially Covered";
+            const existing = existingByControl.get(match.controlId);
+
+            if (existing) {
+              await db.update(schema.controlMappings)
+                .set({
+                  coverageStatus,
+                  rationale: match.rationale,
+                  aiMatchScore: match.score,
+                  aiMatchRationale: match.rationale,
+                  aiMatchRecommendations: match.recommendations,
+                })
+                .where(eq(schema.controlMappings.id, existing.id));
+            } else {
+              const created = await storage.createControlMapping({
+                controlId: match.controlId,
+                documentId: docId,
+                coverageStatus,
+                rationale: match.rationale,
+              });
+              await db.update(schema.controlMappings)
+                .set({
+                  aiMatchScore: match.score,
+                  aiMatchRationale: match.rationale,
+                  aiMatchRecommendations: match.recommendations,
+                })
+                .where(eq(schema.controlMappings.id, created.id));
+            }
+            totalMapped++;
+          }
         }
-      }
-
-      const existingByControl = new Map(existingDocMappings.map((m) => [m.controlId, m]));
-
-      for (const match of newMappings) {
-        const coverageStatus = match.score >= 80 ? "Covered" : "Partially Covered";
-        const existing = existingByControl.get(match.controlId);
-
-        if (existing) {
-          await db.update(schema.controlMappings)
-            .set({
-              coverageStatus,
-              rationale: match.rationale,
-              aiMatchScore: match.score,
-              aiMatchRationale: match.rationale,
-              aiMatchRecommendations: match.recommendations,
-            })
-            .where(eq(schema.controlMappings.id, existing.id));
-        } else {
-          const created = await storage.createControlMapping({
-            controlId: match.controlId,
-            documentId: docId,
-            coverageStatus,
-            rationale: match.rationale,
-          });
-          await db.update(schema.controlMappings)
-            .set({
-              aiMatchScore: match.score,
-              aiMatchRationale: match.rationale,
-              aiMatchRecommendations: match.recommendations,
-            })
-            .where(eq(schema.controlMappings.id, created.id));
-        }
-        totalMapped++;
       }
 
       await db.update(schema.documents)
