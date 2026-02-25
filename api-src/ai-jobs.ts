@@ -221,6 +221,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const modeRaw = req.query.mode;
       const mode = Array.isArray(modeRaw) ? modeRaw[0] : modeRaw; // "unmapped" or undefined (full refresh)
 
+      const requestedIds: number[] | undefined = req.body?.documentIds;
+
       const allDocuments = await storage.getDocuments();
       const allVersions = await db.select().from(schema.documentVersions);
       // For each document, prefer published version, fall back to latest version with content
@@ -237,7 +239,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (best) bestByDoc.set(docId, best);
       }
 
-      let docsWithContent = allDocuments.filter((d) => bestByDoc.has(d.id));
+      // Scope to requested document IDs if provided (from grid filters)
+      const candidateDocs = requestedIds?.length
+        ? allDocuments.filter((d) => requestedIds.includes(d.id))
+        : allDocuments;
+      let docsWithContent = candidateDocs.filter((d) => bestByDoc.has(d.id));
       if (mode === "unmapped") {
         docsWithContent = docsWithContent.filter((d) => !d.aiReviewedAt);
       }

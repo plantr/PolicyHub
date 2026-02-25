@@ -590,7 +590,8 @@ export default function Documents() {
       const params = new URLSearchParams({ action: "map-all-documents" });
       if (mode === "unmapped") params.set("mode", "unmapped");
       if (sourceId) params.set("sourceId", String(sourceId));
-      const res = await apiRequest("POST", `/api/ai-jobs?${params}`);
+      const documentIds = filteredDocuments.map((d) => d.id);
+      const res = await apiRequest("POST", `/api/ai-jobs?${params}`, { documentIds });
       return res.json();
     },
     onSuccess: (data: { jobId?: string; message?: string }) => {
@@ -1010,7 +1011,7 @@ export default function Documents() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-document">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" data-testid="dialog-document">
           <DialogHeader>
             <DialogTitle data-testid="text-dialog-title">
               {editingDoc ? "Edit Document" : "Add Document"}
@@ -1306,9 +1307,9 @@ export default function Documents() {
       <Dialog open={autoMapDialogOpen} onOpenChange={(open) => { setAutoMapDialogOpen(open); if (!open) setAutoMapSourceId("all"); }}>
         <DialogContent className="sm:max-w-[440px]" data-testid="dialog-auto-map">
           <DialogHeader>
-            <DialogTitle>AI Auto-Map All Documents</DialogTitle>
+            <DialogTitle>AI Auto-Map{hasActiveFilters ? ` (${filteredDocuments.length} filtered)` : " All Documents"}</DialogTitle>
             <DialogDescription>
-              This will use AI to automatically map controls to your documents. Choose how you'd like to proceed.
+              This will use AI to automatically map controls to {hasActiveFilters ? "the filtered documents" : "your documents"}. Choose how you'd like to proceed.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-2">
