@@ -73,7 +73,7 @@ export const documents = pgTable("documents", {
   documentReference: text("document_reference"),
   title: text("title").notNull(),
   docType: text("doc_type").notNull(),
-  taxonomy: text("taxonomy").notNull(),
+  domain: text("domain").notNull(),
   owner: text("owner").notNull(),
   delegates: text("delegates").array(),
   reviewers: text("reviewers").array(),
@@ -468,7 +468,7 @@ export const jurisdictions = pgTable("jurisdictions", {
   active: boolean("active").notNull().default(true),
 });
 
-export const documentCategories = pgTable("document_categories", {
+export const documentDomains = pgTable("document_domains", {
   id: serial("id").primaryKey(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -529,7 +529,7 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertEntityTypeSchema = createInsertSchema(entityTypes).omit({ id: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertJurisdictionSchema = createInsertSchema(jurisdictions).omit({ id: true });
-export const insertDocumentCategorySchema = createInsertSchema(documentCategories).omit({ id: true });
+export const insertDocumentDomainSchema = createInsertSchema(documentDomains).omit({ id: true });
 export const insertFindingSeveritySchema = createInsertSchema(findingSeverities).omit({ id: true });
 export const insertDocumentStatusSchema = createInsertSchema(documentStatuses).omit({ id: true });
 export const insertCommitmentSchema = createInsertSchema(commitments).omit({ id: true, createdAt: true, completedDate: true });
@@ -568,7 +568,7 @@ export type User = typeof users.$inferSelect;
 export type EntityType = typeof entityTypes.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type Jurisdiction = typeof jurisdictions.$inferSelect;
-export type DocumentCategory = typeof documentCategories.$inferSelect;
+export type DocumentDomain = typeof documentDomains.$inferSelect;
 export type FindingSeverity = typeof findingSeverities.$inferSelect;
 export type Commitment = typeof commitments.$inferSelect;
 export type KnowledgeBaseArticle = typeof knowledgeBaseArticles.$inferSelect;
@@ -580,7 +580,7 @@ export type RiskCategory = typeof riskCategories.$inferSelect;
 export type ImpactLevel = typeof impactLevels.$inferSelect;
 export type LikelihoodLevel = typeof likelihoodLevels.$inferSelect;
 export type UserBusinessUnit = typeof userBusinessUnits.$inferSelect;
-export type AdminRecord = EntityType | Role | Jurisdiction | DocumentCategory | FindingSeverity;
+export type AdminRecord = EntityType | Role | Jurisdiction | DocumentDomain | FindingSeverity;
 
 // =============================================
 // REQUEST TYPES

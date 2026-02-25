@@ -21,7 +21,7 @@ const PDF_DIR = process.env.POLICY_PDF_DIR || '/Users/robert.plant/Documents/IT 
 interface PolicyMeta {
   reference: string;
   title: string;
-  taxonomy: string;
+  domain: string;
   owner: string;
   delegates: string[];
   reviewers: string[];
@@ -39,7 +39,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-001',
     title: 'Information Security Policy Framework',
-    taxonomy: 'Information Security',
+    domain: 'Information Security',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -55,7 +55,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-002',
     title: 'Acceptable Use Policy',
-    taxonomy: 'Acceptable Use',
+    domain: 'Acceptable Use',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer', 'Chief Operating Officer'],
@@ -71,7 +71,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-003',
     title: 'Acceptable Use Policy - End User Agreement',
-    taxonomy: 'Acceptable Use',
+    domain: 'Acceptable Use',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -87,7 +87,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-004',
     title: 'Data Classification Policy',
-    taxonomy: 'Data Management',
+    domain: 'Data Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -103,7 +103,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-005',
     title: 'Data Handling Policy',
-    taxonomy: 'Data Management',
+    domain: 'Data Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -119,7 +119,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-006',
     title: 'IT-IS Risk Management Policy',
-    taxonomy: 'Risk Management',
+    domain: 'Risk Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -135,7 +135,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-007',
     title: 'Asset Management Policy',
-    taxonomy: 'Asset Management',
+    domain: 'Asset Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -151,7 +151,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-008',
     title: 'Business Continuity Management Policy',
-    taxonomy: 'Business Continuity',
+    domain: 'Business Continuity',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Operating Officer', 'Chief Security Officer'],
@@ -167,7 +167,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-009',
     title: 'Access Control Policy',
-    taxonomy: 'Access Control',
+    domain: 'Access Control',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -183,7 +183,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-010',
     title: 'Encryption and Key Management Policy',
-    taxonomy: 'Cryptography',
+    domain: 'Cryptography',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -199,7 +199,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-012',
     title: 'IT-IS Incident Management & Response Policy',
-    taxonomy: 'Incident Management',
+    domain: 'Incident Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -215,7 +215,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-013',
     title: 'Disaster Recovery Policy',
-    taxonomy: 'Disaster Recovery',
+    domain: 'Disaster Recovery',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Operating Officer', 'Chief Product & Technology Officer'],
@@ -231,7 +231,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-014',
     title: 'Vendor Management Policy',
-    taxonomy: 'Vendor Management',
+    domain: 'Vendor Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -247,7 +247,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-015',
     title: 'Security Awareness Training Policy',
-    taxonomy: 'Security Awareness',
+    domain: 'Security Awareness',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -263,7 +263,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-016',
     title: 'IT-IS Project Management Policy',
-    taxonomy: 'Project Management',
+    domain: 'Project Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -279,7 +279,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-017',
     title: 'System and Network Configuration Policy',
-    taxonomy: 'Operations Security',
+    domain: 'Operations Security',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -295,7 +295,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-018',
     title: 'Data Protection Policy',
-    taxonomy: 'Data Protection',
+    domain: 'Data Protection',
     owner: 'Data Protection Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Data Protection Officer', 'Chief Information Security Officer'],
@@ -311,7 +311,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-019',
     title: 'Secure Application Development Policy',
-    taxonomy: 'Application Security',
+    domain: 'Application Security',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -327,7 +327,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-020',
     title: 'Data Retention Policy',
-    taxonomy: 'Data Protection',
+    domain: 'Data Protection',
     owner: 'Data Protection Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Data Protection Officer', 'Chief Information Security Officer'],
@@ -343,7 +343,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-021',
     title: 'Vulnerability Management Policy',
-    taxonomy: 'Vulnerability Management',
+    domain: 'Vulnerability Management',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -359,7 +359,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-022',
     title: 'Physical Security Policy',
-    taxonomy: 'Physical Security',
+    domain: 'Physical Security',
     owner: 'Chief Security Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Information Security Officer', 'Chief Security Officer'],
@@ -375,7 +375,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-024',
     title: 'Data Breach Policy',
-    taxonomy: 'Data Protection',
+    domain: 'Data Protection',
     owner: 'Data Protection Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Data Protection Officer', 'Chief Security Officer'],
@@ -391,7 +391,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-027',
     title: 'Operational Resilience Policy (PPL)',
-    taxonomy: 'Operational Resilience',
+    domain: 'Operational Resilience',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Operating Officer', 'Chief Security Officer'],
@@ -407,7 +407,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-028',
     title: 'Operational Resilience Policy (PPDL-PPGL)',
-    taxonomy: 'Operational Resilience',
+    domain: 'Operational Resilience',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Operating Officer', 'Chief Security Officer'],
@@ -423,7 +423,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-029',
     title: 'Operational Resilience Policy (PPOU)',
-    taxonomy: 'Operational Resilience',
+    domain: 'Operational Resilience',
     owner: 'Chief Operating Officer',
     delegates: ['Cyber & Information Security Manager'],
     reviewers: ['Chief Operating Officer', 'Head of Risk'],
@@ -439,7 +439,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-029B',
     title: 'Backup and Restore Policy',
-    taxonomy: 'Data Protection',
+    domain: 'Data Protection',
     owner: 'Cyber & Information Security Manager',
     delegates: [],
     reviewers: ['Cyber & Information Security Manager'],
@@ -455,7 +455,7 @@ const policies: PolicyMeta[] = [
   {
     reference: 'OG-POL-ITIS-030',
     title: 'Artificial Intelligence Policy',
-    taxonomy: 'Artificial Intelligence',
+    domain: 'Artificial Intelligence',
     owner: 'Cyber & Information Security Manager',
     delegates: [],
     reviewers: ['Cyber & Information Security Manager'],
@@ -535,13 +535,13 @@ async function seed() {
     } else {
       const [doc] = await sql`
         INSERT INTO documents (
-          document_reference, title, doc_type, taxonomy, owner,
+          document_reference, title, doc_type, domain, owner,
           delegates, reviewers, approvers, tags, review_frequency
         ) VALUES (
           ${p.reference},
           ${p.title},
           'Policy',
-          ${p.taxonomy},
+          ${p.domain},
           ${p.owner},
           ${sql.array(p.delegates)},
           ${sql.array(p.reviewers)},

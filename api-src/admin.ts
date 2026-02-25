@@ -3,7 +3,7 @@
  * Handles CRUD for admin lookup tables.
  *
  * Supported tables (via ?table=): entity-types, roles, jurisdictions,
- * document-categories, finding-severities, document-statuses
+ * document-domains, finding-severities, document-statuses
  *
  * URL convention:
  *   GET    /api/admin?table=T         → list all records in table
@@ -20,7 +20,7 @@ import { api } from "../shared/routes";
 
 const VALID_ADMIN_TABLES = [
   "entity-types", "roles", "jurisdictions",
-  "document-categories", "finding-severities", "document-statuses",
+  "document-domains", "finding-severities", "document-statuses",
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -59,7 +59,7 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `regulatory_profiles` - Links business units to regulatory sources with enablement flags
 - `regulatory_sources` - Legislation and regulatory instruments (e.g., FCA rules, MiCA)
 - `requirements` - Individual obligation statements derived from regulatory sources
-- `documents` - Policy documents with metadata (type, taxonomy, owner, review dates, status)
+- `documents` - Policy documents with metadata (type, domain, owner, review dates, status)
 - `document_versions` - Version history for documents with status tracking and PDF attachment metadata (S3 key, filename, size)
 - `addenda` - Business unit-specific additions/overrides to documents
 - `effective_policies` - Links documents to business units with effective dates
@@ -81,7 +81,7 @@ The frontend uses a sidebar layout (`AppSidebar`) with pages for Dashboard, Docu
 - `risk_categories` - Configurable risk category reference table
 - `impact_levels` - Configurable impact level definitions (1-5 scale)
 - `likelihood_levels` - Configurable likelihood level definitions (1-5 scale)
-- `entity_types`, `roles`, `jurisdictions`, `document_categories`, `finding_severities` - Administration reference tables
+- `entity_types`, `roles`, `jurisdictions`, `document_domains`, `finding_severities` - Administration reference tables
 
 ### Shared Code
 The `shared/` directory contains code used by both frontend and backend:

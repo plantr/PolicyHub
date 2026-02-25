@@ -19,7 +19,7 @@ import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 type AdminRecord = { id: number; value?: string; label: string; sortOrder: number; active: boolean };
 
-const TABLES_WITHOUT_VALUE = ["document-categories"];
+const TABLES_WITHOUT_VALUE = ["document-domains"];
 
 const adminFormSchema = z.object({
   value: z.string().optional().default(""),
@@ -34,7 +34,7 @@ export const ADMIN_CATEGORIES: Record<string, { slug: string; label: string; sin
   "entity-types": { slug: "entity-types", label: "Entity Types", singular: "Entity Type" },
   "roles": { slug: "roles", label: "Roles / Actors", singular: "Role" },
   "jurisdictions": { slug: "jurisdictions", label: "Jurisdictions", singular: "Jurisdiction" },
-  "document-categories": { slug: "document-categories", label: "Document Categories", singular: "Document Category" },
+  "document-domains": { slug: "document-domains", label: "Document Domains", singular: "Document Domain" },
   "finding-severities": { slug: "finding-severities", label: "Finding Severities", singular: "Finding Severity" },
   "document-statuses": { slug: "document-statuses", label: "Document Statuses", singular: "Document Status" },
 };
@@ -204,7 +204,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
               <TableRow>
                 <TableHead data-testid="th-order">Order</TableHead>
                 {hasValue && <TableHead data-testid="th-value">Value</TableHead>}
-                <TableHead data-testid="th-label">{slug === "document-categories" ? "Category" : "Label"}</TableHead>
+                <TableHead data-testid="th-label">{slug === "document-domains" ? "Domain" : "Label"}</TableHead>
                 <TableHead data-testid="th-status">Status</TableHead>
                 <TableHead className="text-right" data-testid="th-actions">Actions</TableHead>
               </TableRow>
@@ -321,7 +321,7 @@ export default function LookupAdmin({ slug }: { slug: string }) {
                 name="label"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{slug === "document-categories" ? "Category" : "Display Label"}</FormLabel>
+                    <FormLabel>{slug === "document-domains" ? "Domain" : "Display Label"}</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g. Electronic Money Institution" {...field} data-testid="input-record-label" />
                     </FormControl>

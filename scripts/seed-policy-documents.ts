@@ -29,7 +29,7 @@ async function seed() {
   } else {
     const [doc1] = await sql`
       INSERT INTO documents (
-        document_reference, title, doc_type, taxonomy, owner,
+        document_reference, title, doc_type, domain, owner,
         delegates, reviewers, approvers, tags, review_frequency
       ) VALUES (
         'OG-CHA-ITIS-001',
@@ -91,7 +91,7 @@ async function seed() {
   } else {
     const [doc2] = await sql`
       INSERT INTO documents (
-        document_reference, title, doc_type, taxonomy, owner,
+        document_reference, title, doc_type, domain, owner,
         delegates, reviewers, approvers, tags, review_frequency
       ) VALUES (
         'OG-CHA-ITIS-002',

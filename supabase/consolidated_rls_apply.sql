@@ -20,7 +20,7 @@ ALTER TABLE public.commitments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.controls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.control_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.document_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.document_domains ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.document_statuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.document_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.effective_policies ENABLE ROW LEVEL SECURITY;
@@ -864,8 +864,8 @@ CREATE POLICY "jurisdictions_select" ON public.jurisdictions
 FOR SELECT TO authenticated
 USING (true);
 
-DROP POLICY IF EXISTS "document_categories_select" ON public.document_categories;
-CREATE POLICY "document_categories_select" ON public.document_categories
+DROP POLICY IF EXISTS "document_domains_select" ON public.document_domains;
+CREATE POLICY "document_domains_select" ON public.document_domains
 FOR SELECT TO authenticated
 USING (true);
 

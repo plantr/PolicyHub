@@ -94,7 +94,7 @@ const navGroups = [
       { title: "Entity Types", icon: Blocks, path: "/admin/entity-types" },
       { title: "Roles / Actors", icon: Users, path: "/admin/roles" },
       { title: "Jurisdictions", icon: MapPin, path: "/admin/jurisdictions" },
-      { title: "Document Categories", icon: FolderOpen, path: "/admin/document-categories" },
+      { title: "Document Domains", icon: FolderOpen, path: "/admin/document-domains" },
       { title: "Document Statuses", icon: FileText, path: "/admin/document-statuses" },
       { title: "Finding Severities", icon: Gauge, path: "/admin/finding-severities" },
     ],

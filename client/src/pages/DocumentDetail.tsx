@@ -99,7 +99,7 @@ const editDocSchema = z.object({
   documentReference: z.string().nullable().default(null),
   title: z.string().min(1, "Title is required"),
   docType: z.string().min(1, "Document type is required"),
-  taxonomy: z.string().min(1, "Category is required"),
+  domain: z.string().min(1, "Domain is required"),
   owner: z.string().min(1, "Owner is required"),
   reviewFrequency: z.string().nullable().default(null),
   businessUnitId: z.number().nullable().default(null),
@@ -192,10 +192,10 @@ export default function DocumentDetail() {
   });
 
   const { data: categories } = useQuery<AdminRecord[]>({
-    queryKey: ["/api/admin?table=document-categories"],
+    queryKey: ["/api/admin?table=document-domains"],
   });
 
-  const activeCategories = useMemo(
+  const activeDomains = useMemo(
     () => (categories ?? []).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder),
     [categories],
   );
@@ -663,7 +663,7 @@ export default function DocumentDetail() {
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
   const editForm = useForm<EditDocValues>({
     resolver: zodResolver(editDocSchema),
-    defaultValues: { documentReference: null, title: "", docType: "", taxonomy: "", owner: "", reviewFrequency: null, businessUnitId: null, tagsText: "", nextReviewDate: null },
+    defaultValues: { documentReference: null, title: "", docType: "", domain: "", owner: "", reviewFrequency: null, businessUnitId: null, tagsText: "", nextReviewDate: null },
   });
 
   function openEditDetailsDialog() {
@@ -672,7 +672,7 @@ export default function DocumentDetail() {
       documentReference: document.documentReference ?? null,
       title: document.title,
       docType: document.docType,
-      taxonomy: document.taxonomy,
+      domain: document.domain,
       owner: document.owner,
       reviewFrequency: document.reviewFrequency ?? null,
       businessUnitId: document.businessUnitId ?? null,
@@ -689,7 +689,7 @@ export default function DocumentDetail() {
         documentReference: data.documentReference || null,
         title: data.title,
         docType: data.docType,
-        taxonomy: data.taxonomy,
+        domain: data.domain,
         owner: data.owner,
         reviewFrequency: data.reviewFrequency || null,
         businessUnitId: data.businessUnitId || null,
@@ -835,7 +835,7 @@ export default function DocumentDetail() {
   }
 
   const titleDisplay = document.documentReference
-    ? `${document.title} (${document.documentReference}${document.taxonomy ? " - " + document.taxonomy : ""})`
+    ? `${document.title} (${document.documentReference}${document.domain ? " - " + document.domain : ""})`
     : document.title;
 
   const tabs = [
@@ -872,8 +872,8 @@ export default function DocumentDetail() {
               <p className="font-medium" data-testid="text-doc-type">{document.docType}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Category</span>
-              <p className="font-medium" data-testid="text-doc-category">{document.taxonomy}</p>
+              <span className="text-muted-foreground">Domain</span>
+              <p className="font-medium" data-testid="text-doc-domain">{document.domain}</p>
             </div>
             <div>
               <span className="text-muted-foreground">Owner</span>
@@ -1950,13 +1950,13 @@ export default function DocumentDetail() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={editForm.control} name="taxonomy" render={({ field }) => (
+                <FormField control={editForm.control} name="domain" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category</FormLabel>
+                    <FormLabel>Domain</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ""}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select domain" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        {activeCategories.map((c) => (
+                        {activeDomains.map((c) => (
                           <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>
                         ))}
                       </SelectContent>

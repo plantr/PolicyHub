@@ -753,7 +753,7 @@ WITH CHECK (auth_user_id = auth.uid()::text);
 -- TEMPLATE B: REFERENCE/LOOKUP TABLES
 -- Read-only for all authenticated; writes are service-role-only
 -- Tables: regulatory_sources, requirements, entity_types, roles, jurisdictions,
---         document_categories, finding_severities, document_statuses,
+--         document_domains, finding_severities, document_statuses,
 --         risk_categories, impact_levels, likelihood_levels, risk_library
 -- =============================================
 
@@ -808,10 +808,10 @@ USING (true);
 -- No INSERT/UPDATE/DELETE policies — service role only
 
 -- -------------------------------------------------
--- TABLE: document_categories
+-- TABLE: document_domains
 -- -------------------------------------------------
 
-CREATE POLICY "document_categories_select" ON public.document_categories
+CREATE POLICY "document_domains_select" ON public.document_domains
 FOR SELECT TO authenticated
 USING (true);
 

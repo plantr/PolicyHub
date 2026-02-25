@@ -4,7 +4,7 @@ import {
   documents, documentVersions, addenda, effectivePolicies,
   approvals, auditLog, reviewHistory, controlMappings,
   findings, findingEvidence, policyLinks, audits, users,
-  entityTypes, roles, jurisdictions, documentCategories, findingSeverities, documentStatuses,
+  entityTypes, roles, jurisdictions, documentDomains, findingSeverities, documentStatuses,
   commitments, knowledgeBaseArticles,
   risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
   type BusinessUnit, type RegulatoryProfile, type RegulatorySource,
@@ -563,7 +563,7 @@ export class DatabaseStorage implements IStorage {
       "entity-types": entityTypes,
       "roles": roles,
       "jurisdictions": jurisdictions,
-      "document-categories": documentCategories,
+      "document-domains": documentDomains,
       "finding-severities": findingSeverities,
       "document-statuses": documentStatuses,
     };

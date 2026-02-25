@@ -9,7 +9,7 @@ import {
   businessUnits, regulatorySources, controls, documents, documentVersions,
   addenda, effectivePolicies, approvals, auditLog, reviewHistory,
   controlMappings, findings, findingEvidence, policyLinks, regulatoryProfiles,
-  audits, users, entityTypes, roles, jurisdictions, documentCategories, findingSeverities,
+  audits, users, entityTypes, roles, jurisdictions, documentDomains, findingSeverities,
   commitments, knowledgeBaseArticles,
   risks, riskLibrary, riskActions, riskSnapshots, riskCategories, impactLevels, likelihoodLevels,
 } from './schema';

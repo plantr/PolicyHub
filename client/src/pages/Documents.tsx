@@ -65,7 +65,7 @@ const docFormSchema = insertDocumentSchema
     documentReference: z.string().nullable().default(null),
     title: z.string().min(1, "Title is required"),
     docType: z.string().min(1, "Document type is required"),
-    taxonomy: z.string().min(1, "Taxonomy is required"),
+    domain: z.string().min(1, "Domain is required"),
     owner: z.string().min(1, "Owner is required"),
     tagsText: z.string().default(""),
     nextReviewDate: z.string().nullable().default(null),
@@ -99,7 +99,7 @@ export default function Documents() {
   const [versionFilter, setVersionFilter] = useState("all");
   const [approverFilter, setApproverFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [domainFilter, setDomainFilter] = useState("all");
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
@@ -142,7 +142,7 @@ export default function Documents() {
       documentReference: null,
       title: "",
       docType: "",
-      taxonomy: "",
+      domain: "",
       owner: "",
       reviewFrequency: null,
       businessUnitId: null,
@@ -160,7 +160,7 @@ export default function Documents() {
   });
 
   const { data: categories } = useQuery<AdminRecord[]>({
-    queryKey: ["/api/admin?table=document-categories"],
+    queryKey: ["/api/admin?table=document-domains"],
   });
 
   const { data: users } = useQuery<User[]>({
@@ -192,7 +192,7 @@ export default function Documents() {
     [users],
   );
 
-  const activeCategories = useMemo(
+  const activeDomains = useMemo(
     () => (categories ?? []).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder),
     [categories],
   );
@@ -289,7 +289,7 @@ export default function Documents() {
     return "Needs attention";
   };
 
-  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || typeFilter !== "all" || categoryFilter !== "all" || searchQuery.length > 0;
+  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || typeFilter !== "all" || domainFilter !== "all" || searchQuery.length > 0;
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
@@ -301,8 +301,8 @@ export default function Documents() {
       if (typeFilter !== "all") {
         if (doc.docType !== typeFilter) return false;
       }
-      if (categoryFilter !== "all") {
-        if (doc.taxonomy !== categoryFilter) return false;
+      if (domainFilter !== "all") {
+        if (doc.domain !== domainFilter) return false;
       }
       if (statusFilter !== "all") {
         const status = getOverallStatus(doc);
@@ -340,7 +340,7 @@ export default function Documents() {
           cmp = (a.docType || "").localeCompare(b.docType || "");
           break;
         case "category":
-          cmp = (a.taxonomy || "").localeCompare(b.taxonomy || "");
+          cmp = (a.domain || "").localeCompare(b.domain || "");
           break;
         case "owner":
           cmp = (a.owner || "").localeCompare(b.owner || "");
@@ -401,7 +401,7 @@ export default function Documents() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return filtered;
-  }, [documents, searchQuery, typeFilter, categoryFilter, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
+  }, [documents, searchQuery, typeFilter, domainFilter, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -426,7 +426,7 @@ export default function Documents() {
 
   function resetFilters() {
     setTypeFilter("all");
-    setCategoryFilter("all");
+    setDomainFilter("all");
     setStatusFilter("all");
     setVersionFilter("all");
     setApproverFilter("all");
@@ -448,7 +448,7 @@ export default function Documents() {
         documentReference: data.documentReference || null,
         title: data.title,
         docType: data.docType,
-        taxonomy: data.taxonomy,
+        domain: data.domain,
         owner: data.owner,
         reviewFrequency: data.reviewFrequency || null,
         nextReviewDate: data.nextReviewDate || null,
@@ -518,7 +518,7 @@ export default function Documents() {
         documentReference: data.documentReference || null,
         title: data.title,
         docType: data.docType,
-        taxonomy: data.taxonomy,
+        domain: data.domain,
         owner: data.owner,
         reviewFrequency: data.reviewFrequency || null,
         businessUnitId: data.businessUnitId || null,
@@ -684,7 +684,7 @@ export default function Documents() {
       documentReference: null,
       title: "",
       docType: "",
-      taxonomy: "",
+      domain: "",
       owner: "",
       reviewFrequency: null,
       businessUnitId: null,
@@ -700,7 +700,7 @@ export default function Documents() {
       documentReference: doc.documentReference ?? null,
       title: doc.title,
       docType: doc.docType,
-      taxonomy: doc.taxonomy,
+      domain: doc.domain,
       owner: doc.owner,
       reviewFrequency: doc.reviewFrequency ?? null,
       businessUnitId: doc.businessUnitId ?? null,
@@ -778,14 +778,14 @@ export default function Documents() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
-              Category <ChevronDown className="h-3 w-3 ml-1" />
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-domain">
+              Domain <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            {activeCategories.map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => { setCategoryFilter(c.label); setCurrentPage(1); }}>{c.label}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setDomainFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {activeDomains.map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => { setDomainFilter(c.label); setCurrentPage(1); }}>{c.label}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -940,8 +940,8 @@ export default function Documents() {
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-type" onClick={() => toggleSort("type")}>
                     <span className="flex items-center">Type<SortIcon col="type" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-category" onClick={() => toggleSort("category")}>
-                    <span className="flex items-center">Category<SortIcon col="category" /></span>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-domain" onClick={() => toggleSort("category")}>
+                    <span className="flex items-center">Domain<SortIcon col="category" /></span>
                   </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-owner" onClick={() => toggleSort("owner")}>
                     <span className="flex items-center">Owner<SortIcon col="owner" /></span>
@@ -1008,8 +1008,8 @@ export default function Documents() {
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-type-${doc.id}`}>
                           {doc.docType || <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-category-${doc.id}`}>
-                          {doc.taxonomy || <span className="text-muted-foreground/50">&mdash;</span>}
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-domain-${doc.id}`}>
+                          {doc.domain || <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-owner-${doc.id}`}>
                           {doc.owner || <span className="text-muted-foreground/50">&mdash;</span>}
@@ -1236,19 +1236,19 @@ export default function Documents() {
                 />
                 <FormField
                   control={form.control}
-                  name="taxonomy"
+                  name="domain"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category</FormLabel>
+                      <FormLabel>Domain</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
-                          <SelectTrigger data-testid="select-doc-taxonomy">
-                            <SelectValue placeholder="Select category" />
+                          <SelectTrigger data-testid="select-doc-domain">
+                            <SelectValue placeholder="Select domain" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {activeCategories.map((c) => (
-                            <SelectItem key={c.id} value={c.label} data-testid={`option-doc-taxonomy-${c.id}`}>
+                          {activeDomains.map((c) => (
+                            <SelectItem key={c.id} value={c.label} data-testid={`option-doc-domain-${c.id}`}>
                               {c.label}
                             </SelectItem>
                           ))}

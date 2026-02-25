@@ -570,7 +570,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                                       <Badge variant="outline" className="text-xs">{doc.docType}</Badge>
                                     </TableCell>
                                     <TableCell>
-                                      <Badge variant="secondary" className="text-xs">{doc.taxonomy}</Badge>
+                                      <Badge variant="secondary" className="text-xs">{doc.domain}</Badge>
                                     </TableCell>
                                   </TableRow>
                                 ))}

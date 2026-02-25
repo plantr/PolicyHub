@@ -69,7 +69,7 @@ function Router() {
       <Route path="/admin/entity-types">{() => <LookupAdmin slug="entity-types" />}</Route>
       <Route path="/admin/roles">{() => <LookupAdmin slug="roles" />}</Route>
       <Route path="/admin/jurisdictions">{() => <LookupAdmin slug="jurisdictions" />}</Route>
-      <Route path="/admin/document-categories">{() => <LookupAdmin slug="document-categories" />}</Route>
+      <Route path="/admin/document-domains">{() => <LookupAdmin slug="document-domains" />}</Route>
       <Route path="/admin/finding-severities">{() => <LookupAdmin slug="finding-severities" />}</Route>
       <Route path="/admin/document-statuses">{() => <LookupAdmin slug="document-statuses" />}</Route>
       <Route component={NotFound} />
