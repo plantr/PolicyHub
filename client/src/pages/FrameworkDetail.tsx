@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,11 +39,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X, Ban } from "lucide-react";
+import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X, Ban, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { RegulatorySource, Control, ControlMapping, Document as PolicyDocument } from "@shared/schema";
+import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
 const editFrameworkSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -150,6 +151,33 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   const [showNotApplicable, setShowNotApplicable] = useState(false);
   const { toast } = useToast();
 
+  // AI Map job state
+  const [aiMapJobId, setAiMapJobId] = useState<string | null>(null);
+  const aiMapJob = useAiJob(aiMapJobId);
+  const cancelJob = useCancelAiJob();
+  const aiMapRunning = aiMapJobId !== null;
+
+  const aiMapEta = useMemo(() => {
+    const result = aiMapJob.data?.result as { progress?: number; total?: number; startedAt?: number } | null;
+    if (!result?.startedAt || !result.total || !result.progress || result.progress <= 0) return null;
+    const elapsed = Date.now() - result.startedAt;
+    const rate = result.progress / elapsed;
+    const remainingMs = (result.total - result.progress) / rate;
+    if (remainingMs < 1000) return null;
+    const totalSecs = Math.round(remainingMs / 1000);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return mins > 0 ? `~${mins}m ${secs}s remaining` : `~${secs}s remaining`;
+  }, [aiMapJob.data?.result]);
+
+  const storageKey = `ai-map-framework:${sourceId}`;
+
+  // Restore persisted job on mount
+  useEffect(() => {
+    const saved = getPersistedJobId(storageKey);
+    if (saved) setAiMapJobId(saved);
+  }, [storageKey]);
+
   const { data: source, isLoading: sourceLoading } = useQuery<RegulatorySource>({
     queryKey: ["/api/regulatory-sources", sourceId],
     queryFn: async () => {
@@ -198,6 +226,50 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
       toast({ title: "Update failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const aiMapMutation = useMutation({
+    mutationFn: async () => {
+      const params = new URLSearchParams({ action: "map-all-documents", mode: "unmapped", sourceId: String(sourceId) });
+      const res = await apiRequest("POST", `/api/ai-jobs?${params}`);
+      return res.json();
+    },
+    onSuccess: (data: { jobId?: string; message?: string }) => {
+      if (data.jobId) {
+        persistJobId(storageKey, data.jobId);
+        setAiMapJobId(data.jobId);
+        toast({ title: "AI Map Started", description: "Mapping documents against framework controls..." });
+      } else {
+        toast({ title: "AI Map", description: data.message || "Nothing to process" });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "AI Map Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Handle AI Map job completion
+  useEffect(() => {
+    if (!aiMapJob.data || !aiMapJobId) return;
+    if (aiMapJob.data.status === "completed") {
+      clearPersistedJobId(storageKey);
+      queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      const result = aiMapJob.data.result as { documentsProcessed?: number; totalMapped?: number } | null;
+      toast({
+        title: "AI Map Complete",
+        description: `Processed ${result?.documentsProcessed ?? 0} documents, mapped ${result?.totalMapped ?? 0} controls`,
+      });
+      setAiMapJobId(null);
+    } else if (aiMapJob.data.status === "failed") {
+      clearPersistedJobId(storageKey);
+      toast({ title: "AI Map Failed", description: aiMapJob.data.errorMessage || "Unknown error", variant: "destructive" });
+      setAiMapJobId(null);
+    } else if (aiMapJob.data.status === "cancelled") {
+      clearPersistedJobId(storageKey);
+      toast({ title: "AI Map Cancelled" });
+      setAiMapJobId(null);
+    }
+  }, [aiMapJob.data?.status]);
 
   const { data: allRequirements } = useQuery<Control[]>({
     queryKey: ["/api/controls"],
@@ -397,8 +469,58 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
             <Pencil className="h-3.5 w-3.5 mr-1.5" />
             Edit
           </Button>
+          {aiMapRunning ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-w-xs truncate"
+              onClick={() => aiMapJobId && cancelJob.mutate(aiMapJobId)}
+              data-testid="button-ai-map-framework"
+            >
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              {aiMapJob.data?.progressMessage || "Mapping..."}{aiMapEta ? ` (${aiMapEta})` : ""}
+              <X className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={aiMapMutation.isPending}
+              onClick={() => aiMapMutation.mutate()}
+              data-testid="button-ai-map-framework"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-500 dark:text-purple-400" />
+              AI Map
+            </Button>
+          )}
         </div>
       </div>
+
+      {aiMapRunning && (
+        <div className="flex items-center gap-3 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 px-4 py-3">
+          <Loader2 className="h-4 w-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-purple-900 dark:text-purple-200">
+              AI Mapping in progress
+            </p>
+            <p className="text-xs text-purple-700 dark:text-purple-400 truncate">
+              {aiMapJob.data?.progressMessage || "Starting..."}
+            </p>
+            {aiMapEta && (
+              <p className="text-xs text-purple-600 dark:text-purple-500">{aiMapEta}</p>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 shrink-0"
+            onClick={() => aiMapJobId && cancelJob.mutate(aiMapJobId)}
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Cancel
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" data-testid="framework-tabs">
         <TabsList className="bg-transparent border-b rounded-none h-auto p-0 w-full justify-start flex-wrap gap-2">
