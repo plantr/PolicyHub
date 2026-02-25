@@ -91,7 +91,22 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { uploadFileToStorage } from "@/lib/storage";
 import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
+type AdminRecord = { id: number; label: string; value?: string; sortOrder: number; active: boolean };
+
 const VERSION_STATUSES = ["Draft", "In Review", "Approved", "Published", "Superseded"];
+
+const editDocSchema = z.object({
+  documentReference: z.string().nullable().default(null),
+  title: z.string().min(1, "Title is required"),
+  docType: z.string().min(1, "Document type is required"),
+  taxonomy: z.string().min(1, "Category is required"),
+  owner: z.string().min(1, "Owner is required"),
+  reviewFrequency: z.string().nullable().default(null),
+  businessUnitId: z.number().nullable().default(null),
+  tagsText: z.string().default(""),
+  nextReviewDate: z.string().nullable().default(null),
+});
+type EditDocValues = z.infer<typeof editDocSchema>;
 
 const addVersionSchema = z.object({
   version: z.string().min(1, "Version number is required"),
@@ -175,6 +190,15 @@ export default function DocumentDetail() {
   const { data: allDocuments } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
+
+  const { data: categories } = useQuery<AdminRecord[]>({
+    queryKey: ["/api/admin?table=document-categories"],
+  });
+
+  const activeCategories = useMemo(
+    () => (categories ?? []).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder),
+    [categories],
+  );
 
   const activeUsers = useMemo(
     () => (users ?? []).filter((u) => u.status === "Active").sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
@@ -635,6 +659,56 @@ export default function DocumentDetail() {
     e.target.value = "";
   }
 
+  // --- Edit details dialog ---
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
+  const editForm = useForm<EditDocValues>({
+    resolver: zodResolver(editDocSchema),
+    defaultValues: { documentReference: null, title: "", docType: "", taxonomy: "", owner: "", reviewFrequency: null, businessUnitId: null, tagsText: "", nextReviewDate: null },
+  });
+
+  function openEditDetailsDialog() {
+    if (!document) return;
+    editForm.reset({
+      documentReference: document.documentReference ?? null,
+      title: document.title,
+      docType: document.docType,
+      taxonomy: document.taxonomy,
+      owner: document.owner,
+      reviewFrequency: document.reviewFrequency ?? null,
+      businessUnitId: document.businessUnitId ?? null,
+      tagsText: (document.tags ?? []).join(", "),
+      nextReviewDate: document.nextReviewDate ? new Date(document.nextReviewDate).toISOString().split("T")[0] : null,
+    });
+    setEditDetailsOpen(true);
+  }
+
+  const editDetailsMutation = useMutation({
+    mutationFn: async (data: EditDocValues) => {
+      const tags = data.tagsText.split(",").map((t) => t.trim()).filter(Boolean);
+      const res = await apiRequest("PUT", `/api/documents/${document!.id}`, {
+        documentReference: data.documentReference || null,
+        title: data.title,
+        docType: data.docType,
+        taxonomy: data.taxonomy,
+        owner: data.owner,
+        reviewFrequency: data.reviewFrequency || null,
+        businessUnitId: data.businessUnitId || null,
+        nextReviewDate: data.nextReviewDate || null,
+        tags,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({ title: "Document updated" });
+      setEditDetailsOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const [addVersionOpen, setAddVersionOpen] = useState(false);
   const [versionFile, setVersionFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -855,7 +929,7 @@ export default function DocumentDetail() {
               AI Auto-Map
             </Button>
           )}
-          <Button variant="outline" size="sm" data-testid="button-edit-details">
+          <Button variant="outline" size="sm" data-testid="button-edit-details" onClick={openEditDetailsDialog}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" />
             Edit details
           </Button>
@@ -1793,6 +1867,134 @@ export default function DocumentDetail() {
               Start Mapping
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Details Dialog */}
+      <Dialog open={editDetailsOpen} onOpenChange={setEditDetailsOpen}>
+        <DialogContent className="sm:max-w-[550px]" data-testid="dialog-edit-details">
+          <DialogHeader>
+            <DialogTitle>Edit Document Details</DialogTitle>
+            <DialogDescription>Update document metadata.</DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((v) => editDetailsMutation.mutate(v))} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="documentReference" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} placeholder="e.g. OG-POL-001" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={editForm.control} name="title" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="docType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="Policy">Policy</SelectItem>
+                        <SelectItem value="Standard">Standard</SelectItem>
+                        <SelectItem value="Procedure">Procedure</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={editForm.control} name="taxonomy" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {activeCategories.map((c) => (
+                          <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="owner" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Owner</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {activeUsers.map((u) => (
+                          <SelectItem key={u.id} value={`${u.firstName} ${u.lastName}`}>{u.firstName} {u.lastName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={editForm.control} name="businessUnitId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Unit</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(v ? Number(v) : null)} value={field.value?.toString() ?? ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {businessUnits?.map((bu) => (
+                          <SelectItem key={bu.id} value={bu.id.toString()}>{bu.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="reviewFrequency" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Review Frequency</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="Monthly">Monthly</SelectItem>
+                        <SelectItem value="Quarterly">Quarterly</SelectItem>
+                        <SelectItem value="Semi-annual">Semi-annual</SelectItem>
+                        <SelectItem value="Annual">Annual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={editForm.control} name="nextReviewDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Next Review Date</FormLabel>
+                    <FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={editForm.control} name="tagsText" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tags (comma-separated)</FormLabel>
+                  <FormControl><Input {...field} placeholder="e.g. Data Protection, GDPR" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditDetailsOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={editDetailsMutation.isPending}>
+                  {editDetailsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                  Save changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

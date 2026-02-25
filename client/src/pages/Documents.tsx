@@ -325,6 +325,9 @@ export default function Documents() {
         case "name":
           cmp = a.title.localeCompare(b.title);
           break;
+        case "category":
+          cmp = (a.taxonomy || "").localeCompare(b.taxonomy || "");
+          break;
         case "status": {
           const sa = getOverallStatus(a);
           const sb = getOverallStatus(b);
@@ -872,6 +875,9 @@ export default function Documents() {
                   <TableHead className="w-[40%] text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-name" onClick={() => toggleSort("name")}>
                     <span className="flex items-center">Name<SortIcon col="name" /></span>
                   </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-category" onClick={() => toggleSort("category")}>
+                    <span className="flex items-center">Category<SortIcon col="category" /></span>
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-status" onClick={() => toggleSort("status")}>
                     <span className="flex items-center">Overall status<SortIcon col="status" /></span>
                   </TableHead>
@@ -896,7 +902,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -915,6 +921,9 @@ export default function Documents() {
                               {doc.title}
                             </span>
                           </Link>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-category-${doc.id}`}>
+                          {doc.taxonomy || <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
                         <TableCell>
                           <span className="flex items-center gap-1.5 text-sm" data-testid={`text-status-${doc.id}`}>
