@@ -866,47 +866,29 @@ export default function Documents() {
       ) : (
         <>
           <div className="border rounded-md" data-testid="section-documents-table">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-name" onClick={() => toggleSort("name")}>
+                  <TableHead className="w-[40%] text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-name" onClick={() => toggleSort("name")}>
                     <span className="flex items-center">Name<SortIcon col="name" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-status" onClick={() => toggleSort("status")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-status" onClick={() => toggleSort("status")}>
                     <span className="flex items-center">Overall status<SortIcon col="status" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-renew" onClick={() => toggleSort("renew")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-renew" onClick={() => toggleSort("renew")}>
                     <span className="flex items-center">Renew by<SortIcon col="renew" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-version" onClick={() => toggleSort("version")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-version" onClick={() => toggleSort("version")}>
                     <span className="flex items-center">Latest version<SortIcon col="version" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-approver">
+                  <TableHead className="text-xs font-medium text-muted-foreground overflow-hidden resize-x" data-testid="col-approver">
                     <Tooltip>
-                      <TooltipTrigger asChild><span className="cursor-default">Appr...</span></TooltipTrigger>
+                      <TooltipTrigger asChild><span className="cursor-default">Approver</span></TooltipTrigger>
                       <TooltipContent>Approver</TooltipContent>
                     </Tooltip>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-approval-status">
-                    <Tooltip>
-                      <TooltipTrigger asChild><span className="cursor-default">Approval stat...</span></TooltipTrigger>
-                      <TooltipContent>Approval status</TooltipContent>
-                    </Tooltip>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground" data-testid="col-personnel">
-                    <Tooltip>
-                      <TooltipTrigger asChild><span className="cursor-default">Personnel...</span></TooltipTrigger>
-                      <TooltipContent>Personnel assigned</TooltipContent>
-                    </Tooltip>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-controls" onClick={() => toggleSort("controls")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-controls" onClick={() => toggleSort("controls")}>
                     <span className="flex items-center">Controls Covered<SortIcon col="controls" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-ai-review" onClick={() => toggleSort("aiReview")}>
-                    <span className="flex items-center"><Sparkles className="h-3 w-3 mr-0.5 text-purple-500 dark:text-purple-400" />AI Review<SortIcon col="aiReview" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none" data-testid="col-framework" onClick={() => toggleSort("framework")}>
-                    <span className="flex items-center">Framework<SortIcon col="framework" /></span>
                   </TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
@@ -914,7 +896,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -923,12 +905,11 @@ export default function Documents() {
                     const latestVer = latestVersionMap.get(doc.id);
                     const approval = approvalsByDoc.get(doc.id);
                     const overallStatus = getOverallStatus(doc);
-                    const frameworks = docFrameworkMap.get(doc.id) ?? [];
                     const approverName = approval?.approver || doc.owner;
 
                     return (
                       <TableRow key={doc.id} className="group" data-testid={`row-document-${doc.id}`}>
-                        <TableCell className="max-w-[260px]">
+                        <TableCell>
                           <Link href={`/documents/${doc.id}`} data-testid={`link-document-${doc.id}`}>
                             <span className="text-sm font-medium text-foreground hover:underline cursor-pointer truncate block">
                               {doc.title}
@@ -979,51 +960,9 @@ export default function Documents() {
                             <TooltipContent>{approverName}</TooltipContent>
                           </Tooltip>
                         </TableCell>
-                        <TableCell data-testid={`text-approval-status-${doc.id}`}>
-                          {approval ? (
-                            <span className="flex items-center gap-1.5 text-sm">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-                              <span>{approval.approved}/{approval.total}</span>
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell data-testid={`text-personnel-${doc.id}`}>
-                          <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                        </TableCell>
                         <TableCell data-testid={`text-controls-${doc.id}`}>
                           {(docControlsCountMap.get(doc.id) ?? 0) > 0 ? (
                             <span className="text-sm">{docControlsCountMap.get(doc.id)}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell data-testid={`text-ai-review-${doc.id}`}>
-                          {doc.aiReviewedAt ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="flex items-center gap-1.5 text-sm">
-                                  <Sparkles className="h-3.5 w-3.5 text-purple-500 dark:text-purple-400" />
-                                  <span className="text-purple-600 dark:text-purple-400 whitespace-nowrap">
-                                    {format(new Date(doc.aiReviewedAt), "MMM d, yyyy")}
-                                  </span>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>AI reviewed on {format(new Date(doc.aiReviewedAt), "PPpp")}</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell data-testid={`text-framework-${doc.id}`}>
-                          {frameworks.length > 0 ? (
-                            <span className="text-sm text-muted-foreground whitespace-nowrap">
-                              {frameworks.slice(0, 2).join("  ")}
-                              {frameworks.length > 2 && (
-                                <span className="ml-1 text-xs text-muted-foreground/60">+{frameworks.length - 2}</span>
-                              )}
-                            </span>
                           ) : (
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>
                           )}
