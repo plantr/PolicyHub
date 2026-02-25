@@ -857,36 +857,76 @@ export default function DocumentDetail() {
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4" data-testid="section-header">
-        <div className="space-y-2 flex-1 min-w-0">
+        <div className="space-y-3 flex-1 min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight leading-tight" data-testid="text-document-title">
             {titleDisplay}
           </h1>
 
-          <p className="text-sm text-muted-foreground max-w-2xl" data-testid="text-document-description">
-            {document.docType} document owned by {document.owner}
-            {document.businessUnitId ? ` for ${buMap.get(document.businessUnitId) ?? "Unknown"}` : ""}.
-            {document.tags?.length ? ` Tags: ${document.tags.join(", ")}.` : ""}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 pt-1" data-testid="section-status-indicators">
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <CheckCircle2 className={`h-4 w-4 ${docStatus === "OK" ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground"}`} />
-              <span className={docStatus === "OK" ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"} data-testid="text-doc-status">
-                {docStatus}
-              </span>
-            </span>
-
-            {document.reviewFrequency && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="text-review-frequency">
-                <Calendar className="h-4 w-4" />
-                Renew {document.reviewFrequency.toLowerCase()}
-              </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm" data-testid="section-document-fields">
+            <div>
+              <span className="text-muted-foreground">Reference</span>
+              <p className="font-medium" data-testid="text-doc-reference">{document.documentReference || <span className="text-muted-foreground/50">&mdash;</span>}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Type</span>
+              <p className="font-medium" data-testid="text-doc-type">{document.docType}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Category</span>
+              <p className="font-medium" data-testid="text-doc-category">{document.taxonomy}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Owner</span>
+              <p className="font-medium" data-testid="text-doc-owner">{document.owner}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Business Unit</span>
+              <p className="font-medium" data-testid="text-doc-bu">{document.businessUnitId ? (buMap.get(document.businessUnitId) ?? "Unknown") : <span className="text-muted-foreground/50">&mdash;</span>}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Status</span>
+              <p className="font-medium" data-testid="text-doc-status">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className={`h-4 w-4 ${docStatus === "OK" ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground"}`} />
+                  <span className={docStatus === "OK" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                    {docStatus}
+                  </span>
+                </span>
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Review Frequency</span>
+              <p className="font-medium" data-testid="text-review-frequency">{document.reviewFrequency || <span className="text-muted-foreground/50">&mdash;</span>}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Next Review</span>
+              <p className="font-medium" data-testid="text-next-review">{document.nextReviewDate ? format(new Date(document.nextReviewDate), "MMM d, yyyy") : <span className="text-muted-foreground/50">&mdash;</span>}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Frameworks</span>
+              <p className="font-medium" data-testid="text-framework-count">
+                {linkedFrameworks.length > 0 ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <List className="h-4 w-4 text-muted-foreground" />
+                    {linkedFrameworks.length}
+                  </span>
+                ) : <span className="text-muted-foreground/50">&mdash;</span>}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Created</span>
+              <p className="font-medium" data-testid="text-doc-created">{document.createdAt ? format(new Date(document.createdAt), "MMM d, yyyy") : <span className="text-muted-foreground/50">&mdash;</span>}</p>
+            </div>
+            {(document.tags ?? []).length > 0 && (
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Tags</span>
+                <div className="flex flex-wrap gap-1 mt-0.5" data-testid="text-doc-tags">
+                  {(document.tags ?? []).map((t) => (
+                    <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                  ))}
+                </div>
+              </div>
             )}
-
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="text-framework-count">
-              <List className="h-4 w-4" />
-              Frameworks ({linkedFrameworks.length})
-            </span>
           </div>
         </div>
 

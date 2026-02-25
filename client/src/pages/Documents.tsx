@@ -322,18 +322,36 @@ export default function Documents() {
     filtered.sort((a, b) => {
       let cmp = 0;
       switch (sortColumn) {
+        case "reference":
+          cmp = (a.documentReference || "").localeCompare(b.documentReference || "");
+          break;
         case "name":
           cmp = a.title.localeCompare(b.title);
+          break;
+        case "type":
+          cmp = (a.docType || "").localeCompare(b.docType || "");
           break;
         case "category":
           cmp = (a.taxonomy || "").localeCompare(b.taxonomy || "");
           break;
+        case "owner":
+          cmp = (a.owner || "").localeCompare(b.owner || "");
+          break;
+        case "bu": {
+          const buA = (a.businessUnitId ? buMap.get(a.businessUnitId) : "") ?? "";
+          const buB = (b.businessUnitId ? buMap.get(b.businessUnitId) : "") ?? "";
+          cmp = buA.localeCompare(buB);
+          break;
+        }
         case "status": {
           const sa = getOverallStatus(a);
           const sb = getOverallStatus(b);
           cmp = sa.localeCompare(sb);
           break;
         }
+        case "frequency":
+          cmp = (a.reviewFrequency || "").localeCompare(b.reviewFrequency || "");
+          break;
         case "renew": {
           const da = a.nextReviewDate ? new Date(a.nextReviewDate).getTime() : 0;
           const db = b.nextReviewDate ? new Date(b.nextReviewDate).getTime() : 0;
@@ -348,16 +366,13 @@ export default function Documents() {
           cmp = na - nb;
           break;
         }
+        case "tags":
+          cmp = (a.tags ?? []).join(", ").localeCompare((b.tags ?? []).join(", "));
+          break;
         case "controls": {
           const ca = docControlsCountMap.get(a.id) ?? 0;
           const cb = docControlsCountMap.get(b.id) ?? 0;
           cmp = ca - cb;
-          break;
-        }
-        case "aiReview": {
-          const ra = a.aiReviewedAt ? new Date(a.aiReviewedAt).getTime() : 0;
-          const rb = b.aiReviewedAt ? new Date(b.aiReviewedAt).getTime() : 0;
-          cmp = ra - rb;
           break;
         }
         case "framework": {
@@ -366,13 +381,19 @@ export default function Documents() {
           cmp = fa.localeCompare(fb);
           break;
         }
+        case "created": {
+          const creA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const creB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          cmp = creA - creB;
+          break;
+        }
         default:
           break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return filtered;
-  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap]);
+  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -868,33 +889,54 @@ export default function Documents() {
         </div>
       ) : (
         <>
-          <div className="border rounded-md" data-testid="section-documents-table">
-            <Table className="table-fixed">
+          <div className="border rounded-md overflow-x-auto" data-testid="section-documents-table">
+            <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[40%] text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-name" onClick={() => toggleSort("name")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-reference" onClick={() => toggleSort("reference")}>
+                    <span className="flex items-center">Ref<SortIcon col="reference" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap min-w-[200px]" data-testid="col-name" onClick={() => toggleSort("name")}>
                     <span className="flex items-center">Name<SortIcon col="name" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-category" onClick={() => toggleSort("category")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-type" onClick={() => toggleSort("type")}>
+                    <span className="flex items-center">Type<SortIcon col="type" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-category" onClick={() => toggleSort("category")}>
                     <span className="flex items-center">Category<SortIcon col="category" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-status" onClick={() => toggleSort("status")}>
-                    <span className="flex items-center">Overall status<SortIcon col="status" /></span>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-owner" onClick={() => toggleSort("owner")}>
+                    <span className="flex items-center">Owner<SortIcon col="owner" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-renew" onClick={() => toggleSort("renew")}>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-bu" onClick={() => toggleSort("bu")}>
+                    <span className="flex items-center">Business Unit<SortIcon col="bu" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-status" onClick={() => toggleSort("status")}>
+                    <span className="flex items-center">Status<SortIcon col="status" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-frequency" onClick={() => toggleSort("frequency")}>
+                    <span className="flex items-center">Review Freq.<SortIcon col="frequency" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-renew" onClick={() => toggleSort("renew")}>
                     <span className="flex items-center">Renew by<SortIcon col="renew" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-version" onClick={() => toggleSort("version")}>
-                    <span className="flex items-center">Latest version<SortIcon col="version" /></span>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-version" onClick={() => toggleSort("version")}>
+                    <span className="flex items-center">Version<SortIcon col="version" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground overflow-hidden resize-x" data-testid="col-approver">
-                    <Tooltip>
-                      <TooltipTrigger asChild><span className="cursor-default">Approver</span></TooltipTrigger>
-                      <TooltipContent>Approver</TooltipContent>
-                    </Tooltip>
+                  <TableHead className="text-xs font-medium text-muted-foreground whitespace-nowrap" data-testid="col-approver">
+                    <span>Approver</span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none overflow-hidden resize-x" data-testid="col-controls" onClick={() => toggleSort("controls")}>
-                    <span className="flex items-center">Controls Covered<SortIcon col="controls" /></span>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-tags" onClick={() => toggleSort("tags")}>
+                    <span className="flex items-center">Tags<SortIcon col="tags" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-framework" onClick={() => toggleSort("framework")}>
+                    <span className="flex items-center">Frameworks<SortIcon col="framework" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-controls" onClick={() => toggleSort("controls")}>
+                    <span className="flex items-center">Controls<SortIcon col="controls" /></span>
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-created" onClick={() => toggleSort("created")}>
+                    <span className="flex items-center">Created<SortIcon col="created" /></span>
                   </TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
@@ -902,7 +944,7 @@ export default function Documents() {
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={16} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -915,6 +957,9 @@ export default function Documents() {
 
                     return (
                       <TableRow key={doc.id} className="group" data-testid={`row-document-${doc.id}`}>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-ref-${doc.id}`}>
+                          {doc.documentReference || <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
                         <TableCell>
                           <Link href={`/documents/${doc.id}`} data-testid={`link-document-${doc.id}`}>
                             <span className="text-sm font-medium text-foreground hover:underline cursor-pointer truncate block">
@@ -922,11 +967,20 @@ export default function Documents() {
                             </span>
                           </Link>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-category-${doc.id}`}>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-type-${doc.id}`}>
+                          {doc.docType || <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-category-${doc.id}`}>
                           {doc.taxonomy || <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-owner-${doc.id}`}>
+                          {doc.owner || <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-bu-${doc.id}`}>
+                          {doc.businessUnitId ? (buMap.get(doc.businessUnitId) ?? doc.businessUnitId) : <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
                         <TableCell>
-                          <span className="flex items-center gap-1.5 text-sm" data-testid={`text-status-${doc.id}`}>
+                          <span className="flex items-center gap-1.5 text-sm whitespace-nowrap" data-testid={`text-status-${doc.id}`}>
                             {overallStatus === "OK" ? (
                               <>
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
@@ -937,6 +991,9 @@ export default function Documents() {
                             )}
                           </span>
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-frequency-${doc.id}`}>
+                          {doc.reviewFrequency || <span className="text-muted-foreground/50">&mdash;</span>}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-renew-${doc.id}`}>
                           {doc.nextReviewDate
                             ? format(new Date(doc.nextReviewDate), "MMM d, yyyy")
@@ -944,7 +1001,7 @@ export default function Documents() {
                         </TableCell>
                         <TableCell data-testid={`text-version-${doc.id}`}>
                           {latestVer ? (
-                            <span className="flex items-center gap-1.5 text-sm">
+                            <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
                               {latestVer.status === "Published" ? (
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
                               ) : null}
@@ -969,12 +1026,39 @@ export default function Documents() {
                             <TooltipContent>{approverName}</TooltipContent>
                           </Tooltip>
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-tags-${doc.id}`}>
+                          {(doc.tags ?? []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(doc.tags ?? []).map((t) => (
+                                <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-framework-${doc.id}`}>
+                          {(docFrameworkMap.get(doc.id) ?? []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(docFrameworkMap.get(doc.id) ?? []).map((f) => (
+                                <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/50">&mdash;</span>
+                          )}
+                        </TableCell>
                         <TableCell data-testid={`text-controls-${doc.id}`}>
                           {(docControlsCountMap.get(doc.id) ?? 0) > 0 ? (
                             <span className="text-sm">{docControlsCountMap.get(doc.id)}</span>
                           ) : (
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-created-${doc.id}`}>
+                          {doc.createdAt
+                            ? format(new Date(doc.createdAt), "MMM d, yyyy")
+                            : <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
