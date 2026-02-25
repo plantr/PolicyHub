@@ -535,23 +535,22 @@ async function processAiMapControlsJob(jobId: string, docId: number, sourceIds?:
     });
 
     const truncatedContent = docContent.slice(0, 10000);
-    const BATCH_SIZE = 25;
+    const BATCH_SIZE = 80;
+    const PARALLEL_WAVES = 5;
     const batches: typeof unmappedControls[] = [];
     for (let i = 0; i < unmappedControls.length; i += BATCH_SIZE) {
       batches.push(unmappedControls.slice(i, i + BATCH_SIZE));
     }
 
+    await db.update(schema.aiJobs).set({
+      progressMessage: `Evaluating ${unmappedControls.length} controls across ${batches.length} batch${batches.length === 1 ? "" : "es"}...`,
+      result: { controlsTotal: unmappedControls.length, batches: batches.length, matched: 0, startedAt: Date.now() },
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
+
     const newMappings: Array<{ controlId: number; score: number; rationale: string; recommendations: string }> = [];
 
-    for (let i = 0; i < batches.length; i++) {
-      if (await isJobCancelled(jobId)) return;
-      const batch = batches[i];
-
-      await db.update(schema.aiJobs).set({
-        progressMessage: `Analyzing batch ${i + 1} of ${batches.length}...`,
-        updatedAt: new Date(),
-      }).where(eq(schema.aiJobs.id, jobId));
-
+    const processBatch = async (batch: typeof unmappedControls) => {
       const controlList = batch.map((r) =>
         `ID:${r.id} | Code:${r.code} | Title:${r.title} | Description:${(r.description || "N/A").slice(0, 200)}`
       ).join("\n");
@@ -580,42 +579,72 @@ Respond in exactly this JSON format (array of matches only, omit controls below 
 
 If no controls match at 60% or above, return an empty array: []`;
 
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      let parsed: any[] = [];
       try {
-        const message = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        });
-
-        const responseText = message.content[0].type === "text" ? message.content[0].text : "";
-        let parsed: any[] = [];
-        try {
-          const direct = JSON.parse(responseText);
-          if (Array.isArray(direct)) parsed = direct;
-        } catch {
-          const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-          if (jsonMatch) {
-            try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip malformed batch */ }
-          }
+        const direct = JSON.parse(responseText);
+        if (Array.isArray(direct)) parsed = direct;
+      } catch {
+        const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+        if (jsonMatch) {
+          try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip malformed batch */ }
         }
-
-        const batchIds = new Set(batch.map((r) => r.id));
-        for (const item of parsed) {
-          if (!item || typeof item !== "object") continue;
-          const ctrlId = Number(item.id);
-          const score = Math.min(100, Math.max(0, Math.round(Number(item.score) || 0)));
-          if (score >= 60 && batchIds.has(ctrlId)) {
-            newMappings.push({
-              controlId: ctrlId,
-              score,
-              rationale: String(item.rationale || ""),
-              recommendations: String(item.recommendations || ""),
-            });
-          }
-        }
-      } catch (batchErr: any) {
-        console.error(`AI batch error:`, batchErr.message);
       }
+
+      const results: Array<{ controlId: number; score: number; rationale: string; recommendations: string }> = [];
+      const batchIds = new Set(batch.map((r) => r.id));
+      for (const item of parsed) {
+        if (!item || typeof item !== "object") continue;
+        const ctrlId = Number(item.id);
+        const score = Math.min(100, Math.max(0, Math.round(Number(item.score) || 0)));
+        if (score >= 60 && batchIds.has(ctrlId)) {
+          results.push({
+            controlId: ctrlId,
+            score,
+            rationale: String(item.rationale || ""),
+            recommendations: String(item.recommendations || ""),
+          });
+        }
+      }
+      return results;
+    };
+
+    let batchesCompleted = 0;
+
+    for (let w = 0; w < batches.length; w += PARALLEL_WAVES) {
+      if (await isJobCancelled(jobId)) return;
+
+      const wave = batches.slice(w, w + PARALLEL_WAVES);
+      const waveStart = w + 1;
+      const waveEnd = Math.min(w + PARALLEL_WAVES, batches.length);
+      const controlsDone = w * BATCH_SIZE;
+
+      const batchLabel = waveStart === waveEnd
+        ? `batch ${waveStart}/${batches.length}`
+        : `batches ${waveStart}-${waveEnd}/${batches.length}`;
+      await db.update(schema.aiJobs).set({
+        progressMessage: `Evaluating ${batchLabel} (${controlsDone}/${unmappedControls.length} controls done, ${newMappings.length} matched)`,
+        result: { controlsTotal: unmappedControls.length, batches: batches.length, batchesDone: batchesCompleted, matched: newMappings.length, startedAt: Date.now() },
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
+
+      const waveResults = await Promise.all(
+        wave.map((batch) => processBatch(batch).catch((err: any) => {
+          console.error(`AI batch error (doc ${docId}):`, err.message);
+          return [] as Array<{ controlId: number; score: number; rationale: string; recommendations: string }>;
+        }))
+      );
+
+      for (const results of waveResults) {
+        newMappings.push(...results);
+      }
+      batchesCompleted += wave.length;
     }
 
     await db.update(schema.aiJobs).set({

@@ -950,12 +950,13 @@ export default function DocumentDetail() {
             <Button
               variant="outline"
               size="sm"
+              className="max-w-xs"
               data-testid="button-ai-auto-map"
               onClick={() => aiJobId && cancelJob.mutate(aiJobId)}
             >
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-              {aiJobProgress || "Analysing..."}
-              <X className="h-3.5 w-3.5 ml-1.5" />
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" />
+              <span className="truncate">{aiJobProgress || "Analysing..."}</span>
+              <X className="h-3.5 w-3.5 ml-1.5 shrink-0" />
             </Button>
           ) : (
             <Button
