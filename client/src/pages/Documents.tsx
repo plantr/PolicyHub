@@ -744,6 +744,8 @@ export default function Documents() {
             <DropdownMenuItem onClick={() => { setTypeFilter("Policy"); setCurrentPage(1); }}>Policy</DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setTypeFilter("Standard"); setCurrentPage(1); }}>Standard</DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setTypeFilter("Procedure"); setCurrentPage(1); }}>Procedure</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setTypeFilter("Statement"); setCurrentPage(1); }}>Statement</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setTypeFilter("Risk Assessment"); setCurrentPage(1); }}>Risk Assessment</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1094,6 +1096,8 @@ export default function Documents() {
                           <SelectItem value="Policy" data-testid="option-doc-type-policy">Policy</SelectItem>
                           <SelectItem value="Standard" data-testid="option-doc-type-standard">Standard</SelectItem>
                           <SelectItem value="Procedure" data-testid="option-doc-type-procedure">Procedure</SelectItem>
+                          <SelectItem value="Statement" data-testid="option-doc-type-statement">Statement</SelectItem>
+                          <SelectItem value="Risk Assessment" data-testid="option-doc-type-risk-assessment">Risk Assessment</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
