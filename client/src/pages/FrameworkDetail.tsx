@@ -39,6 +39,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X, Ban, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -228,8 +234,9 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   });
 
   const aiMapMutation = useMutation({
-    mutationFn: async () => {
-      const params = new URLSearchParams({ action: "map-all-documents", mode: "unmapped", sourceId: String(sourceId) });
+    mutationFn: async ({ mode }: { mode: "unmapped" | "full" }) => {
+      const params = new URLSearchParams({ action: "map-all-documents", sourceId: String(sourceId) });
+      if (mode === "unmapped") params.set("mode", "unmapped");
       const res = await apiRequest("POST", `/api/ai-jobs?${params}`);
       return res.json();
     },
@@ -482,16 +489,30 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
               <X className="h-3.5 w-3.5 ml-1.5" />
             </Button>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={aiMapMutation.isPending}
-              onClick={() => aiMapMutation.mutate()}
-              data-testid="button-ai-map-framework"
-            >
-              <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-500 dark:text-purple-400" />
-              AI Map
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={aiMapMutation.isPending}
+                  data-testid="button-ai-map-framework"
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-500 dark:text-purple-400" />
+                  AI Map
+                  <ChevronDown className="h-3 w-3 ml-1.5 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => aiMapMutation.mutate({ mode: "unmapped" })} data-testid="button-ai-map-unmapped">
+                  Map unmapped
+                  <span className="ml-auto text-xs text-muted-foreground">New docs only</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => aiMapMutation.mutate({ mode: "full" })} data-testid="button-ai-map-full">
+                  Full re-map
+                  <span className="ml-auto text-xs text-muted-foreground">All docs</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
