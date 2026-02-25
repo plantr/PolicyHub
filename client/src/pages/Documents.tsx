@@ -943,29 +943,8 @@ export default function Documents() {
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-domain" onClick={() => toggleSort("category")}>
                     <span className="flex items-center">Domain<SortIcon col="category" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-owner" onClick={() => toggleSort("owner")}>
-                    <span className="flex items-center">Owner<SortIcon col="owner" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-bu" onClick={() => toggleSort("bu")}>
-                    <span className="flex items-center">Business Unit<SortIcon col="bu" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-status" onClick={() => toggleSort("status")}>
-                    <span className="flex items-center">Status<SortIcon col="status" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-frequency" onClick={() => toggleSort("frequency")}>
-                    <span className="flex items-center">Review Freq.<SortIcon col="frequency" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-renew" onClick={() => toggleSort("renew")}>
-                    <span className="flex items-center">Renew by<SortIcon col="renew" /></span>
-                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-version" onClick={() => toggleSort("version")}>
                     <span className="flex items-center">Version<SortIcon col="version" /></span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground whitespace-nowrap" data-testid="col-approver">
-                    <span>Approver</span>
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-tags" onClick={() => toggleSort("tags")}>
-                    <span className="flex items-center">Tags<SortIcon col="tags" /></span>
                   </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-framework" onClick={() => toggleSort("framework")}>
                     <span className="flex items-center">Frameworks<SortIcon col="framework" /></span>
@@ -973,16 +952,13 @@ export default function Documents() {
                   <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-controls" onClick={() => toggleSort("controls")}>
                     <span className="flex items-center">Controls<SortIcon col="controls" /></span>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap" data-testid="col-created" onClick={() => toggleSort("created")}>
-                    <span className="flex items-center">Created<SortIcon col="created" /></span>
-                  </TableHead>
                   <TableHead className="w-[40px]" data-testid="col-actions"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={16} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8" data-testid="text-no-documents">
                       No documents found
                     </TableCell>
                   </TableRow>
@@ -1011,32 +987,6 @@ export default function Documents() {
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-domain-${doc.id}`}>
                           {doc.domain || <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-owner-${doc.id}`}>
-                          {doc.owner || <span className="text-muted-foreground/50">&mdash;</span>}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-bu-${doc.id}`}>
-                          {doc.businessUnitId ? (buMap.get(doc.businessUnitId) ?? doc.businessUnitId) : <span className="text-muted-foreground/50">&mdash;</span>}
-                        </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5 text-sm whitespace-nowrap" data-testid={`text-status-${doc.id}`}>
-                            {overallStatus === "OK" ? (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                                <span className="text-emerald-600 dark:text-emerald-400">OK</span>
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground">{overallStatus}</span>
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-frequency-${doc.id}`}>
-                          {doc.reviewFrequency || <span className="text-muted-foreground/50">&mdash;</span>}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-renew-${doc.id}`}>
-                          {doc.nextReviewDate
-                            ? format(new Date(doc.nextReviewDate), "MMM d, yyyy")
-                            : <span className="text-muted-foreground/50">&mdash;</span>}
-                        </TableCell>
                         <TableCell data-testid={`text-version-${doc.id}`}>
                           {latestVer ? (
                             <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
@@ -1050,29 +1000,6 @@ export default function Documents() {
                             </span>
                           ) : (
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell data-testid={`text-approver-${doc.id}`}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Avatar className="h-7 w-7">
-                                <AvatarFallback className={`text-xs ${getAvatarColor(approverName)}`}>
-                                  {getInitials(approverName)}
-                                </AvatarFallback>
-                              </Avatar>
-                            </TooltipTrigger>
-                            <TooltipContent>{approverName}</TooltipContent>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground" data-testid={`text-tags-${doc.id}`}>
-                          {(doc.tags ?? []).length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {(doc.tags ?? []).map((t) => (
-                                <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground/50">&mdash;</span>
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground" data-testid={`text-framework-${doc.id}`}>
@@ -1092,11 +1019,6 @@ export default function Documents() {
                           ) : (
                             <span className="text-sm text-muted-foreground/50">&mdash;</span>
                           )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap" data-testid={`text-created-${doc.id}`}>
-                          {doc.createdAt
-                            ? format(new Date(doc.createdAt), "MMM d, yyyy")
-                            : <span className="text-muted-foreground/50">&mdash;</span>}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
