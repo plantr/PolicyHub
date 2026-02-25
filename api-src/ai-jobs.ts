@@ -508,8 +508,8 @@ async function processAiMapControlsJob(jobId: string, docId: number, sourceIds?:
     const targetControls = sourceIdSet
       ? allControls.filter((c) => sourceIdSet.has(c.sourceId))
       : allControls;
-    const existingMappings = await storage.getControlMappings();
-    const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
+    const existingDocMappings = await db.select().from(schema.controlMappings)
+      .where(eq(schema.controlMappings.documentId, docId));
     const aiVerifiedIds = new Set(
       existingDocMappings.filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60).map((m) => m.controlId)
     );
@@ -582,7 +582,7 @@ If no controls match at 60% or above, return an empty array: []`;
 
       try {
         const message = await anthropic.messages.create({
-          model: "claude-sonnet-4-5",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 4000,
           messages: [{ role: "user", content: prompt }],
         });
@@ -752,8 +752,8 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
       const docContent = targetVersion.content || "";
       if (!docContent || docContent.length < 20) continue;
 
-      const existingMappings = await storage.getControlMappings();
-      const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
+      const existingDocMappings = await db.select().from(schema.controlMappings)
+        .where(eq(schema.controlMappings.documentId, docId));
       const aiVerifiedIds = new Set(
         existingDocMappings.filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60).map((m) => m.controlId)
       );
@@ -766,8 +766,8 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
       }
 
       const truncatedContent = docContent.slice(0, 10000);
-      const BATCH_SIZE = 50;
-      const PARALLEL_WAVES = 3;
+      const BATCH_SIZE = 80;
+      const PARALLEL_WAVES = 5;
       const batches: typeof unmappedControls[] = [];
       for (let i = 0; i < unmappedControls.length; i += BATCH_SIZE) {
         batches.push(unmappedControls.slice(i, i + BATCH_SIZE));
@@ -805,7 +805,7 @@ Respond in exactly this JSON format (array of matches only, omit controls below 
 If no controls match at 60% or above, return an empty array: []`;
 
         const message = await anthropic.messages.create({
-          model: "claude-sonnet-4-5",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 4000,
           messages: [{ role: "user", content: prompt }],
         });
