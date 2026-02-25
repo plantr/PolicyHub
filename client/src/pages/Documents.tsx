@@ -120,6 +120,19 @@ export default function Documents() {
   const cancelJob = useCancelAiJob();
   const autoMapRunning = autoMapJobId !== null;
 
+  const autoMapEta = useMemo(() => {
+    const result = autoMapJob.data?.result as { progress?: number; total?: number; startedAt?: number } | null;
+    if (!result?.startedAt || !result.total || !result.progress || result.progress <= 0) return null;
+    const elapsed = Date.now() - result.startedAt;
+    const rate = result.progress / elapsed;
+    const remainingMs = (result.total - result.progress) / rate;
+    if (remainingMs < 1000) return null;
+    const totalSecs = Math.round(remainingMs / 1000);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return mins > 0 ? `~${mins}m ${secs}s remaining` : `~${secs}s remaining`;
+  }, [autoMapJob.data?.result]);
+
   const [mdRefreshJobId, setMdRefreshJobId] = useState<string | null>(null);
   const mdRefreshJob = useAiJob(mdRefreshJobId);
   const mdRefreshRunning = mdRefreshJobId !== null;
@@ -792,7 +805,7 @@ export default function Documents() {
               data-testid="button-ai-auto-map-all"
             >
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              {autoMapJob.data?.progressMessage || "Mapping..."}
+              {autoMapJob.data?.progressMessage || "Mapping..."}{autoMapEta ? ` (${autoMapEta})` : ""}
               <X className="h-3.5 w-3.5 ml-1.5" />
             </Button>
           ) : (
@@ -849,6 +862,9 @@ export default function Documents() {
                 ? (autoMapJob.data?.progressMessage || "Starting...")
                 : (mdRefreshJob.data?.progressMessage || "Starting...")}
             </p>
+            {autoMapRunning && autoMapEta && (
+              <p className="text-xs text-purple-600 dark:text-purple-500">{autoMapEta}</p>
+            )}
           </div>
           <Button
             variant="ghost"

@@ -685,9 +685,12 @@ If no controls match at 60% or above, return an empty array: []`;
 // ============================================================
 async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sourceId?: number) {
   try {
+    const startTime = Date.now();
+
     await db.update(schema.aiJobs).set({
       status: "processing",
       progressMessage: `Processing 0 of ${docIds.length} documents...`,
+      result: { progress: 0, total: docIds.length, currentDoc: "", startedAt: startTime },
       updatedAt: new Date(),
     }).where(eq(schema.aiJobs.id, jobId));
 
@@ -718,13 +721,14 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
       if (await isJobCancelled(jobId)) return;
       const docId = docIds[di];
 
-      await db.update(schema.aiJobs).set({
-        progressMessage: `Processing document ${di + 1} of ${docIds.length}...`,
-        updatedAt: new Date(),
-      }).where(eq(schema.aiJobs.id, jobId));
-
       const document = await storage.getDocument(docId);
       if (!document) continue;
+
+      await db.update(schema.aiJobs).set({
+        progressMessage: `Document ${di + 1}/${docIds.length}: "${document.title}"`,
+        result: { progress: di, total: docIds.length, currentDoc: document.title, startedAt: startTime },
+        updatedAt: new Date(),
+      }).where(eq(schema.aiJobs.id, jobId));
 
       const allVersions = await db.select().from(schema.documentVersions)
         .where(eq(schema.documentVersions.documentId, docId));
@@ -760,6 +764,14 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
 
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
+
+        if (batches.length > 1) {
+          await db.update(schema.aiJobs).set({
+            progressMessage: `Document ${di + 1}/${docIds.length}: "${document.title}" (batch ${i + 1}/${batches.length})`,
+            result: { progress: di, total: docIds.length, currentDoc: document.title, startedAt: startTime },
+            updatedAt: new Date(),
+          }).where(eq(schema.aiJobs.id, jobId));
+        }
 
         const controlList = batch.map((r) =>
           `ID:${r.id} | Code:${r.code} | Title:${r.title} | Description:${(r.description || "N/A").slice(0, 200)}`
