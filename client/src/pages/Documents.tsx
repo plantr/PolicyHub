@@ -1040,7 +1040,7 @@ export default function Documents() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" data-testid="dialog-document">
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-document">
           <DialogHeader>
             <DialogTitle data-testid="text-dialog-title">
               {editingDoc ? "Edit Document" : "Add Document"}
