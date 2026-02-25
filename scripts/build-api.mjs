@@ -39,6 +39,9 @@ console.log(`Building ${entries.length} serverless functions...`);
 const tmpDir = ".vercel/output/functions/_tmp";
 mkdirSync(tmpDir, { recursive: true });
 
+// Shim for CJS packages (e.g. mammoth) that use require() for Node builtins inside ESM bundles
+const cjsShim = `import { createRequire } from "module"; const require = createRequire(import.meta.url);`;
+
 await build({
   entryPoints: entries,
   bundle: true,
@@ -52,6 +55,7 @@ await build({
   logLevel: "info",
   treeShaking: true,
   minify: true,
+  banner: { js: cjsShim },
 });
 
 // Create .func directories for each function (URL path stays /api/*)
