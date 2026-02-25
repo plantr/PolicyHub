@@ -43,7 +43,7 @@ const editVersionSchema = z.object({
   changeReason: z.string().default(""),
   createdBy: z.string().min(1, "Created by is required"),
   effectiveDate: z.string().nullable().default(null),
-  content: z.string().min(1, "Content is required"),
+  content: z.string().default(""),
 });
 
 type EditVersionValues = z.infer<typeof editVersionSchema>;
@@ -195,7 +195,7 @@ export default function VersionDetail() {
         changeReason: data.changeReason || null,
         createdBy: data.createdBy,
         effectiveDate: data.effectiveDate || null,
-        content: data.content,
+        content: data.content || undefined,
       });
       return res.json();
     },
