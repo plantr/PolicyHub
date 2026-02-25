@@ -95,13 +95,9 @@ function getAvatarColor(name: string): string {
 
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [versionFilter, setVersionFilter] = useState("all");
-  const [approverFilter, setApproverFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [domainFilter, setDomainFilter] = useState("all");
   const [frameworkFilter, setFrameworkFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
   const [sortColumn, setSortColumn] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -275,12 +271,6 @@ export default function Documents() {
     return Array.from(set).sort();
   }, [docFrameworkMap]);
 
-  const uniqueApprovers = useMemo(() => {
-    const set = new Set<string>();
-    approvalsByDoc.forEach((v) => { if (v.approver) set.add(v.approver); });
-    return Array.from(set).sort();
-  }, [approvalsByDoc]);
-
   const getOverallStatus = (doc: Document) => {
     const ver = latestVersionMap.get(doc.id);
     if (ver && (ver.status === "Approved" || ver.status === "Published")) return "OK";
@@ -289,7 +279,7 @@ export default function Documents() {
     return "Needs attention";
   };
 
-  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || typeFilter !== "all" || domainFilter !== "all" || searchQuery.length > 0;
+  const hasActiveFilters = frameworkFilter !== "all" || typeFilter !== "all" || domainFilter !== "all" || searchQuery.length > 0;
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
@@ -304,26 +294,9 @@ export default function Documents() {
       if (domainFilter !== "all") {
         if (doc.domain !== domainFilter) return false;
       }
-      if (statusFilter !== "all") {
-        const status = getOverallStatus(doc);
-        if (statusFilter === "ok" && status !== "OK") return false;
-        if (statusFilter === "attention" && status !== "Needs attention") return false;
-      }
-      if (versionFilter !== "all") {
-        const ver = latestVersionMap.get(doc.id);
-        if (!ver || ver.status !== versionFilter) return false;
-      }
-      if (approverFilter !== "all") {
-        const a = approvalsByDoc.get(doc.id);
-        if (!a || a.approver !== approverFilter) return false;
-      }
       if (frameworkFilter !== "all") {
         const fw = docFrameworkMap.get(doc.id) ?? [];
         if (!fw.includes(frameworkFilter)) return false;
-      }
-      if (sourceFilter !== "all") {
-        const fw = docFrameworkMap.get(doc.id) ?? [];
-        if (!fw.includes(sourceFilter)) return false;
       }
       return true;
     });
@@ -401,7 +374,7 @@ export default function Documents() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return filtered;
-  }, [documents, searchQuery, typeFilter, domainFilter, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
+  }, [documents, searchQuery, typeFilter, domainFilter, frameworkFilter, latestVersionMap, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -427,11 +400,7 @@ export default function Documents() {
   function resetFilters() {
     setTypeFilter("all");
     setDomainFilter("all");
-    setStatusFilter("all");
-    setVersionFilter("all");
-    setApproverFilter("all");
     setFrameworkFilter("all");
-    setSourceFilter("all");
     setSearchQuery("");
     setCurrentPage(1);
   }
@@ -792,47 +761,6 @@ export default function Documents() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-status">
-              Overall status <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setStatusFilter("ok"); setCurrentPage(1); }}>OK</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setStatusFilter("attention"); setCurrentPage(1); }}>Needs attention</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-version">
-              Latest version <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setVersionFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setVersionFilter("Approved"); setCurrentPage(1); }}>Approved</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setVersionFilter("Draft"); setCurrentPage(1); }}>Draft</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setVersionFilter("Published"); setCurrentPage(1); }}>Published</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-approver">
-              Approver <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setApproverFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            {uniqueApprovers.map((a) => (
-              <DropdownMenuItem key={a} onClick={() => { setApproverFilter(a); setCurrentPage(1); }}>{a}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-framework">
               Framework <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
@@ -841,20 +769,6 @@ export default function Documents() {
             <DropdownMenuItem onClick={() => { setFrameworkFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
             {(sources ?? []).map((s) => (
               <DropdownMenuItem key={s.id} onClick={() => { setFrameworkFilter(s.shortName || s.name); setCurrentPage(1); }}>{s.shortName || s.name}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-source">
-              Source <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => { setSourceFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
-            {(sources ?? []).map((s) => (
-              <DropdownMenuItem key={s.id} onClick={() => { setSourceFilter(s.shortName || s.name); setCurrentPage(1); }}>{s.shortName || s.name}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
