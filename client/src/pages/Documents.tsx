@@ -103,8 +103,8 @@ export default function Documents() {
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
-  const [sortColumn, setSortColumn] = useState<string>("version");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortColumn, setSortColumn] = useState<string>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [dialogOpen, setDialogOpen] = useState(false);
