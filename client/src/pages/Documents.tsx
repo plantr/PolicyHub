@@ -98,6 +98,8 @@ export default function Documents() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [versionFilter, setVersionFilter] = useState("all");
   const [approverFilter, setApproverFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [frameworkFilter, setFrameworkFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
@@ -287,7 +289,7 @@ export default function Documents() {
     return "Needs attention";
   };
 
-  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || searchQuery.length > 0;
+  const hasActiveFilters = statusFilter !== "all" || versionFilter !== "all" || approverFilter !== "all" || frameworkFilter !== "all" || sourceFilter !== "all" || typeFilter !== "all" || categoryFilter !== "all" || searchQuery.length > 0;
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
@@ -295,6 +297,12 @@ export default function Documents() {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         if (!doc.title.toLowerCase().includes(q) && !(doc.documentReference ?? "").toLowerCase().includes(q)) return false;
+      }
+      if (typeFilter !== "all") {
+        if (doc.docType !== typeFilter) return false;
+      }
+      if (categoryFilter !== "all") {
+        if (doc.taxonomy !== categoryFilter) return false;
       }
       if (statusFilter !== "all") {
         const status = getOverallStatus(doc);
@@ -393,7 +401,7 @@ export default function Documents() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return filtered;
-  }, [documents, searchQuery, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
+  }, [documents, searchQuery, typeFilter, categoryFilter, statusFilter, versionFilter, approverFilter, frameworkFilter, sourceFilter, latestVersionMap, approvalsByDoc, docFrameworkMap, sortColumn, sortDir, docControlsCountMap, buMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -417,6 +425,8 @@ export default function Documents() {
   const endItem = Math.min(currentPage * pageSize, totalResults);
 
   function resetFilters() {
+    setTypeFilter("all");
+    setCategoryFilter("all");
     setStatusFilter("all");
     setVersionFilter("all");
     setApproverFilter("all");
@@ -751,6 +761,34 @@ export default function Documents() {
             data-testid="input-search-documents"
           />
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-type">
+              Type <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setTypeFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setTypeFilter("Policy"); setCurrentPage(1); }}>Policy</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setTypeFilter("Standard"); setCurrentPage(1); }}>Standard</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setTypeFilter("Procedure"); setCurrentPage(1); }}>Procedure</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-sm" data-testid="filter-category">
+              Category <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setCategoryFilter("all"); setCurrentPage(1); }}>All</DropdownMenuItem>
+            {activeCategories.map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => { setCategoryFilter(c.label); setCurrentPage(1); }}>{c.label}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
