@@ -1,25 +1,29 @@
 /**
- * Shared helper for calling the Python MarkItDown serverless function.
- * Used by both document-versions.ts (sync) and ai-jobs.ts (async) endpoints.
+ * Converts uploaded documents (PDF, DOCX) to markdown text.
+ * Uses unpdf for PDF extraction and mammoth for DOCX conversion.
+ * Runs entirely in Node.js — no external service calls needed.
  */
+import { extractText, getDocumentProxy } from "unpdf";
+import mammoth from "mammoth";
 
 export async function convertToMarkdown(fileUrl: string, filename: string): Promise<string> {
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3001";
+  const response = await fetch(fileUrl);
+  if (!response.ok) throw new Error(`Failed to fetch file from storage: ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
 
-  const response = await fetch(`${baseUrl}/api/markitdown-convert`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: fileUrl, filename }),
-  });
+  const ext = filename.toLowerCase().split(".").pop() || "";
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const detail = (body as any).error || `HTTP ${response.status}`;
-    throw new Error(`MarkItDown conversion failed: ${detail}`);
+  switch (ext) {
+    case "pdf": {
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const { text } = await extractText(pdf, { mergePages: true });
+      return text as string;
+    }
+    case "docx": {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    }
+    default:
+      throw new Error(`Unsupported file type: .${ext}`);
   }
-
-  const data = (await response.json()) as { markdown: string };
-  return data.markdown;
 }

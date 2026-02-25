@@ -13,7 +13,6 @@
 import { build } from "esbuild";
 import { readdirSync, mkdirSync, writeFileSync, cpSync, existsSync, rmSync } from "fs";
 import { basename } from "path";
-import { execSync } from "child_process";
 
 // Clean any previous Build Output API artifacts
 if (existsSync(".vercel/output")) {
@@ -80,28 +79,6 @@ for (const entry of entries) {
 
 // Clean up temp
 rmSync(tmpDir, { recursive: true, force: true });
-
-// Build Python serverless function (MarkItDown)
-const pySource = "api-src-py/markitdown_convert.py";
-if (existsSync(pySource)) {
-  console.log("Building Python serverless function (markitdown-convert)...");
-  const pyFuncDir = `${funcBase}/markitdown-convert.func`;
-  mkdirSync(pyFuncDir, { recursive: true });
-  cpSync(pySource, `${pyFuncDir}/index.py`);
-  try {
-    // Install markitdown without its magika dependency (~200MB+ ML models) to stay under Vercel's 250MB limit
-    execSync(`python3 -m pip install markitdown --no-deps -t "${pyFuncDir}" --quiet`, { stdio: "inherit" });
-    execSync(`python3 -m pip install -r api-src-py/requirements.txt -t "${pyFuncDir}" --quiet`, { stdio: "inherit" });
-  } catch {
-    console.warn("⚠ python3/pip not available locally — dependencies will be installed during Vercel build");
-  }
-  writeFileSync(`${pyFuncDir}/.vc-config.json`, JSON.stringify({
-    runtime: "python3.12",
-    handler: "index.handler",
-    maxDuration: 60,
-  }, null, 2));
-  console.log("Python function built: markitdown-convert");
-}
 
 // Copy frontend static assets
 const staticDir = ".vercel/output/static";
