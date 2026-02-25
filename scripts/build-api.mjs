@@ -89,6 +89,8 @@ if (existsSync(pySource)) {
   mkdirSync(pyFuncDir, { recursive: true });
   cpSync(pySource, `${pyFuncDir}/index.py`);
   try {
+    // Install markitdown without its magika dependency (~200MB+ ML models) to stay under Vercel's 250MB limit
+    execSync(`python3 -m pip install markitdown --no-deps -t "${pyFuncDir}" --quiet`, { stdio: "inherit" });
     execSync(`python3 -m pip install -r api-src-py/requirements.txt -t "${pyFuncDir}" --quiet`, { stdio: "inherit" });
   } catch {
     console.warn("⚠ python3/pip not available locally — dependencies will be installed during Vercel build");

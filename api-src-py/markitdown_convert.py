@@ -1,12 +1,50 @@
 """
 Vercel Python serverless function: /api/markitdown-convert
 Converts uploaded documents (PDF, DOCX, XLSX, PPTX) to markdown using Microsoft MarkItDown.
+
+We skip the heavy magika dependency (~200MB ML models) by providing a lightweight stub
+that infers file type from the extension. This keeps the function under Vercel's 250MB limit.
 """
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import sys
 import tempfile
+import types
 import urllib.request
+
+# Stub out magika before importing markitdown — avoids pulling in ~200MB of ML models.
+# MarkItDown uses magika for file-type detection, but we already know the type from the filename.
+_EXT_TO_MIME = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc": "application/msword",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".json": "application/json",
+    ".xml": "application/xml",
+}
+
+class _MagikaResult:
+    def __init__(self, mime):
+        self.output = types.SimpleNamespace(mime_type=mime, score=1.0)
+
+class _Magika:
+    def identify_path(self, path):
+        ext = os.path.splitext(str(path))[1].lower()
+        return _MagikaResult(_EXT_TO_MIME.get(ext, "application/octet-stream"))
+    def identify_stream(self, stream):
+        return _MagikaResult("application/octet-stream")
+
+_magika_mod = types.ModuleType("magika")
+_magika_mod.Magika = _Magika
+sys.modules["magika"] = _magika_mod
+
 from markitdown import MarkItDown
 
 
