@@ -85,6 +85,7 @@ import {
   Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { uploadFileToStorage } from "@/lib/storage";
@@ -521,12 +522,18 @@ export default function DocumentDetail() {
     }
   }, [aiJob.data?.status]);
 
+  const [autoMapDialogOpen, setAutoMapDialogOpen] = useState(false);
+  const [autoMapSelectedSources, setAutoMapSelectedSources] = useState<number[]>([]);
+
   const aiAutoMapMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/ai-jobs?action=map-controls&documentId=${id}`);
+    mutationFn: async (sourceIds?: number[]) => {
+      const params = new URLSearchParams({ action: "map-controls", documentId: String(id) });
+      if (sourceIds && sourceIds.length > 0) params.set("sourceIds", sourceIds.join(","));
+      const res = await apiRequest("POST", `/api/ai-jobs?${params}`);
       return res.json();
     },
     onSuccess: (data: { jobId?: string; message?: string }) => {
+      setAutoMapDialogOpen(false);
       if (data.jobId) {
         persistJobId(storageKey, data.jobId);
         setAiJobId(data.jobId);
@@ -542,9 +549,6 @@ export default function DocumentDetail() {
     },
   });
 
-  const hasPublishedVersion = useMemo(() => {
-    return versions?.some((v) => v.status === "Published") ?? false;
-  }, [versions]);
 
   const uploadMutation = useMutation({
     mutationFn: async ({ versionId, file }: { versionId: number; file: File }) => {
@@ -844,8 +848,8 @@ export default function DocumentDetail() {
               variant="outline"
               size="sm"
               data-testid="button-ai-auto-map"
-              disabled={aiAutoMapMutation.isPending || !hasPublishedVersion}
-              onClick={() => aiAutoMapMutation.mutate()}
+              disabled={aiAutoMapMutation.isPending}
+              onClick={() => { setAutoMapSelectedSources([]); setAutoMapDialogOpen(true); }}
             >
               <Sparkles className="h-4 w-4 mr-1.5 text-purple-500 dark:text-purple-400" />
               AI Auto-Map
@@ -1749,6 +1753,44 @@ export default function DocumentDetail() {
             >
               {addLinkMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={autoMapDialogOpen} onOpenChange={(open) => { setAutoMapDialogOpen(open); if (!open) setAutoMapSelectedSources([]); }}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dialog-auto-map">
+          <DialogHeader>
+            <DialogTitle>AI Auto-Map</DialogTitle>
+            <DialogDescription>
+              Select which frameworks to map this document against. Leave all unchecked to map against all frameworks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 py-2 max-h-[300px] overflow-y-auto">
+            {(allSources ?? []).map((s) => (
+              <label key={s.id} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-muted cursor-pointer">
+                <Checkbox
+                  checked={autoMapSelectedSources.includes(s.id)}
+                  onCheckedChange={(checked) => {
+                    setAutoMapSelectedSources((prev) =>
+                      checked ? [...prev, s.id] : prev.filter((id) => id !== s.id)
+                    );
+                  }}
+                />
+                <span className="text-sm">{s.shortName || s.name}</span>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setAutoMapDialogOpen(false); setAutoMapSelectedSources([]); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={aiAutoMapMutation.isPending}
+              onClick={() => aiAutoMapMutation.mutate(autoMapSelectedSources.length > 0 ? autoMapSelectedSources : undefined)}
+            >
+              {aiAutoMapMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              Start Mapping
             </Button>
           </DialogFooter>
         </DialogContent>

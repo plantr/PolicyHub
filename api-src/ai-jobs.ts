@@ -118,20 +118,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ message: "Missing documentId query parameter" });
       }
 
+      // Optional framework filter: comma-separated source IDs
+      const sourceIdsRaw = req.query.sourceIds;
+      const sourceIdsStr = Array.isArray(sourceIdsRaw) ? sourceIdsRaw[0] : sourceIdsRaw;
+      const sourceIds = sourceIdsStr
+        ? sourceIdsStr.split(",").map(Number).filter((n) => !isNaN(n) && n > 0)
+        : undefined;
+
       const document = await storage.getDocument(docId);
       if (!document) return res.status(404).json({ message: "Document not found" });
 
       const allVersions = await db.select().from(schema.documentVersions)
         .where(eq(schema.documentVersions.documentId, docId));
-      const publishedVersion = allVersions.find((v) => v.status === "Published");
-      if (!publishedVersion) return res.status(400).json({ message: "No published version found" });
+      // Prefer published version, fall back to latest version with content
+      const targetVersion = allVersions.find((v) => v.status === "Published")
+        || [...allVersions].sort((a, b) => b.versionNumber.localeCompare(a.versionNumber)).find((v) => (v.content || "").length >= 20);
+      if (!targetVersion) return res.status(400).json({ message: "No version with content found" });
 
-      const docContent = publishedVersion.content || "";
+      const docContent = targetVersion.content || "";
       if (!docContent || docContent.length < 20) {
-        return res.status(400).json({ message: "Published version has no content to analyse" });
+        return res.status(400).json({ message: "Version has no content to analyse" });
       }
 
       const allControls = await storage.getControls();
+      const sourceIdSet = sourceIds ? new Set(sourceIds) : undefined;
+      const targetControls = sourceIdSet
+        ? allControls.filter((c) => sourceIdSet.has(c.sourceId))
+        : allControls;
       const existingMappings = await storage.getControlMappings();
       const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
       const aiVerifiedIds = new Set(
@@ -139,7 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60)
           .map((m) => m.controlId)
       );
-      const unmappedControls = allControls.filter((r) => !aiVerifiedIds.has(r.id));
+      const unmappedControls = targetControls.filter((r) => !aiVerifiedIds.has(r.id));
 
       if (unmappedControls.length === 0) {
         await db.update(schema.documents)
@@ -156,7 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }).returning();
 
       // Fire-and-forget (waitUntil keeps the function alive after response)
-      waitUntil(processAiMapControlsJob(job.id, docId).catch(err => {
+      waitUntil(processAiMapControlsJob(job.id, docId, sourceIds).catch(err => {
         console.error("AI map-controls job processing error:", err);
       }));
 
@@ -210,33 +223,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const allDocuments = await storage.getDocuments();
       const allVersions = await db.select().from(schema.documentVersions);
-      const publishedByDoc = new Map<number, typeof allVersions[0]>();
+      // For each document, prefer published version, fall back to latest version with content
+      const bestByDoc = new Map<number, typeof allVersions[0]>();
+      const versionsByDoc = new Map<number, typeof allVersions>();
       for (const v of allVersions) {
-        if (v.status === "Published") {
-          const content = v.content || "";
-          if (content.length >= 20) {
-            publishedByDoc.set(v.documentId, v);
-          }
-        }
+        if (!versionsByDoc.has(v.documentId)) versionsByDoc.set(v.documentId, []);
+        versionsByDoc.get(v.documentId)!.push(v);
+      }
+      for (const [docId, versions] of versionsByDoc) {
+        const published = versions.find((v) => v.status === "Published" && (v.content || "").length >= 20);
+        const latest = [...versions].sort((a, b) => b.versionNumber.localeCompare(a.versionNumber)).find((v) => (v.content || "").length >= 20);
+        const best = published || latest;
+        if (best) bestByDoc.set(docId, best);
       }
 
-      let docsWithPublished = allDocuments.filter((d) => publishedByDoc.has(d.id));
+      let docsWithContent = allDocuments.filter((d) => bestByDoc.has(d.id));
       if (mode === "unmapped") {
-        docsWithPublished = docsWithPublished.filter((d) => !d.aiReviewedAt);
+        docsWithContent = docsWithContent.filter((d) => !d.aiReviewedAt);
       }
-      if (docsWithPublished.length === 0) {
-        return res.json({ message: "No documents with published versions found", matched: 0 });
+      if (docsWithContent.length === 0) {
+        return res.json({ message: "No documents with content found", matched: 0 });
       }
 
       const [job] = await db.insert(schema.aiJobs).values({
         jobType: "ai-map-all-documents",
         entityId: sourceId ?? 0,
         status: "pending",
-        progressMessage: `Queued: ${docsWithPublished.length} documents to process...`,
+        progressMessage: `Queued: ${docsWithContent.length} documents to process...`,
       }).returning();
 
       // Fire-and-forget (waitUntil keeps the function alive after response)
-      waitUntil(processAiMapAllDocumentsJob(job.id, docsWithPublished.map((d) => d.id), sourceId).catch(err => {
+      waitUntil(processAiMapAllDocumentsJob(job.id, docsWithContent.map((d) => d.id), sourceId).catch(err => {
         console.error("AI map-all-documents job processing error:", err);
       }));
 
@@ -446,7 +463,7 @@ Respond in exactly this JSON format:
 // ============================================================
 // AI PROCESSOR: map controls to document
 // ============================================================
-async function processAiMapControlsJob(jobId: string, docId: number) {
+async function processAiMapControlsJob(jobId: string, docId: number, sourceIds?: number[]) {
   try {
     await db.update(schema.aiJobs).set({
       status: "processing",
@@ -459,19 +476,25 @@ async function processAiMapControlsJob(jobId: string, docId: number) {
 
     const allVersions = await db.select().from(schema.documentVersions)
       .where(eq(schema.documentVersions.documentId, docId));
-    const publishedVersion = allVersions.find((v) => v.status === "Published");
-    if (!publishedVersion) throw new Error("No published version found");
+    // Prefer published version, fall back to latest version with content
+    const targetVersion = allVersions.find((v) => v.status === "Published")
+      || [...allVersions].sort((a, b) => b.versionNumber.localeCompare(a.versionNumber)).find((v) => (v.content || "").length >= 20);
+    if (!targetVersion) throw new Error("No version with content found");
 
-    const docContent = publishedVersion.content || "";
-    if (!docContent || docContent.length < 20) throw new Error("Published version has no content to analyse");
+    const docContent = targetVersion.content || "";
+    if (!docContent || docContent.length < 20) throw new Error("Version has no content to analyse");
 
     const allControls = await storage.getControls();
+    const sourceIdSet = sourceIds ? new Set(sourceIds) : undefined;
+    const targetControls = sourceIdSet
+      ? allControls.filter((c) => sourceIdSet.has(c.sourceId))
+      : allControls;
     const existingMappings = await storage.getControlMappings();
     const existingDocMappings = existingMappings.filter((m) => m.documentId === docId);
     const aiVerifiedIds = new Set(
       existingDocMappings.filter((m) => m.aiMatchScore != null && m.aiMatchScore >= 60).map((m) => m.controlId)
     );
-    const unmappedControls = allControls.filter((r) => !aiVerifiedIds.has(r.id));
+    const unmappedControls = targetControls.filter((r) => !aiVerifiedIds.has(r.id));
 
     if (unmappedControls.length === 0) {
       await db.update(schema.documents)
@@ -575,6 +598,11 @@ If no controls match at 60% or above, return an empty array: []`;
         console.error(`AI batch error:`, batchErr.message);
       }
     }
+
+    await db.update(schema.aiJobs).set({
+      progressMessage: `Saving ${newMappings.length} mappings...`,
+      updatedAt: new Date(),
+    }).where(eq(schema.aiJobs.id, jobId));
 
     const resultMappings: any[] = [];
     const existingByControl = new Map(existingDocMappings.map((m) => [m.controlId, m]));
@@ -693,10 +721,12 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
 
       const allVersions = await db.select().from(schema.documentVersions)
         .where(eq(schema.documentVersions.documentId, docId));
-      const publishedVersion = allVersions.find((v) => v.status === "Published");
-      if (!publishedVersion) continue;
+      // Prefer published version, fall back to latest version with content
+      const targetVersion = allVersions.find((v) => v.status === "Published")
+        || [...allVersions].sort((a, b) => b.versionNumber.localeCompare(a.versionNumber)).find((v) => (v.content || "").length >= 20);
+      if (!targetVersion) continue;
 
-      const docContent = publishedVersion.content || "";
+      const docContent = targetVersion.content || "";
       if (!docContent || docContent.length < 20) continue;
 
       const existingMappings = await storage.getControlMappings();
