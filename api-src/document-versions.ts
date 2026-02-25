@@ -20,6 +20,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createHash } from "crypto";
 import { handleCors } from "./_shared/cors";
 import { sendError, getIdParam } from "./_shared/handler";
+import { convertToMarkdown } from "./_shared/markitdown";
 import { storage } from "../server/storage";
 import { api } from "../shared/routes";
 import {
@@ -82,52 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const buId = doc?.businessUnitId ?? null;
 
           const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
-          const response = await fetch(signedUrl);
-          if (!response.ok) throw new Error(`Failed to fetch PDF from storage: ${response.status}`);
-          const pdfBuffer = Buffer.from(await response.arrayBuffer());
-          const pdfBase64 = pdfBuffer.toString("base64");
-
-          const Anthropic = (await import("@anthropic-ai/sdk")).default;
-          const anthropic = new Anthropic({
-            apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-            baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-          });
-
-          const message = await anthropic.messages.create({
-            model: "claude-sonnet-4-5",
-            max_tokens: 16000,
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type: "document",
-                  source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-                },
-                {
-                  type: "text",
-                  text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
-
-1. Document title as a single # heading (ALL CAPS as it appears)
-2. Use --- horizontal rules to separate major sections
-3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
-4. Include a Table of Contents section with numbered entries and sub-entries using indentation
-5. Main sections use ## headings (e.g. ## 1. Introduction)
-6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
-7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
-8. Keep the original section numbering in the headings
-9. Bullet lists use - prefix with proper spacing
-10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
-11. Paragraphs should be separated by blank lines
-12. Preserve all content faithfully — do not summarise or omit anything
-13. Use --- horizontal rules between top-level sections
-
-Return ONLY the markdown content, no code fences or explanation.`,
-                },
-              ],
-            }],
-          });
-
-          const markdown = message.content[0].type === "text" ? message.content[0].text : "";
+          const markdown = await convertToMarkdown(signedUrl, version.pdfFileName || "document.pdf");
           return res.json({ markdown });
         }
 

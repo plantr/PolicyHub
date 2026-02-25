@@ -23,6 +23,7 @@ import { db } from "../server/db";
 import { eq, and, ne, inArray, desc } from "drizzle-orm";
 import * as schema from "../shared/schema";
 import { createSignedDownloadUrl, bucketName } from "../server/storage-supabase";
+import { convertToMarkdown } from "./_shared/markitdown";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
@@ -1049,61 +1050,17 @@ async function processAiPdfToMarkdownJob(jobId: string, versionId: number) {
     const buId = doc?.businessUnitId ?? null;
 
     const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
-    const response = await fetch(signedUrl);
-    if (!response.ok) throw new Error(`Failed to fetch PDF from storage: ${response.status}`);
-    const pdfBuffer = Buffer.from(await response.arrayBuffer());
-    const pdfBase64 = pdfBuffer.toString("base64");
 
     if (await isJobCancelled(jobId)) return;
 
-    // Step 2 (50%): Send to Claude API for markdown conversion
+    // Step 2 (50%): Convert document to markdown via MarkItDown
     await db.update(schema.aiJobs).set({
-      progressMessage: "Converting PDF with AI...",
+      progressMessage: "Converting document...",
       result: { progress: 50 },
       updatedAt: new Date(),
     }).where(eq(schema.aiJobs.id, jobId));
 
-    const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    const anthropic = new Anthropic({
-      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-    });
-
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 16000,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-          },
-          {
-            type: "text",
-            text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
-
-1. Document title as a single # heading (ALL CAPS as it appears)
-2. Use --- horizontal rules to separate major sections
-3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
-4. Include a Table of Contents section with numbered entries and sub-entries using indentation
-5. Main sections use ## headings (e.g. ## 1. Introduction)
-6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
-7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
-8. Keep the original section numbering in the headings
-9. Bullet lists use - prefix with proper spacing
-10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
-11. Paragraphs should be separated by blank lines
-12. Preserve all content faithfully — do not summarise or omit anything
-13. Use --- horizontal rules between top-level sections
-
-Return ONLY the markdown content, no code fences or explanation.`,
-          },
-        ],
-      }],
-    });
-
-    const markdown = message.content[0].type === "text" ? message.content[0].text : "";
+    const markdown = await convertToMarkdown(signedUrl, version.pdfFileName || "document.pdf");
 
     if (await isJobCancelled(jobId)) return;
 
@@ -1141,12 +1098,6 @@ async function processAiBulkPdfToMarkdownJob(jobId: string, versionIds: number[]
       updatedAt: new Date(),
     }).where(eq(schema.aiJobs.id, jobId));
 
-    const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    const anthropic = new Anthropic({
-      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-    });
-
     let converted = 0;
     let skipped = 0;
 
@@ -1167,48 +1118,10 @@ async function processAiBulkPdfToMarkdownJob(jobId: string, versionIds: number[]
         const buId = doc?.businessUnitId ?? null;
 
         const signedUrl = await createSignedDownloadUrl(buId, version.pdfS3Key);
-        const response = await fetch(signedUrl);
-        if (!response.ok) { skipped++; continue; }
-        const pdfBuffer = Buffer.from(await response.arrayBuffer());
-        const pdfBase64 = pdfBuffer.toString("base64");
 
         if (await isJobCancelled(jobId)) return;
 
-        const message = await anthropic.messages.create({
-          model: "claude-sonnet-4-5",
-          max_tokens: 16000,
-          messages: [{
-            role: "user",
-            content: [
-              {
-                type: "document",
-                source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-              },
-              {
-                type: "text",
-                text: `Convert this PDF document into clean, well-structured markdown. Follow these rules exactly:
-
-1. Document title as a single # heading (ALL CAPS as it appears)
-2. Use --- horizontal rules to separate major sections
-3. Document metadata (version history, distribution, properties) must be formatted as markdown tables
-4. Include a Table of Contents section with numbered entries and sub-entries using indentation
-5. Main sections use ## headings (e.g. ## 1. Introduction)
-6. Sub-sections use ### headings (e.g. ### 1.1 Document Definition)
-7. Sub-sub-sections use #### headings (e.g. #### 1.3.1 Applicability to Personnel)
-8. Keep the original section numbering in the headings
-9. Bullet lists use - prefix with proper spacing
-10. Any tabular data (compliance criteria, glossary, etc.) must be formatted as markdown tables
-11. Paragraphs should be separated by blank lines
-12. Preserve all content faithfully — do not summarise or omit anything
-13. Use --- horizontal rules between top-level sections
-
-Return ONLY the markdown content, no code fences or explanation.`,
-              },
-            ],
-          }],
-        });
-
-        const markdown = message.content[0].type === "text" ? message.content[0].text : "";
+        const markdown = await convertToMarkdown(signedUrl, version.pdfFileName || "document.pdf");
 
         if (markdown && markdown.length > 0) {
           await db.update(schema.documentVersions)
