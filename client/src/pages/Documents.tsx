@@ -599,6 +599,7 @@ export default function Documents() {
       if (data.jobId) {
         persistJobId("map-all-documents", data.jobId);
         setAutoMapJobId(data.jobId);
+        toast({ title: "AI Auto-Map Started", description: `Processing ${filteredDocuments.length} documents...` });
       } else {
         toast({ title: "AI Auto-Map", description: data.message || "Nothing to process" });
       }
@@ -833,6 +834,34 @@ export default function Documents() {
           </Button>
         </div>
       </div>
+
+      {(autoMapRunning || mdRefreshRunning) && (
+        <div className="flex items-center gap-3 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 px-4 py-3">
+          <Loader2 className="h-4 w-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-purple-900 dark:text-purple-200">
+              {autoMapRunning ? "AI Auto-Map in progress" : "Markdown Refresh in progress"}
+            </p>
+            <p className="text-xs text-purple-700 dark:text-purple-400 truncate">
+              {autoMapRunning
+                ? (autoMapJob.data?.progressMessage || "Starting...")
+                : (mdRefreshJob.data?.progressMessage || "Starting...")}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 shrink-0"
+            onClick={() => {
+              if (autoMapRunning && autoMapJobId) cancelJob.mutate(autoMapJobId);
+              if (mdRefreshRunning && mdRefreshJobId) cancelJob.mutate(mdRefreshJobId);
+            }}
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Cancel
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3" data-testid="loading-skeleton">
