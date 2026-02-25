@@ -685,7 +685,7 @@ export default function DocumentDetail() {
   const editDetailsMutation = useMutation({
     mutationFn: async (data: EditDocValues) => {
       const tags = data.tagsText.split(",").map((t) => t.trim()).filter(Boolean);
-      const res = await apiRequest("PUT", `/api/documents/${document!.id}`, {
+      const res = await apiRequest("PUT", `/api/documents?id=${document!.id}`, {
         documentReference: data.documentReference || null,
         title: data.title,
         docType: data.docType,
