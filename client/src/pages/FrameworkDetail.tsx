@@ -39,7 +39,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X } from "lucide-react";
+import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, CheckCircle2, AlertCircle, CircleDot, Search, PanelLeftClose, PanelLeft, Pencil, Loader2, X, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -147,6 +147,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [coverageFilter, setCoverageFilter] = useState<string | null>(null);
+  const [showNotApplicable, setShowNotApplicable] = useState(false);
   const { toast } = useToast();
 
   const { data: source, isLoading: sourceLoading } = useQuery<RegulatorySource>({
@@ -210,10 +211,19 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     queryKey: ["/api/documents"],
   });
 
-  const requirements = useMemo(() => {
+  const allFrameworkControls = useMemo(() => {
     if (!allRequirements) return [];
     return allRequirements.filter((r) => r.sourceId === sourceId);
   }, [allRequirements, sourceId]);
+
+  const requirements = useMemo(() => {
+    if (showNotApplicable) return allFrameworkControls;
+    return allFrameworkControls.filter((r) => r.applicable !== false);
+  }, [allFrameworkControls, showNotApplicable]);
+
+  const applicableControls = useMemo(() => {
+    return allFrameworkControls.filter((r) => r.applicable !== false);
+  }, [allFrameworkControls]);
 
   const reqIds = useMemo(() => new Set(requirements.map((r) => r.id)), [requirements]);
 
@@ -223,7 +233,8 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
   }, [allMappings, reqIds]);
 
   const metrics = useMemo(() => {
-    const total = requirements.length;
+    const applicableIds = new Set(applicableControls.map((r) => r.id));
+    const total = applicableControls.length;
     if (total === 0) return { total: 0, covered: 0, partial: 0, notCovered: 0, coveragePercent: 0, mappedPercent: 0 };
 
     const coveredIds = new Set<number>();
@@ -231,6 +242,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     const mappedReqIds = new Set<number>();
 
     for (const m of mappings) {
+      if (!applicableIds.has(m.controlId)) continue;
       mappedReqIds.add(m.controlId);
       if (m.coverageStatus === "Covered") coveredIds.add(m.controlId);
       else if (m.coverageStatus === "Partially Covered") partialIds.add(m.controlId);
@@ -243,7 +255,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
     const mappedPercent = Math.round((mappedReqIds.size / total) * 100);
 
     return { total, covered, partial, notCovered, coveragePercent, mappedPercent };
-  }, [requirements, mappings]);
+  }, [applicableControls, mappings]);
 
   const reqMappingLookup = useMemo(() => {
     const lookup = new Map<number, ControlMapping[]>();
@@ -278,7 +290,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
 
   const gapRows = useMemo(() => {
     const rows: { control: Control; mapping: ControlMapping | null; bestStatus: string }[] = [];
-    for (const ctrl of requirements) {
+    for (const ctrl of applicableControls) {
       const ctrlMappings = reqMappingLookup.get(ctrl.id) || [];
       const bestStatus = getBestStatus(ctrlMappings);
       if (bestStatus === "Covered") continue;
@@ -293,7 +305,7 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
       }
     }
     return rows;
-  }, [requirements, reqMappingLookup]);
+  }, [applicableControls, reqMappingLookup]);
 
   const filteredRequirements = useMemo(() => {
     let filtered = requirements;
@@ -676,6 +688,18 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                 <SelectItem value="Not Covered">Not Covered</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={showNotApplicable ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowNotApplicable(!showNotApplicable)}
+              data-testid="button-toggle-na"
+            >
+              <Ban className="h-3.5 w-3.5 mr-1" />
+              {showNotApplicable ? "Hide N/A" : "Show N/A"}
+              {allFrameworkControls.length - applicableControls.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 text-xs">{allFrameworkControls.length - applicableControls.length}</Badge>
+              )}
+            </Button>
             {(ownerFilter || coverageFilter) && (
               <Button
                 variant="ghost"
@@ -795,15 +819,19 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                           {reqs.map((req) => {
                             const reqMaps = reqMappingLookup.get(req.id) || [];
                             const bestStatus = getBestStatus(reqMaps);
+                            const isNA = req.applicable === false;
                             return (
-                              <TableRow key={req.id} data-testid={`control-row-${req.id}`}>
+                              <TableRow key={req.id} className={isNA ? "opacity-50" : ""} data-testid={`control-row-${req.id}`}>
                                 <TableCell className="font-mono text-xs text-muted-foreground align-top">
                                   {req.code}
                                 </TableCell>
                                 <TableCell className="align-top">
-                                  <Link href={`/controls/${req.id}`} className="text-sm font-medium hover:underline">
-                                    {req.title}
-                                  </Link>
+                                  <div className="flex items-center gap-2">
+                                    <Link href={`/controls/${req.id}`} className="text-sm font-medium hover:underline">
+                                      {req.title}
+                                    </Link>
+                                    {isNA && <Badge variant="outline" className="text-xs shrink-0"><Ban className="h-3 w-3 mr-1" />N/A</Badge>}
+                                  </div>
                                   {req.description && (
                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.description}</p>
                                   )}
@@ -812,7 +840,11 @@ export default function FrameworkDetail({ params }: { params: { id: string } }) 
                                   {req.owner || "--"}
                                 </TableCell>
                                 <TableCell className="text-right align-top">
-                                  <Badge variant={getCoverageVariant(bestStatus)} className="text-xs">{bestStatus}</Badge>
+                                  {isNA ? (
+                                    <Badge variant="outline" className="text-xs">N/A</Badge>
+                                  ) : (
+                                    <Badge variant={getCoverageVariant(bestStatus)} className="text-xs">{bestStatus}</Badge>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

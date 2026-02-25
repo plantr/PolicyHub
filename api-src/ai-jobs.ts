@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ message: "Version has no content to analyse" });
       }
 
-      const allControls = await storage.getControls();
+      const allControls = (await storage.getControls()).filter((c) => c.applicable !== false);
       const sourceIdSet = sourceIds ? new Set(sourceIds) : undefined;
       const targetControls = sourceIdSet
         ? allControls.filter((c) => sourceIdSet.has(c.sourceId))
@@ -181,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const modeRaw = req.query.mode;
       const mode = Array.isArray(modeRaw) ? modeRaw[0] : modeRaw; // "all" or "gaps"
 
-      const allControls = await storage.getControls();
+      const allControls = (await storage.getControls()).filter((c) => c.applicable !== false);
       const allMappings = await storage.getControlMappings();
 
       // Build lookup: controlId → has linked documents
@@ -484,7 +484,7 @@ async function processAiMapControlsJob(jobId: string, docId: number, sourceIds?:
     const docContent = targetVersion.content || "";
     if (!docContent || docContent.length < 20) throw new Error("Version has no content to analyse");
 
-    const allControls = await storage.getControls();
+    const allControls = (await storage.getControls()).filter((c) => c.applicable !== false);
     const sourceIdSet = sourceIds ? new Set(sourceIds) : undefined;
     const targetControls = sourceIdSet
       ? allControls.filter((c) => sourceIdSet.has(c.sourceId))
@@ -684,7 +684,7 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
       updatedAt: new Date(),
     }).where(eq(schema.aiJobs.id, jobId));
 
-    const allControls = await storage.getControls();
+    const allControls = (await storage.getControls()).filter((c) => c.applicable !== false);
     const targetControls = sourceId
       ? allControls.filter((c) => c.sourceId === sourceId)
       : allControls;

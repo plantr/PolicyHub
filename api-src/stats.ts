@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (req.method) {
       case "GET": {
         const allDocs = await storage.getDocuments();
-        const allReqs = await storage.getControls();
+        const allReqs = (await storage.getControls()).filter(c => c.applicable !== false);
         const allSources = await storage.getRegulatorySources();
         const allBUs = await storage.getBusinessUnits();
         const allMappings = await storage.getControlMappings();

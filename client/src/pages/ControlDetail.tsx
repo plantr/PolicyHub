@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2, StopCircle } from "lucide-react";
+import { X, CheckCircle2, XCircle, Plus, Trash2, Sparkles, Loader2, StopCircle, Ban } from "lucide-react";
 import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
 import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
 
@@ -135,6 +135,22 @@ export default function ControlDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/control-mappings"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleApplicableMutation = useMutation({
+    mutationFn: async (applicable: boolean) => {
+      const res = await apiRequest("PUT", `/api/controls?id=${controlId}`, { applicable });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls", controlId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      toast({ title: data.applicable ? "Control marked as applicable" : "Control marked as not applicable" });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -339,6 +355,39 @@ export default function ControlDetail() {
         <span className="text-muted-foreground">Status</span>
         <span data-testid="badge-meta-status">
           <Badge variant={statusVariant}>{bestStatus}</Badge>
+        </span>
+
+        <span className="text-muted-foreground">Applicable</span>
+        <span className="flex items-center gap-2" data-testid="meta-applicable">
+          {control.applicable === false ? (
+            <>
+              <Badge variant="outline" className="text-xs"><Ban className="h-3 w-3 mr-1" />Not Applicable</Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                disabled={toggleApplicableMutation.isPending}
+                onClick={() => toggleApplicableMutation.mutate(true)}
+                data-testid="button-mark-applicable"
+              >
+                Mark Applicable
+              </Button>
+            </>
+          ) : (
+            <>
+              <Badge variant="default" className="text-xs">Applicable</Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                disabled={toggleApplicableMutation.isPending}
+                onClick={() => toggleApplicableMutation.mutate(false)}
+                data-testid="button-mark-na"
+              >
+                Mark N/A
+              </Button>
+            </>
+          )}
         </span>
       </div>
 

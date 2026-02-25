@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X } from "lucide-react";
+import { Plus, Search, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, FileText, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X, Ban } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Control, RegulatorySource, ControlMapping, Document as PolicyDocument } from "@shared/schema";
 import { insertControlSchema } from "@shared/schema";
@@ -129,6 +129,7 @@ export default function Requirements() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [coverageDialogOpen, setCoverageDialogOpen] = useState(false);
   const [bulkCoverageJobId, setBulkCoverageJobId] = useState<string | null>(null);
+  const [showNotApplicable, setShowNotApplicable] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<ReqFormValues>({
@@ -194,8 +195,12 @@ export default function Requirements() {
     return "Not Covered";
   }
 
+  const naCount = useMemo(() => {
+    return (requirements ?? []).filter((r) => r.applicable === false).length;
+  }, [requirements]);
+
   const stats = useMemo(() => {
-    const reqs = requirements ?? [];
+    const reqs = (requirements ?? []).filter((r) => r.applicable !== false);
     const total = reqs.length;
     let coveredCount = 0;
     let partialCount = 0;
@@ -248,7 +253,7 @@ export default function Requirements() {
     return Array.from(ownerSet).sort();
   }, [requirements, mappingsByReq, docMap]);
 
-  const hasActiveFilters = frameworkFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all" || ownerFilter !== "all" || searchQuery.length > 0;
+  const hasActiveFilters = frameworkFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all" || ownerFilter !== "all" || searchQuery.length > 0 || showNotApplicable;
 
   function resetFilters() {
     setFrameworkFilter("all");
@@ -256,6 +261,7 @@ export default function Requirements() {
     setStatusFilter("all");
     setOwnerFilter("all");
     setSearchQuery("");
+    setShowNotApplicable(false);
     setCurrentPage(1);
   }
 
@@ -276,6 +282,7 @@ export default function Requirements() {
 
   const filtered = useMemo(() => {
     const result = (requirements ?? []).filter((req) => {
+      if (!showNotApplicable && req.applicable === false) return false;
       if (frameworkFilter !== "all" && String(req.sourceId) !== frameworkFilter) return false;
       if (categoryFilter !== "all" && req.category !== categoryFilter) return false;
       if (statusFilter !== "all") {
@@ -341,7 +348,7 @@ export default function Requirements() {
     });
 
     return result;
-  }, [requirements, frameworkFilter, categoryFilter, statusFilter, ownerFilter, searchQuery, mappingsByReq, docMap, sortColumn, sortDir, sourceMap]);
+  }, [requirements, frameworkFilter, categoryFilter, statusFilter, ownerFilter, searchQuery, showNotApplicable, mappingsByReq, docMap, sortColumn, sortDir, sourceMap]);
 
   const totalResults = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
@@ -404,6 +411,21 @@ export default function Requirements() {
       toast({ title: "Control deleted" });
       setDeleteConfirmOpen(false);
       setDeletingReq(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleApplicableMutation = useMutation({
+    mutationFn: async ({ id, applicable }: { id: number; applicable: boolean }) => {
+      const res = await apiRequest("PUT", `/api/controls?id=${id}`, { applicable });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      toast({ title: data.applicable ? "Control marked as applicable" : "Control marked as not applicable" });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -713,6 +735,18 @@ export default function Requirements() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Button
+          variant={showNotApplicable ? "secondary" : "ghost"}
+          size="sm"
+          className="text-sm"
+          onClick={() => { setShowNotApplicable(!showNotApplicable); setCurrentPage(1); }}
+          data-testid="button-toggle-na"
+        >
+          <Ban className="h-3 w-3 mr-1" />
+          {showNotApplicable ? "Hide N/A" : "Show N/A"}
+          {naCount > 0 && <Badge variant="secondary" className="ml-1.5 text-xs">{naCount}</Badge>}
+        </Button>
+
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
             Reset view
@@ -768,6 +802,7 @@ export default function Requirements() {
                   paginatedControls.map((req) => {
                     const source = sourceMap.get(req.sourceId);
                     const ownerName = req.owner ?? "--";
+                    const isNA = req.applicable === false;
                     const evidenceStatusColor = req.evidenceStatus === "Complete"
                       ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                       : req.evidenceStatus === "In Progress"
@@ -776,7 +811,7 @@ export default function Requirements() {
                     return (
                       <TableRow
                         key={req.id}
-                        className="group cursor-pointer hover-elevate"
+                        className={`group cursor-pointer hover-elevate ${isNA ? "opacity-50" : ""}`}
                         onClick={() => navigate(`/controls/${req.id}`)}
                         data-testid={`row-control-${req.id}`}
                       >
@@ -785,6 +820,7 @@ export default function Requirements() {
                         </TableCell>
                         <TableCell className="align-top pt-4" data-testid={`text-title-${req.id}`}>
                           <span className="text-sm font-medium">{req.title}</span>
+                          {isNA && <Badge variant="outline" className="ml-2 text-xs"><Ban className="h-3 w-3 mr-1" />N/A</Badge>}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground align-top pt-4" data-testid={`text-id-${req.id}`}>
                           {req.code}
@@ -844,6 +880,12 @@ export default function Requirements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(req); }}>
                                 Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                toggleApplicableMutation.mutate({ id: req.id, applicable: req.applicable === false });
+                              }}>
+                                {req.applicable === false ? "Mark Applicable" : "Mark Not Applicable"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"

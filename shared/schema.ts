@@ -61,6 +61,7 @@ export const controls = pgTable("controls", {
   combinedAiScore: integer("combined_ai_score"),
   combinedAiRationale: text("combined_ai_rationale"),
   combinedAiRecommendations: text("combined_ai_recommendations"),
+  applicable: boolean("applicable").notNull().default(true),
 });
 
 // =============================================

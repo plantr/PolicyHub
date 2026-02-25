@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ControlMapping, Control, Document, BusinessUnit, RegulatorySource } from "@shared/schema";
-import { Search, ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X } from "lucide-react";
+import { Search, ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Loader2, X, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useAiJob, useCancelAiJob, persistJobId, getPersistedJobId, clearPersistedJobId } from "@/hooks/use-ai-job";
@@ -42,6 +42,7 @@ export default function GapAnalysis() {
   const [pageSize, setPageSize] = useState(100);
   const [sortColumn, setSortColumn] = useState<string | null>("aiMatch");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [showNotApplicable, setShowNotApplicable] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -137,6 +138,10 @@ export default function GapAnalysis() {
   const filtered = useMemo(() => {
     return allMappings.filter((m) => {
       if (m.documentId == null) return false;
+      if (!showNotApplicable) {
+        const req = reqMap.get(m.controlId);
+        if (req && req.applicable === false) return false;
+      }
       if (statusFilter !== "all" && m.coverageStatus !== statusFilter) return false;
       if (buFilter !== "all" && String(m.businessUnitId ?? "") !== buFilter) return false;
       if (frameworkFilter !== "all") {
@@ -154,7 +159,7 @@ export default function GapAnalysis() {
       }
       return true;
     });
-  }, [allMappings, statusFilter, buFilter, frameworkFilter, searchQuery, reqMap, docMap]);
+  }, [allMappings, statusFilter, buFilter, frameworkFilter, searchQuery, showNotApplicable, reqMap, docMap]);
 
   function toggleSort(col: string) {
     if (sortColumn === col) {
@@ -296,6 +301,17 @@ export default function GapAnalysis() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          variant={showNotApplicable ? "secondary" : "ghost"}
+          size="sm"
+          className="text-sm"
+          onClick={() => setShowNotApplicable(!showNotApplicable)}
+          data-testid="button-toggle-na"
+        >
+          <Ban className="h-3 w-3 mr-1" />
+          {showNotApplicable ? "Hide N/A" : "Show N/A"}
+        </Button>
 
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" className="text-sm text-muted-foreground" onClick={resetFilters} data-testid="button-reset-view">
