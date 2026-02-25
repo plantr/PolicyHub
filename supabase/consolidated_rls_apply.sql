@@ -110,7 +110,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
@@ -121,7 +121,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -133,7 +133,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -142,7 +142,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -154,7 +154,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -172,7 +172,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
@@ -183,7 +183,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -195,7 +195,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -204,7 +204,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -216,7 +216,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -234,7 +234,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
@@ -245,7 +245,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -257,7 +257,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -266,7 +266,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -278,7 +278,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -296,7 +296,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
@@ -307,7 +307,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -319,7 +319,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -328,7 +328,7 @@ WITH CHECK (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -340,7 +340,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -363,7 +363,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -375,7 +375,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -387,7 +387,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -396,7 +396,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -408,7 +408,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -426,7 +426,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -438,7 +438,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -450,7 +450,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -459,7 +459,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -471,7 +471,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -489,7 +489,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -501,7 +501,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -513,7 +513,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -522,7 +522,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -534,7 +534,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -552,7 +552,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -564,7 +564,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -576,7 +576,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -585,7 +585,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -597,7 +597,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -615,7 +615,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -627,7 +627,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -639,7 +639,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -648,7 +648,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -660,7 +660,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -681,7 +681,7 @@ USING (
   (business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   ))
   OR business_unit_id IS NULL
@@ -693,7 +693,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -705,7 +705,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -714,7 +714,7 @@ WITH CHECK (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -726,7 +726,7 @@ USING (
   business_unit_id IS NOT NULL AND business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' IN ('admin', 'editor')
   )
@@ -784,7 +784,7 @@ DROP POLICY IF EXISTS "users_update_own" ON public.users;
 
 CREATE POLICY "users_select_own" ON public.users
 FOR SELECT TO authenticated
-USING (auth_user_id = auth.uid()::text);
+USING (auth_user_id = (select auth.uid())::text);
 
 CREATE POLICY "users_select_bu" ON public.users
 FOR SELECT TO authenticated
@@ -792,15 +792,15 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
 
 CREATE POLICY "users_update_own" ON public.users
 FOR UPDATE TO authenticated
-USING (auth_user_id = auth.uid()::text)
-WITH CHECK (auth_user_id = auth.uid()::text);
+USING (auth_user_id = (select auth.uid())::text)
+WITH CHECK (auth_user_id = (select auth.uid())::text);
 
 -- business_units
 DROP POLICY IF EXISTS "business_units_select" ON public.business_units;
@@ -810,7 +810,7 @@ USING (
   id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
   )
 );
@@ -821,7 +821,7 @@ DROP POLICY IF EXISTS "user_business_units_select_admin" ON public.user_business
 
 CREATE POLICY "user_business_units_select_own" ON public.user_business_units
 FOR SELECT TO authenticated
-USING (user_id = auth.uid()::text);
+USING (user_id = (select auth.uid())::text);
 
 CREATE POLICY "user_business_units_select_admin" ON public.user_business_units
 FOR SELECT TO authenticated
@@ -829,7 +829,7 @@ USING (
   business_unit_id = ANY(
     SELECT (elem->>'id')::int
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE elem->>'role' = 'admin'
   )
@@ -959,7 +959,7 @@ USING (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
   )
@@ -972,7 +972,7 @@ WITH CHECK (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
       AND elem->>'role' IN ('admin', 'editor')
@@ -986,7 +986,7 @@ USING (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
       AND elem->>'role' IN ('admin', 'editor')

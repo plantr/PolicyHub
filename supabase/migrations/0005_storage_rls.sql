@@ -29,7 +29,7 @@ USING (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
   )
@@ -45,7 +45,7 @@ WITH CHECK (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
       AND elem->>'role' IN ('admin', 'editor')
@@ -62,7 +62,7 @@ USING (
   EXISTS (
     SELECT 1
     FROM jsonb_array_elements(
-      COALESCE(auth.jwt()->'app_metadata'->'business_units', '[]'::jsonb)
+      COALESCE((select auth.jwt()->'app_metadata'->'business_units'), '[]'::jsonb)
     ) AS elem
     WHERE ('bu-' || (elem->>'id')::text) = bucket_id
       AND elem->>'role' IN ('admin', 'editor')
