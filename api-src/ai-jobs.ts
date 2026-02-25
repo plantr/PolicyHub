@@ -754,7 +754,8 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
       }
 
       const truncatedContent = docContent.slice(0, 10000);
-      const BATCH_SIZE = 25;
+      const BATCH_SIZE = 50;
+      const PARALLEL_WAVES = 3;
       const batches: typeof unmappedControls[] = [];
       for (let i = 0; i < unmappedControls.length; i += BATCH_SIZE) {
         batches.push(unmappedControls.slice(i, i + BATCH_SIZE));
@@ -762,17 +763,7 @@ async function processAiMapAllDocumentsJob(jobId: string, docIds: number[], sour
 
       const newMappings: Array<{ controlId: number; score: number; rationale: string; recommendations: string }> = [];
 
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-
-        if (batches.length > 1) {
-          await db.update(schema.aiJobs).set({
-            progressMessage: `Document ${di + 1}/${docIds.length}: "${document.title}" (batch ${i + 1}/${batches.length})`,
-            result: { progress: di, total: docIds.length, currentDoc: document.title, startedAt: startTime },
-            updatedAt: new Date(),
-          }).where(eq(schema.aiJobs.id, jobId));
-        }
-
+      const processBatch = async (batch: typeof unmappedControls) => {
         const controlList = batch.map((r) =>
           `ID:${r.id} | Code:${r.code} | Title:${r.title} | Description:${(r.description || "N/A").slice(0, 200)}`
         ).join("\n");
@@ -801,41 +792,69 @@ Respond in exactly this JSON format (array of matches only, omit controls below 
 
 If no controls match at 60% or above, return an empty array: []`;
 
+        const message = await anthropic.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 4000,
+          messages: [{ role: "user", content: prompt }],
+        });
+
+        const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+        let parsed: any[] = [];
         try {
-          const message = await anthropic.messages.create({
-            model: "claude-sonnet-4-5",
-            max_tokens: 4000,
-            messages: [{ role: "user", content: prompt }],
-          });
-
-          const responseText = message.content[0].type === "text" ? message.content[0].text : "";
-          let parsed: any[] = [];
-          try {
-            const direct = JSON.parse(responseText);
-            if (Array.isArray(direct)) parsed = direct;
-          } catch {
-            const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-            if (jsonMatch) {
-              try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip malformed batch */ }
-            }
+          const direct = JSON.parse(responseText);
+          if (Array.isArray(direct)) parsed = direct;
+        } catch {
+          const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) {
+            try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip malformed batch */ }
           }
+        }
 
-          const batchIds = new Set(batch.map((r) => r.id));
-          for (const item of parsed) {
-            if (!item || typeof item !== "object") continue;
-            const ctrlId = Number(item.id);
-            const score = Math.min(100, Math.max(0, Math.round(Number(item.score) || 0)));
-            if (score >= 60 && batchIds.has(ctrlId)) {
-              newMappings.push({
-                controlId: ctrlId,
-                score,
-                rationale: String(item.rationale || ""),
-                recommendations: String(item.recommendations || ""),
-              });
-            }
+        const results: Array<{ controlId: number; score: number; rationale: string; recommendations: string }> = [];
+        const batchIds = new Set(batch.map((r) => r.id));
+        for (const item of parsed) {
+          if (!item || typeof item !== "object") continue;
+          const ctrlId = Number(item.id);
+          const score = Math.min(100, Math.max(0, Math.round(Number(item.score) || 0)));
+          if (score >= 60 && batchIds.has(ctrlId)) {
+            results.push({
+              controlId: ctrlId,
+              score,
+              rationale: String(item.rationale || ""),
+              recommendations: String(item.recommendations || ""),
+            });
           }
-        } catch (batchErr: any) {
-          console.error(`AI batch error (doc ${docId}):`, batchErr.message);
+        }
+        return results;
+      };
+
+      for (let w = 0; w < batches.length; w += PARALLEL_WAVES) {
+        if (await isJobCancelled(jobId)) return;
+
+        const wave = batches.slice(w, w + PARALLEL_WAVES);
+        const waveStart = w + 1;
+        const waveEnd = Math.min(w + PARALLEL_WAVES, batches.length);
+
+        if (batches.length > 1) {
+          const batchLabel = waveStart === waveEnd
+            ? `batch ${waveStart}/${batches.length}`
+            : `batches ${waveStart}-${waveEnd}/${batches.length}`;
+          await db.update(schema.aiJobs).set({
+            progressMessage: `Document ${di + 1}/${docIds.length}: "${document.title}" (${batchLabel})`,
+            result: { progress: di, total: docIds.length, currentDoc: document.title, startedAt: startTime },
+            updatedAt: new Date(),
+          }).where(eq(schema.aiJobs.id, jobId));
+        }
+
+        const waveResults = await Promise.all(
+          wave.map((batch) => processBatch(batch).catch((err: any) => {
+            console.error(`AI batch error (doc ${docId}):`, err.message);
+            return [] as Array<{ controlId: number; score: number; rationale: string; recommendations: string }>;
+          }))
+        );
+
+        for (const results of waveResults) {
+          newMappings.push(...results);
         }
       }
 
